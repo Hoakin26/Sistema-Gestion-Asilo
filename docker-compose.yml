@@ -1,0 +1,23 @@
+# docker-compose.yml
+version: '3.8'
+
+services:
+  db_asilo:
+    image: postgres:15-alpine
+    container_name: postgres_asilo_db
+    restart: always
+    environment:
+      # Credenciales de acceso a la base de datos
+      POSTGRES_USER: admin_asilo
+      POSTGRES_PASSWORD: cabezalgodon2910
+      # Nombre exacto de la base de datos que se creará automáticamente
+      POSTGRES_DB: asilo_cabeza_algodon
+    ports:
+      # Mapeo del puerto local al puerto del contenedor
+      - "5433:5432"
+    volumes:
+      # Volumen para que los datos no se borren si apagas el contenedor
+      - asilo_db_data:/var/lib/postgresql/data
+
+volumes:
+  asilo_db_data:

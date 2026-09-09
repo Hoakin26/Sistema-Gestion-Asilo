@@ -1,0 +1,33 @@
+# React
+node_modules/
+dist/
+.env
+.vite
+
+# Vite
+.vitepress
+*.log
+
+# Java (Maven)
+target/
+*.class
+*.jar
+*.war
+*.ear
+
+# NetBeans / VSCode
+.idea/
+*.iml
+.vscode/
+nbproject/private/
+
+# Sistema
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Otros
+.env.local
+.env.*.local
