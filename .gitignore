@@ -40,5 +40,4 @@ docker-data/
 /data/
 *.override.yml
 application.properties
-CLAUDE.md
 .claude/settings.local.json
