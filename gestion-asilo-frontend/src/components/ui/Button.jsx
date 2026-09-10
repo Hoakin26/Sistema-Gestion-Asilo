@@ -5,9 +5,15 @@ import { Loader2 } from "lucide-react";
  * El hundido al pulsar existe justamente por esa tableta: en táctil no hay
  * hover, así que sin él nada confirma que el toque entró. Deliberadamente
  * mínimo (0.98) porque estos botones se pulsan decenas de veces al día.
+ *
+ * `select-none` y el ícono sin eventos evitan que pulsar rápido termine
+ * seleccionando texto: el navegador lee los clics seguidos como doble clic, y
+ * si el objetivo fue un <svg> que luego cambia, la selección se va al texto
+ * vecino. Con esto el objetivo del clic es siempre el botón, que no desaparece.
  */
 const BASE =
   "inline-flex items-center justify-center gap-2 min-h-11 px-4 rounded-tarjeta font-medium " +
+  "select-none [&_svg]:pointer-events-none " +
   "transition-[background-color,color,transform] duration-[--duracion-presion] ease-salida " +
   "active:scale-[0.98] motion-reduce:active:scale-100 " +
   "disabled:opacity-60 disabled:cursor-not-allowed disabled:active:scale-100";
@@ -45,7 +51,7 @@ export function IconButton({ etiqueta, children, className = "", ...props }) {
     <button
       aria-label={etiqueta}
       title={etiqueta}
-      className={`inline-flex size-11 items-center justify-center rounded-tarjeta text-texto-secundario transition-[background-color,color,transform] duration-[--duracion-presion] ease-salida hover:bg-neutral-tenue hover:text-primario active:scale-[0.98] motion-reduce:active:scale-100 ${className}`}
+      className={`inline-flex size-11 items-center justify-center rounded-tarjeta text-texto-secundario select-none [&_svg]:pointer-events-none transition-[background-color,color,transform] duration-[--duracion-presion] ease-salida hover:bg-neutral-tenue hover:text-primario active:scale-[0.98] motion-reduce:active:scale-100 ${className}`}
       {...props}
     >
       {children}

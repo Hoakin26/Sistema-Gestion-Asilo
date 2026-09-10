@@ -39,12 +39,15 @@ export function InputPassword({ invalido = false, className = "", ...props }) {
         className={`${BASE} ${borde} pr-14 ${className}`}
         {...props}
       />
+      {/* El ícono no recibe eventos: si el clic cayera sobre el <svg>, ese
+          nodo desaparecería al cambiar a EyeOff y el navegador mandaría la
+          selección al texto de ayuda de abajo. */}
       <button
         type="button"
         onClick={() => setVisible((valor) => !valor)}
         aria-label={visible ? "Ocultar contraseña" : "Mostrar contraseña"}
         aria-pressed={visible}
-        className="absolute inset-y-0 right-0 flex w-12 items-center justify-center rounded-r-campo text-texto-secundario hover:text-primario"
+        className="absolute inset-y-0 right-0 flex w-12 items-center justify-center rounded-r-campo text-texto-secundario select-none hover:text-primario [&_svg]:pointer-events-none"
       >
         {visible ? (
           <EyeOff aria-hidden="true" size={20} />
