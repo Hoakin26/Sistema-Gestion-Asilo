@@ -9,6 +9,7 @@ import { IconButton } from "./Button";
  */
 export function Modal({ abierto, alCerrar, titulo, descripcion, children }) {
   const referencia = useRef(null);
+  const presionoElFondo = useRef(false);
 
   useEffect(() => {
     const dialogo = referencia.current;
@@ -25,8 +26,19 @@ export function Modal({ abierto, alCerrar, titulo, descripcion, children }) {
     <dialog
       ref={referencia}
       onClose={alCerrar}
+      /*
+       * El clic solo cierra si empezó Y terminó en el fondo. Sin la primera
+       * comprobación, arrastrar desde dentro del formulario y soltar afuera
+       * cerraría el modal: el evento click se dispara en el <dialog>, que es
+       * el ancestro común de ambos puntos.
+       */
+      onMouseDown={(evento) => {
+        presionoElFondo.current = evento.target === referencia.current;
+      }}
       onClick={(evento) => {
-        if (evento.target === referencia.current) alCerrar();
+        if (evento.target === referencia.current && presionoElFondo.current) {
+          alCerrar();
+        }
       }}
       aria-labelledby="titulo-modal"
       className="modal-animado m-auto w-full max-w-xl rounded-modal bg-superficie p-0 text-texto shadow-modal"

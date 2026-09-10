@@ -62,6 +62,7 @@
   --duracion-menu: 150ms;
   --duracion-modal: 200ms;
   --duracion-modal-salida: 150ms;
+  --duracion-aviso: 250ms;
 
   --animate-latido: latido 1.6s ease-in-out infinite;
 
@@ -180,6 +181,23 @@
       transform: translateY(-4px);
     }
   }
+
+  /*
+   * Aviso: entra desde el borde inferior, que es de donde viene visualmente.
+   * En porcentaje y no en píxeles para que la distancia siga a su altura real.
+   */
+  .entrada-aviso {
+    transition:
+      opacity var(--duracion-aviso) var(--ease-salida),
+      transform var(--duracion-aviso) var(--ease-salida);
+  }
+
+  @starting-style {
+    .entrada-aviso {
+      opacity: 0;
+      transform: translateY(100%);
+    }
+  }
 }
 
 /*
@@ -190,14 +208,16 @@
   .modal-animado,
   .modal-animado[open],
   .menu-animado,
-  .entrada-error {
+  .entrada-error,
+  .entrada-aviso {
     transform: none;
   }
 
   @starting-style {
     .modal-animado[open],
     .menu-animado,
-    .entrada-error {
+    .entrada-error,
+    .entrada-aviso {
       transform: none;
     }
   }

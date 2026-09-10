@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useCallback, useRef, useState } from "react";
 
 import { ROLES } from "../../constants/roles";
 import { erroresPorCampo, mensajeDeError } from "../../services/api";
 import { actualizarUsuario, crearUsuario } from "../../services/usuarioService";
 import { Alert } from "../ui/Alert";
 import { Button } from "../ui/Button";
+import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { FormField } from "../ui/FormField";
 import { Input, InputPassword, Select } from "../ui/Input";
 import { Modal } from "../ui/Modal";
@@ -52,7 +53,7 @@ function validar(valores, esEdicion) {
  * key distinta por usuario. Así su estado nace de las props y no hace falta un
  * efecto que lo resincronice cada vez.
  */
-function FormularioUsuario({ usuario, alCerrar, alGuardar }) {
+function FormularioUsuario({ usuario, alCambiar, alCerrar, alGuardar }) {
   const esEdicion = Boolean(usuario);
   const [valores, setValores] = useState(() =>
     usuario
@@ -69,6 +70,7 @@ function FormularioUsuario({ usuario, alCerrar, alGuardar }) {
   const [guardando, setGuardando] = useState(false);
 
   const cambiar = (campo) => (evento) => {
+    alCambiar();
     setValores((previos) => ({ ...previos, [campo]: evento.target.value }));
     // Limpiar el error al corregir evita que el mensaje contradiga lo escrito.
     setErrores((previos) => ({ ...previos, [campo]: undefined }));
@@ -99,7 +101,7 @@ function FormularioUsuario({ usuario, alCerrar, alGuardar }) {
         await crearUsuario({ ...datos, password: valores.password });
       }
 
-      alGuardar();
+      alGuardar(datos.nombreCompleto);
     } catch (error) {
       const porCampo = erroresPorCampo(error);
       if (porCampo) {
@@ -127,7 +129,7 @@ function FormularioUsuario({ usuario, alCerrar, alGuardar }) {
                 onChange={cambiar("nombreCompleto")}
                 autoComplete="name"
                 maxLength={150}
-                placeholder="Dra. Silvia Marroquín"
+                placeholder="Dr. Jose Pérez"
               />
             )}
           </FormField>
@@ -146,7 +148,7 @@ function FormularioUsuario({ usuario, alCerrar, alGuardar }) {
                 onChange={cambiar("correo")}
                 autoComplete="email"
                 maxLength={150}
-                placeholder="smarroquin@cabezadealgodon.org.gt"
+                placeholder="nombre@ejemplo.com"
               />
             )}
           </FormField>
@@ -218,24 +220,64 @@ export function UsuarioFormModal({
   alGuardar,
 }) {
   const esEdicion = Boolean(usuario);
+  // En un ref y no en estado: solo lo consulta el cierre, así que marcarlo no
+  // necesita provocar un renderizado en cada tecla.
+  const refCambios = useRef(false);
+  const [confirmarDescarte, setConfirmarDescarte] = useState(false);
+
+  const marcarCambios = useCallback(() => {
+    refCambios.current = true;
+  }, []);
+
+  /* Cerrar con datos a medio escribir los perdería sin aviso. */
+  const intentarCerrar = () => {
+    if (refCambios.current) {
+      setConfirmarDescarte(true);
+      return;
+    }
+    alCerrar();
+  };
+
+  const descartar = () => {
+    refCambios.current = false;
+    setConfirmarDescarte(false);
+    alCerrar();
+  };
 
   return (
-    <Modal
-      abierto={abierto}
-      alCerrar={alCerrar}
-      titulo={esEdicion ? "Editar usuario" : "Nuevo usuario"}
-      descripcion={
-        esEdicion
-          ? "Actualice los datos y el rol de este usuario."
-          : "Registre un usuario del sistema y asígnele su rol."
-      }
-    >
-      <FormularioUsuario
-        key={claveFormulario}
-        usuario={usuario}
-        alCerrar={alCerrar}
-        alGuardar={alGuardar}
+    <>
+      <Modal
+        abierto={abierto}
+        alCerrar={intentarCerrar}
+        titulo={esEdicion ? "Editar usuario" : "Nuevo usuario"}
+        descripcion={
+          esEdicion
+            ? "Actualice los datos y el rol de este usuario."
+            : "Registre un usuario del sistema y asígnele su rol."
+        }
+      >
+        <FormularioUsuario
+          key={claveFormulario}
+          usuario={usuario}
+          alCambiar={marcarCambios}
+          alCerrar={intentarCerrar}
+          alGuardar={(nombre) => {
+            refCambios.current = false;
+            alGuardar(nombre);
+          }}
+        />
+      </Modal>
+
+      <ConfirmDialog
+        abierto={confirmarDescarte}
+        titulo="¿Descartar los cambios?"
+        mensaje="Escribió datos que todavía no se han guardado. Si cierra ahora, se perderán."
+        textoConfirmar="Descartar"
+        textoCancelar="Seguir editando"
+        varianteConfirmar="peligro"
+        alConfirmar={descartar}
+        alCancelar={() => setConfirmarDescarte(false)}
       />
-    </Modal>
+    </>
   );
 }
