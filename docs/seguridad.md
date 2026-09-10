@@ -40,10 +40,15 @@ Ese prefijo hace posible **migrar de algoritmo sin invalidar las contraseñas ex
 
 ## 4. Correo único: defensa en profundidad
 
-El criterio de aceptación "Validar que el correo no esté duplicado" se resuelve en dos capas, no solo una:
+El criterio de aceptación "Validar que el correo no esté duplicado" se resuelve en tres capas, no solo una:
 
 1. **Base de datos:** `Usuario.correo` tiene `unique = true` a nivel de columna. Aunque el service tenga un error o se inserte un registro por otra vía, la base de datos rechaza el duplicado.
-2. **Service (YS-42, pendiente):** una validación explícita antes de guardar, que devuelve un error de negocio legible (409 Conflict con mensaje claro) en vez de dejar que el usuario vea un error crudo de restricción SQL.
+2. **Service:** valida antes de guardar y lanza `CorreoDuplicadoException`, que se traduce a un 409 con mensaje legible en vez de un error crudo de SQL. Al editar, la comprobación excluye al propio usuario — de lo contrario nadie podría guardar cambios conservando su correo actual.
+3. **Manejador de excepciones:** captura además `DataIntegrityViolationException` como red de seguridad. La capa 2 tiene una ventana de carrera (dos peticiones simultáneas con el mismo correo pueden pasar ambas la comprobación antes de que cualquiera inserte), y ahí la restricción de la base de datos es lo único que queda. Sin este manejador, ese caso saldría como 500.
+
+**Normalización.** El service pasa el correo a minúsculas y le recorta los espacios antes de comparar y guardar. La restricción `unique` de PostgreSQL distingue mayúsculas, así que sin esto `Ana@asilo.gt` y `ana@asilo.gt` convivirían como usuarios distintos aunque sean el mismo buzón, y la validación de unicidad sería burlable con solo cambiar una letra de caja.
+
+Un correo con espacios *alrededor* (`" ana@asilo.gt "`) se rechaza con 400 antes de llegar al service, porque `@Email` se evalúa antes que la normalización. Es una decisión consciente: recortar espacios de todo texto entrante también recortaría las contraseñas, alterando en silencio la credencial que el usuario eligió. El formulario del frontend (YS-43) es el lugar correcto para limpiar ese espacio.
 
 ## 5. La API de usuarios (YS-41) — decisiones de seguridad
 
@@ -103,11 +108,48 @@ Probado contra la aplicación corriendo y la base de datos real:
 | `GET /api/usuarios/999` | 404 |
 | `POST` con correo duplicado | 500 — pendiente de YS-42 |
 
-## 7. Qué falta
+## 7. Validaciones y manejo de errores (YS-42)
 
-De HU-29 ([YS-37](https://joaquingsuy93.atlassian.net/browse/YS-37)):
+**Validación de entrada con Bean Validation.** Los DTO declaran sus reglas (`@NotBlank`, `@Email`, `@NotNull`, `@Size`) y el controller las activa con `@Valid`. Al declararlas en el DTO, ninguna petición llega al service con datos incompletos: la validación es parte del contrato del endpoint, no una comprobación que alguien pueda olvidar escribir.
 
-- **YS-42:** validaciones de negocio — correo duplicado (hoy un correo repetido revienta contra la restricción `unique` de la base de datos y devuelve 500 en vez de un 409 legible) y campos obligatorios con Bean Validation (`@NotBlank`, `@Email`, `@NotNull`) más un `@RestControllerAdvice` central que unifique el cuerpo de los errores.
+Dos detalles con intención:
+
+- **La contraseña acepta entre 8 y 64 caracteres.** El máximo no es arbitrario: BCrypt ignora todo lo que exceda **72 bytes**, así que sin un tope el sistema aceptaría una contraseña larguísima y silenciosamente solo usaría su principio. El límite se fijó en 64 caracteres y no en 72 porque el corte de BCrypt es en bytes, y las tildes y la ñ ocupan dos bytes cada una.
+- **`CambioEstadoRequest.activo` es `Boolean` y no `boolean`.** Con el primitivo, un `PATCH` cuyo cuerpo no traiga el campo lo recibiría como `false` y **desactivaría al usuario en silencio**. Con el objeto envuelto más `@NotNull`, esa petición se rechaza con 400.
+
+**Cuerpo de error uniforme.** [ManejadorGlobalExcepciones.java](../gestion-asilo-backend/src/main/java/app/cabezadealgodon/com/gestionasilobackend/exception/ManejadorGlobalExcepciones.java) traduce todas las excepciones a un mismo formato JSON, para que el frontend tenga una sola forma que interpretar:
+
+| Situación | Código |
+|---|---|
+| Campos inválidos o faltantes | 400, con el detalle campo por campo |
+| JSON malformado o valor de rol inexistente | 400 |
+| Usuario o rol que no existe | 404 |
+| Correo ya registrado | 409 |
+| Violación de una restricción de la base de datos | 409 |
+
+Dos criterios de seguridad en ese manejador:
+
+- **No hay un manejador genérico de `Exception`.** Un `@ExceptionHandler(Exception.class)` que devuelva `ex.getMessage()` es una vía típica de fuga de información: expone rutas de clases, consultas SQL y detalles internos ante cualquier fallo inesperado. Sin él, Spring responde un 500 genérico y el detalle queda en el log del servidor, que es donde pertenece.
+- **El error de integridad devuelve un mensaje genérico**, no el de la excepción, que incluye el nombre de la tabla y de la restricción violada.
+
+### Verificación realizada
+
+| Prueba | Resultado |
+|---|---|
+| `POST` con todos los campos vacíos | 400 con los 4 errores de campo |
+| `POST` con correo mal formado y contraseña corta | 400 con ambos errores |
+| `POST` con correo ya registrado | 409 |
+| `POST` con el mismo correo en mayúsculas | 409 (la normalización lo detecta) |
+| `POST` con un rol inexistente (`JARDINERO`) | 400 |
+| `PATCH .../estado` con cuerpo `{}` | 400, no desactiva |
+| `PUT` conservando el correo propio | 200 |
+| `PUT` tomando el correo de otro usuario | 409 |
+| `GET` de un id inexistente | 404 |
+| `POST` válido con correo en mayúsculas | 201, guardado en minúsculas |
+
+Con esto quedan cubiertos los seis criterios de aceptación de HU-29.
+
+## 8. Qué falta
 
 De HU-30 ([YS-38](https://joaquingsuy93.atlassian.net/browse/YS-38)) y HU-31 ([YS-39](https://joaquingsuy93.atlassian.net/browse/YS-39)):
 

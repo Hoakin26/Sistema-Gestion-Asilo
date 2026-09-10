@@ -18,6 +18,7 @@ import app.cabezadealgodon.com.gestionasilobackend.dto.UsuarioRequest;
 import app.cabezadealgodon.com.gestionasilobackend.dto.UsuarioResponse;
 import app.cabezadealgodon.com.gestionasilobackend.dto.UsuarioUpdateRequest;
 import app.cabezadealgodon.com.gestionasilobackend.services.UsuarioService;
+import jakarta.validation.Valid;
 
 /** HU-29 (YS-41). La restricción por rol se agrega en YS-52/YS-53 (HU-31). */
 @RestController
@@ -42,17 +43,17 @@ public class UsuarioController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public UsuarioResponse crear(@RequestBody UsuarioRequest request) {
+    public UsuarioResponse crear(@Valid @RequestBody UsuarioRequest request) {
         return usuarioService.crear(request);
     }
 
     @PutMapping("/{id}")
-    public UsuarioResponse actualizar(@PathVariable Long id, @RequestBody UsuarioUpdateRequest request) {
+    public UsuarioResponse actualizar(@PathVariable Long id, @Valid @RequestBody UsuarioUpdateRequest request) {
         return usuarioService.actualizar(id, request);
     }
 
     @PatchMapping("/{id}/estado")
-    public UsuarioResponse cambiarEstado(@PathVariable Long id, @RequestBody CambioEstadoRequest request) {
+    public UsuarioResponse cambiarEstado(@PathVariable Long id, @Valid @RequestBody CambioEstadoRequest request) {
         return usuarioService.cambiarEstado(id, request.activo());
     }
 }

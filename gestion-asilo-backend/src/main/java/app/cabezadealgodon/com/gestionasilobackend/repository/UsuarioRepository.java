@@ -9,4 +9,6 @@ import app.cabezadealgodon.com.gestionasilobackend.models.Usuario;
 public interface UsuarioRepository extends JpaRepository<Usuario, Long> {
 
     Optional<Usuario> findByCorreo(String correo);
+
+    boolean existsByCorreo(String correo);
 }

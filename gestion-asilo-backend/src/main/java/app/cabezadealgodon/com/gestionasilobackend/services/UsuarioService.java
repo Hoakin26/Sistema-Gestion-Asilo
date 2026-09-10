@@ -9,6 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 import app.cabezadealgodon.com.gestionasilobackend.dto.UsuarioRequest;
 import app.cabezadealgodon.com.gestionasilobackend.dto.UsuarioResponse;
 import app.cabezadealgodon.com.gestionasilobackend.dto.UsuarioUpdateRequest;
+import app.cabezadealgodon.com.gestionasilobackend.exception.CorreoDuplicadoException;
 import app.cabezadealgodon.com.gestionasilobackend.exception.RecursoNoEncontradoException;
 import app.cabezadealgodon.com.gestionasilobackend.models.Rol;
 import app.cabezadealgodon.com.gestionasilobackend.models.RolNombre;
@@ -43,9 +44,14 @@ public class UsuarioService {
 
     @Transactional
     public UsuarioResponse crear(UsuarioRequest request) {
+        String correo = normalizarCorreo(request.correo());
+        if (usuarioRepository.existsByCorreo(correo)) {
+            throw new CorreoDuplicadoException("Ya existe un usuario con el correo " + correo);
+        }
+
         Usuario usuario = new Usuario();
-        usuario.setNombreCompleto(request.nombreCompleto());
-        usuario.setCorreo(request.correo());
+        usuario.setNombreCompleto(request.nombreCompleto().trim());
+        usuario.setCorreo(correo);
         usuario.setPasswordHash(passwordEncoder.encode(request.password()));
         usuario.setRol(buscarRol(request.rol()));
         usuario.setActivo(true);
@@ -55,8 +61,15 @@ public class UsuarioService {
     @Transactional
     public UsuarioResponse actualizar(Long id, UsuarioUpdateRequest request) {
         Usuario usuario = buscarUsuario(id);
-        usuario.setNombreCompleto(request.nombreCompleto());
-        usuario.setCorreo(request.correo());
+        String correo = normalizarCorreo(request.correo());
+        usuarioRepository.findByCorreo(correo)
+                .filter(otro -> !otro.getId().equals(id))
+                .ifPresent(otro -> {
+                    throw new CorreoDuplicadoException("Ya existe un usuario con el correo " + correo);
+                });
+
+        usuario.setNombreCompleto(request.nombreCompleto().trim());
+        usuario.setCorreo(correo);
         usuario.setRol(buscarRol(request.rol()));
         return mapear(usuarioRepository.save(usuario));
     }
@@ -70,6 +83,15 @@ public class UsuarioService {
         Usuario usuario = buscarUsuario(id);
         usuario.setActivo(activo);
         return mapear(usuarioRepository.save(usuario));
+    }
+
+    /**
+     * Sin normalizar, "Ana@asilo.gt" y "ana@asilo.gt" pasarían como correos
+     * distintos y la restricción de unicidad quedaría burlada, aunque en la
+     * práctica sean el mismo buzón.
+     */
+    private String normalizarCorreo(String correo) {
+        return correo.trim().toLowerCase();
     }
 
     private Usuario buscarUsuario(Long id) {
