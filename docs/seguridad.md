@@ -178,11 +178,37 @@ Con esto quedan cubiertos los seis criterios de aceptación de HU-29.
 | Acceso con HTTP Basic | 401 — la puerta anterior quedó cerrada |
 | Token válido usado después de que el admin desactivara a su dueño | 401 |
 
-## 9. Qué falta
+## 9. Cerrar sesión (YS-68)
+
+`POST /api/auth/logout` requiere token válido y responde 204. Es el único endpoint de `/api/auth` que no es público: cierra la sesión de quien la pide, así que hay que saber quién es.
+
+**El problema de fondo.** Un JWT es válido por sí mismo: el servidor no guarda sesiones, así que no hay nada que "borrar" al cerrar sesión. Si el frontend simplemente elimina el token de su almacenamiento, ese token sigue siendo aceptado por el backend durante las 24 horas que le quedan de vida — y quien lo hubiera copiado antes (de la consola del navegador, de un log, de un equipo compartido del asilo) podría seguir usándolo.
+
+**La solución elegida: una marca de tiempo, no una lista negra.** `Usuario.fechaInvalidacionSesiones` guarda el instante del último cierre de sesión, y el filtro rechaza todo token emitido antes de esa marca. Se descartó la alternativa habitual —guardar los tokens revocados en una tabla— porque esa tabla crece con cada cierre de sesión, obliga a purgar periódicamente los registros ya expirados y agrega una consulta por petición. La marca de tiempo es una sola columna, no crece, y se lee en la consulta que el filtro ya hacía.
+
+Como efecto secundario deseable, cerrar sesión invalida los tokens de **todos** los dispositivos de esa persona, no solo el del navegador actual. Para un asilo donde el personal comparte equipos, es el comportamiento correcto: quien cierra sesión espera quedar fuera, no seguir con la sesión abierta en la computadora de enfermería.
+
+**Por qué el token lleva un claim propio de emisión.** El claim estándar `iat` del JWT solo tiene precisión de segundos. Si alguien cierra sesión y vuelve a entrar dentro del mismo segundo, el token nuevo tendría el mismo `iat` que la marca de invalidación y sería imposible distinguir si se emitió antes o después — con el resultado de que el usuario recibiría un token muerto al nacer y no podría entrar. Por eso [JwtService.java](../gestion-asilo-backend/src/main/java/app/cabezadealgodon/com/gestionasilobackend/security/JwtService.java) agrega el claim `emision` con milisegundos, que es el que se compara. El `iat` estándar se mantiene por convención y para poder inspeccionar el token con herramientas externas.
+
+Un detalle de implementación: el filtro necesitaba la entidad `Usuario` completa (no solo el rol y el estado) para leer esa marca, así que `UsuarioDetailsService` ahora devuelve [UsuarioAutenticado.java](../gestion-asilo-backend/src/main/java/app/cabezadealgodon/com/gestionasilobackend/security/UsuarioAutenticado.java), un `UserDetails` que envuelve la entidad. Eso evita una segunda consulta y, más adelante, le dará a los controllers acceso directo al usuario autenticado para aplicar RNF-03.
+
+### Verificación realizada
+
+| Prueba | Resultado |
+|---|---|
+| `POST /api/auth/logout` sin token | 401 |
+| `POST /api/auth/logout` con token válido | 204 |
+| El mismo token después de cerrar sesión | 401 |
+| Token de un segundo dispositivo tras cerrar sesión en el primero | 401 |
+| Iniciar sesión inmediatamente después de cerrar (5 intentos seguidos) | 200 en los 5 |
+| Token anterior al cierre, ya habiendo vuelto a iniciar sesión | 401 |
+| Cerrar sesión dos veces con el mismo token | 204 y luego 401 |
+
+## 10. Qué falta
 
 De HU-30 ([YS-38](https://joaquingsuy93.atlassian.net/browse/YS-38)) y HU-31 ([YS-39](https://joaquingsuy93.atlassian.net/browse/YS-39)):
 
 - **YS-48:** expiración del token. La expiración ya se aplica (`jwt.expiration`, 24 h), porque emitir un token sin `exp` habría sido peor; queda revisar si 24 h es el plazo adecuado y probar el vencimiento.
-- **Cerrar sesión** (criterio de HU-30 que ninguna subtarea cubre todavía). Con JWT no basta con que el frontend borre el token: el que ya se emitió sigue siendo válido hasta que expire. Cerrar sesión de verdad exige una lista de tokens revocados, y conviene decidirlo explícitamente en vez de darlo por hecho.
+- **YS-49/YS-50:** pantalla de login y manejo de sesión en el frontend (guardar el token, interceptor de Axios, botón de cerrar sesión que llame a `/api/auth/logout`).
 - **YS-52/YS-53:** `@PreAuthorize` por endpoint y protección de los endpoints ya existentes según rol.
 - **YS-54:** registro (log) de intentos de acceso denegado.

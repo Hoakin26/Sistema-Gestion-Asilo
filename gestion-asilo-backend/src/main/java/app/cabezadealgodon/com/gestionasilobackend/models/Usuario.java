@@ -52,6 +52,14 @@ public class Usuario {
     @JoinColumn(name = "rol_id", nullable = false)
     private Rol rol;
 
+    /**
+     * Momento a partir del cual los tokens emitidos antes dejan de valer.
+     * Lo mueve el cierre de sesión (YS-68); nulo significa que nunca ha
+     * cerrado sesión.
+     */
+    @Column(name = "fecha_invalidacion_sesiones")
+    private LocalDateTime fechaInvalidacionSesiones;
+
     @CreationTimestamp
     @Column(name = "fecha_creacion", nullable = false, updatable = false)
     private LocalDateTime fechaCreacion;

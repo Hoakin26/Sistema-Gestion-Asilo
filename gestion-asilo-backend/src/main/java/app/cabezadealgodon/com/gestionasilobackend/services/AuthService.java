@@ -1,5 +1,7 @@
 package app.cabezadealgodon.com.gestionasilobackend.services;
 
+import java.time.LocalDateTime;
+
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.stereotype.Service;
@@ -42,5 +44,18 @@ public class AuthService {
 
         return new LoginResponse(token, "Bearer", usuario.getCorreo(), usuario.getNombreCompleto(),
                 usuario.getRol().getNombre());
+    }
+
+    /**
+     * YS-68: marca el momento del cierre de sesión. Todo token emitido antes
+     * deja de aceptarse, incluidos los de otros dispositivos.
+     */
+    @Transactional
+    public void logout(String correo) {
+        Usuario usuario = usuarioRepository.findByCorreo(correo)
+                .orElseThrow(() -> new RecursoNoEncontradoException("No existe un usuario con el correo " + correo));
+
+        usuario.setFechaInvalidacionSesiones(LocalDateTime.now());
+        usuarioRepository.save(usuario);
     }
 }

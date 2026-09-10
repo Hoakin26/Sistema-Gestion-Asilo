@@ -26,11 +26,20 @@ public class JwtService {
         this.expiracionMs = expiracionMs;
     }
 
+    public static final String EMISION = "emision";
+
+    /**
+     * El claim estándar iat solo guarda segundos, lo que vuelve ambiguo cerrar
+     * sesión y volver a entrar dentro del mismo segundo. Por eso el token lleva
+     * además la emisión en milisegundos, que es la que compara el cierre de
+     * sesión (YS-68).
+     */
     public String generarToken(String correo, String rol) {
         Date ahora = new Date();
         return Jwts.builder()
                 .subject(correo)
                 .claim("rol", rol)
+                .claim(EMISION, ahora.getTime())
                 .issuedAt(ahora)
                 .expiration(new Date(ahora.getTime() + expiracionMs))
                 .signWith(clave)

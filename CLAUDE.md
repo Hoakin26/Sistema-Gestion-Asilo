@@ -54,7 +54,8 @@ Patrón de capas: `Controller → Service → Repository`. El controller nunca h
 
 - Ramas: `feature/YS-<numero>-<descripcion-corta>`, usando el código de la historia de Jira (proyecto **YS**, 8 épicas, 28+ historias). Ej.: `feature/YS-38-login-jwt`.
 - Commits en español, en modo imperativo (ej. "Agrega validación de DPI en registro de interno").
-- **Git es exclusivamente manual:** Claude nunca ejecuta `git checkout -b`, `git commit` ni `git push` (ni ninguna otra operación de git que cree, modifique o suba historial) en este proyecto, aunque el usuario lo haya aprobado antes. En su lugar, indica textualmente qué crear o subir — por ejemplo "Crea la rama `feature/YS-40-...`" o "Sube esto con el commit: '...'" — y el usuario lo ejecuta él mismo.
+- **Git es exclusivamente manual:** Claude nunca ejecuta `git checkout -b`, `git commit`, `git merge` ni `git push` (ni ninguna otra operación de git que cree, modifique o suba historial) en este proyecto, aunque el usuario lo haya aprobado antes. En su lugar, indica textualmente qué crear o subir — por ejemplo "Crea la rama `feature/YS-40-...`" o "Sube esto con el commit: '...'" — y el usuario lo ejecuta él mismo.
+- **Claude avisa cuándo fusionar y cuándo ramificar.** No espera a que el usuario pregunte: cuando una historia queda terminada, o cuando la rama actual empieza a acumular subtareas de más de una historia, Claude lo señala y entrega los comandos completos (fusionar a `main`, borrar la rama vieja, crear la siguiente). El usuario decide y los ejecuta.
 - Trazabilidad: cada historia de usuario (HU) corresponde a un requisito funcional (RF-01 a RF-21) documentado en "Diseño proyecto Asilo.pdf". Al implementar una HU, revisar su RF asociado y sus criterios de aceptación en Jira antes de codear.
 - Toda pantalla nueva debe respetar los tokens de diseño del manual visual — ver skill `diseno-visual-asilo`. No usar colores, tamaños de fuente o espaciados que no estén en esa paleta/escala.
 

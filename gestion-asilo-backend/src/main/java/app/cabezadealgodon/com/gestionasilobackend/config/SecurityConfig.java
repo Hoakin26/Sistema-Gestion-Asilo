@@ -51,9 +51,11 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .sessionManagement(sesion -> sesion.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(rutas -> rutas
-                        // El login debe ser público: exigir autenticación para
-                        // obtener un token sería un círculo sin salida.
-                        .requestMatchers("/api/auth/**").permitAll()
+                        // Solo el login es público: exigir autenticación para
+                        // obtener un token sería un círculo sin salida. Cerrar
+                        // sesión sí requiere token, porque cierra el del propio
+                        // solicitante.
+                        .requestMatchers("/api/auth/login").permitAll()
                         .anyRequest().authenticated())
                 .exceptionHandling(manejo -> manejo.authenticationEntryPoint(entryPointNoAutenticado))
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)

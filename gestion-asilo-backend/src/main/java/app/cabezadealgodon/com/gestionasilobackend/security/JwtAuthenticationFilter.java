@@ -1,15 +1,18 @@
 package app.cabezadealgodon.com.gestionasilobackend.security;
 
 import java.io.IOException;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
+import app.cabezadealgodon.com.gestionasilobackend.models.Usuario;
+import io.jsonwebtoken.Claims;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -37,7 +40,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         if (cabecera != null && cabecera.startsWith(PREFIJO)
                 && SecurityContextHolder.getContext().getAuthentication() == null) {
             jwtService.validar(cabecera.substring(PREFIJO.length()))
-                    .ifPresent(claims -> autenticar(claims.getSubject(), peticion));
+                    .ifPresent(claims -> autenticar(claims, peticion));
         }
 
         cadena.doFilter(peticion, respuesta);
@@ -45,13 +48,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     /**
      * El rol y el estado se releen de la base de datos en vez de confiar en los
-     * claims: así, desactivar a alguien o cambiarle el rol surte efecto de
-     * inmediato y no cuando expire su token (ver docs/seguridad.md).
+     * claims: así, desactivar a alguien, cambiarle el rol o cerrarle la sesión
+     * surte efecto de inmediato y no cuando expire su token.
      */
-    private void autenticar(String correo, HttpServletRequest peticion) {
+    private void autenticar(Claims claims, HttpServletRequest peticion) {
         try {
-            UserDetails usuario = usuarioDetailsService.loadUserByUsername(correo);
-            if (!usuario.isEnabled()) {
+            UsuarioAutenticado usuario = usuarioDetailsService.loadUserByUsername(claims.getSubject());
+            if (!usuario.isEnabled() || sesionCerrada(claims, usuario.getUsuario())) {
                 return;
             }
 
@@ -62,5 +65,21 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         } catch (UsernameNotFoundException e) {
             SecurityContextHolder.clearContext();
         }
+    }
+
+    /** YS-68: el token es anterior al último cierre de sesión del usuario. */
+    private boolean sesionCerrada(Claims claims, Usuario usuario) {
+        LocalDateTime corte = usuario.getFechaInvalidacionSesiones();
+        if (corte == null) {
+            return false;
+        }
+
+        Long emisionMs = claims.get(JwtService.EMISION, Long.class);
+        if (emisionMs == null) {
+            return true;
+        }
+
+        long corteMs = corte.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
+        return emisionMs < corteMs;
     }
 }

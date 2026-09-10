@@ -1,8 +1,5 @@
 package app.cabezadealgodon.com.gestionasilobackend.security;
 
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.core.userdetails.User;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
@@ -25,15 +22,10 @@ public class UsuarioDetailsService implements UserDetailsService {
     }
 
     @Override
-    public UserDetails loadUserByUsername(String correo) {
+    public UsuarioAutenticado loadUserByUsername(String correo) {
         Usuario usuario = usuarioRepository.findByCorreo(correo)
                 .orElseThrow(() -> new UsernameNotFoundException("Credenciales inválidas"));
 
-        return User.builder()
-                .username(usuario.getCorreo())
-                .password(usuario.getPasswordHash())
-                .disabled(!usuario.isActivo())
-                .authorities(new SimpleGrantedAuthority("ROLE_" + usuario.getRol().getNombre()))
-                .build();
+        return new UsuarioAutenticado(usuario);
     }
 }
