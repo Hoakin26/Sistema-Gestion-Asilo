@@ -2,10 +2,9 @@
 node_modules/
 dist/
 .env
-.vite
+.vite/
 
 # Vite
-.vitepress
 *.log
 
 # Java (Maven)
@@ -26,8 +25,20 @@ nbproject/private/
 Thumbs.db
 
 # Logs
-*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.cache/
 
 # Otros
 .env.local
 .env.*.local
+*.pem
+*.key
+.docker/
+docker-data/
+/data/
+*.override.yml
+application.properties
+CLAUDE.md
+.claude/settings.local.json
