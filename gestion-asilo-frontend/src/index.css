@@ -1,1 +1,205 @@
 @import "tailwindcss";
+
+/*
+ * Tokens del Manual de Diseño Visual v1.0 (skill diseno-visual-asilo).
+ * No agregar colores, tamaños ni espaciados fuera de esta escala.
+ */
+@theme {
+  --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, Arial,
+    sans-serif;
+
+  --color-primario: #2563eb;
+  --color-primario-oscuro: #1e40af;
+  --color-primario-tenue: #dbeafe;
+  --color-superficie: #ffffff;
+
+  --color-fondo: #f8fafc;
+  --color-texto: #1e293b;
+  --color-texto-secundario: #64748b;
+  --color-divisor: #e2e8f0;
+
+  --color-exito: #15803d;
+  --color-exito-tenue: #dcfce7;
+  --color-advertencia: #b45309;
+  --color-advertencia-tenue: #fef3c7;
+  --color-error: #b91c1c;
+  --color-error-tenue: #fee2e2;
+  --color-info: #0369a1;
+  --color-info-tenue: #e0f2fe;
+  --color-neutral: #475569;
+  --color-neutral-tenue: #f1f5f9;
+  --color-proceso: #6d28d9;
+  --color-proceso-tenue: #ede9fe;
+
+  /* 14px es el mínimo absoluto del sistema: no existe un tamaño menor. */
+  --text-auxiliar: 14px;
+  --text-auxiliar--line-height: 1.4;
+  --text-base: 16px;
+  --text-base--line-height: 1.5;
+  --text-h3: 20px;
+  --text-h3--line-height: 1.4;
+  --text-h2: 24px;
+  --text-h2--line-height: 1.3;
+  --text-h1: 30px;
+  --text-h1--line-height: 1.2;
+
+  --radius-campo: 4px;
+  --radius-tarjeta: 8px;
+  --radius-modal: 12px;
+
+  --shadow-tarjeta: 0 1px 2px rgb(15 23 42 / 0.06);
+  --shadow-menu: 0 4px 12px rgb(15 23 42 / 0.1);
+  --shadow-modal: 0 12px 32px rgb(15 23 42 / 0.16);
+
+  /*
+   * Vocabulario de movimiento. Misma regla que el resto de tokens: no inventar
+   * curvas ni duraciones fuera de esta lista. Todo por debajo de 300ms, que es
+   * el techo para que una interfaz de trabajo no se sienta lenta.
+   */
+  --ease-salida: cubic-bezier(0.23, 1, 0.32, 1);
+  --duracion-presion: 120ms;
+  --duracion-error: 150ms;
+  --duracion-menu: 150ms;
+  --duracion-modal: 200ms;
+  --duracion-modal-salida: 150ms;
+
+  --animate-latido: latido 1.6s ease-in-out infinite;
+
+  @keyframes latido {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.55;
+    }
+  }
+}
+
+@layer base {
+  body {
+    background-color: var(--color-fondo);
+    color: var(--color-texto);
+    font-family: var(--font-sans);
+    font-size: var(--text-base);
+  }
+
+  /*
+   * Foco visible obligatorio (RNF-04): el sistema debe poder operarse por
+   * teclado. Nunca reemplazar por outline:none sin un equivalente visible.
+   */
+  :focus-visible {
+    outline: 2px solid var(--color-primario);
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  /*
+   * Modal: <dialog> conmuta display, así que la transición necesita
+   * allow-discrete y @starting-style. La salida es más corta que la entrada
+   * porque al cerrar el usuario ya decidió y no quiere esperar.
+   */
+  .modal-animado {
+    opacity: 0;
+    transform: scale(0.97);
+    transition:
+      opacity var(--duracion-modal-salida) var(--ease-salida),
+      transform var(--duracion-modal-salida) var(--ease-salida),
+      overlay var(--duracion-modal-salida) allow-discrete,
+      display var(--duracion-modal-salida) allow-discrete;
+  }
+
+  .modal-animado[open] {
+    opacity: 1;
+    transform: scale(1);
+    transition:
+      opacity var(--duracion-modal) var(--ease-salida),
+      transform var(--duracion-modal) var(--ease-salida),
+      overlay var(--duracion-modal) allow-discrete,
+      display var(--duracion-modal) allow-discrete;
+  }
+
+  @starting-style {
+    .modal-animado[open] {
+      opacity: 0;
+      transform: scale(0.97);
+    }
+  }
+
+  .modal-animado::backdrop {
+    background-color: rgb(30 41 59 / 0);
+    transition:
+      background-color var(--duracion-modal-salida) var(--ease-salida),
+      overlay var(--duracion-modal-salida) allow-discrete,
+      display var(--duracion-modal-salida) allow-discrete;
+  }
+
+  .modal-animado[open]::backdrop {
+    background-color: rgb(30 41 59 / 0.4);
+    transition:
+      background-color var(--duracion-modal) var(--ease-salida),
+      overlay var(--duracion-modal) allow-discrete,
+      display var(--duracion-modal) allow-discrete;
+  }
+
+  @starting-style {
+    .modal-animado[open]::backdrop {
+      background-color: rgb(30 41 59 / 0);
+    }
+  }
+
+  /* Menú desplegable: nace desde su disparador, arriba a la derecha. */
+  .menu-animado {
+    transform-origin: top right;
+    transition:
+      opacity var(--duracion-menu) var(--ease-salida),
+      transform var(--duracion-menu) var(--ease-salida);
+  }
+
+  @starting-style {
+    .menu-animado {
+      opacity: 0;
+      transform: scale(0.96);
+    }
+  }
+
+  /*
+   * Errores: solo suavizan la aparición para que el contenido no salte.
+   * 150ms es tope duro — más lento retrasaría la lectura del propio error.
+   */
+  .entrada-error {
+    transition:
+      opacity var(--duracion-error) var(--ease-salida),
+      transform var(--duracion-error) var(--ease-salida);
+  }
+
+  @starting-style {
+    .entrada-error {
+      opacity: 0;
+      transform: translateY(-4px);
+    }
+  }
+}
+
+/*
+ * Con movimiento reducido se suaviza, no se elimina: se conserva el fundido
+ * de opacidad y se descartan escalas y desplazamientos.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .modal-animado,
+  .modal-animado[open],
+  .menu-animado,
+  .entrada-error {
+    transform: none;
+  }
+
+  @starting-style {
+    .modal-animado[open],
+    .menu-animado,
+    .entrada-error {
+      transform: none;
+    }
+  }
+}
+
