@@ -60,31 +60,50 @@ Endpoints expuestos en `/api/usuarios` ([UsuarioController.java](../gestion-asil
 - **La contraseña entra pero nunca sale.** `UsuarioRequest` recibe `password` en texto plano (sobre HTTPS en producción), el service lo convierte inmediatamente a hash con el `PasswordEncoder` y `UsuarioResponse` **no tiene campo de contraseña ni de hash**. Este es el motivo concreto por el que la arquitectura prohíbe exponer entidades JPA directamente: devolver la entidad `Usuario` en un `@RestController` filtraría el `passwordHash` en cada respuesta JSON.
 - **No existe `DELETE`.** Los usuarios se desactivan (`PATCH .../estado` con `{"activo": false}`), no se borran. Un usuario que ya registró consultas médicas, recetas o movimientos financieros no puede desaparecer sin romper la trazabilidad de esos registros — y la trazabilidad de quién hizo qué es en sí misma un control de seguridad.
 - **El endpoint de edición no cambia la contraseña.** `UsuarioUpdateRequest` solo lleva nombre, correo y rol. Cambiar contraseña es una operación distinta, con reglas propias (confirmar la contraseña actual), y mezclarla con la edición del perfil facilitaría un secuestro de cuenta por parte de quien administra usuarios.
-- **Advertencia — estos endpoints todavía no están restringidos por rol.** Según HU-29 solo el Administrador del Asilo debería poder usarlos; esa restricción (`@PreAuthorize`) llega en YS-52/YS-53 junto con el filtro JWT. Mientras tanto quedan bajo la protección por defecto de Spring Boot, que cierra el paso pero **no** distingue roles.
+- **Advertencia — estos endpoints todavía no están restringidos por rol.** Según HU-29 solo el Administrador del Asilo debería poder usarlos; hoy cualquier usuario autenticado puede llamarlos. Esa restricción (`@PreAuthorize`) llega en YS-52/YS-53.
 
-### Por qué YS-46 (configurar Spring Security) es prerrequisito para probar esto
+## 6. Configuración de Spring Security (YS-46)
 
-Con la configuración por defecto de Spring Boot, los endpoints de escritura de YS-41 **no se pueden ejercitar todavía**. Comprobado contra la aplicación corriendo:
+[SecurityConfig.java](../gestion-asilo-backend/src/main/java/app/cabezadealgodon/com/gestionasilobackend/config/SecurityConfig.java) define la cadena de filtros. Cuatro decisiones y su porqué:
 
-| Operación | Resultado hoy |
+- **Sesión *stateless*.** El servidor no guarda estado de sesión: cada petición se autentica por sí sola. Es lo que exige un esquema con JWT y además permite escalar a varias instancias sin sesiones compartidas.
+- **CSRF desactivado.** Es contraintuitivo desactivar una protección, pero CSRF defiende de un ataque muy concreto: que un sitio malicioso haga que *el navegador de la víctima* envíe una petición aprovechando la cookie de sesión que ya trae. Esta API no autentica con cookies sino con la cabecera `Authorization`, que un sitio externo no puede fijar — el ataque no aplica. Dejarla activa solo bloqueaba las escrituras: mientras estuvo encendida, `POST`, `PUT` y `PATCH` devolvían 401 porque el `CsrfFilter` corre *antes* del filtro de autenticación y rechazaba la petición cuando el usuario todavía era anónimo.
+- **CORS restringido al origen del frontend** (`http://localhost:5173` en desarrollo, configurable con `app.cors.origen-frontend`). Se listan explícitamente los orígenes, métodos y cabeceras permitidos en vez de abrir a `*`, para que ninguna otra página pueda consumir la API desde el navegador de un usuario autenticado.
+- **Todo requiere autenticación salvo `/api/auth/**`**, que queda público porque ahí vivirá el login (YS-47): un endpoint de login protegido por autenticación sería imposible de usar.
+
+Mientras YS-47 no exista, la autenticación provisional es HTTP Basic contra los usuarios reales de la base de datos. Al llegar el filtro JWT, el resto de la configuración no cambia.
+
+### Autenticación contra la base de datos
+
+[UsuarioDetailsService.java](../gestion-asilo-backend/src/main/java/app/cabezadealgodon/com/gestionasilobackend/security/UsuarioDetailsService.java) carga el usuario por correo y lo traduce a lo que Spring Security entiende:
+
+- El rol se expone como autoridad `ROLE_ADMINISTRADOR_ASILO`, `ROLE_ENFERMERIA`, etc. El prefijo `ROLE_` no es decorativo: `hasRole('ENFERMERIA')` lo antepone automáticamente, y sin él las reglas de YS-52 no coincidirían con nada.
+- **`activo = false` marca la cuenta como deshabilitada**, así que desactivar a alguien no es solo un cambio cosmético en un listado: le corta el acceso al sistema de inmediato. Verificado — un usuario desactivado recibe 401 aunque su contraseña sea correcta.
+- Cuando el correo no existe, el mensaje de error es "Credenciales inválidas", nunca "ese correo no está registrado". Un mensaje que distingue ambos casos permite a un atacante averiguar qué correos son válidos (enumeración de usuarios) y luego concentrar el ataque de contraseñas en esas cuentas.
+
+### El administrador inicial
+
+[AdminInicialSeeder.java](../gestion-asilo-backend/src/main/java/app/cabezadealgodon/com/gestionasilobackend/config/AdminInicialSeeder.java) crea un Administrador del Asilo la primera vez que arranca el sistema con la tabla `usuario` vacía. Resuelve un bloqueo circular: crear usuarios exige estar autenticado, pero sin ningún usuario en la base no hay con qué autenticarse.
+
+Credenciales por defecto: `admin@asilo.gt` / `Admin123*`, sobrescribibles con `app.admin-inicial.correo` y `app.admin-inicial.password` en `application.properties` (archivo no versionado). **Esa contraseña por defecto es pública en el código y debe cambiarse antes de cualquier uso real**; la aplicación lo advierte en el log al crear la cuenta. El seeder corre con `@Order(2)`, después del de roles, porque necesita que el rol `ADMINISTRADOR_ASILO` ya exista.
+
+### Verificación realizada
+
+Probado contra la aplicación corriendo y la base de datos real:
+
+| Prueba | Resultado |
 |---|---|
-| `GET /api/usuarios` | 200, funciona con HTTP Basic |
-| `POST`, `PUT`, `PATCH` | 401, bloqueados |
+| `GET /api/usuarios` sin credenciales | 401 |
+| `GET /api/usuarios` como administrador | 200 |
+| `POST /api/usuarios` (crear enfermera) | 201, sin hash en la respuesta |
+| Autenticarse con la contraseña de la usuaria recién creada | 200 (BCrypt cifra y verifica bien) |
+| `PUT /api/usuarios/2` (cambiar rol) | 200 |
+| `PATCH /api/usuarios/2/estado` (desactivar) | 200 |
+| Autenticarse con esa usuaria ya desactivada | 401 |
+| `GET /api/usuarios/999` | 404 |
+| `POST` con correo duplicado | 500 — pendiente de YS-42 |
 
-Dos causas, ambas resueltas por [YS-46](https://joaquingsuy93.atlassian.net/browse/YS-46):
-
-1. **Protección CSRF activa.** Spring Security la habilita por defecto y el `CsrfFilter` corre *antes* del filtro de autenticación, así que una petición sin token CSRF se rechaza cuando el usuario todavía es anónimo — por eso devuelve 401 y no el 403 que uno esperaría. CSRF protege contra peticiones forjadas desde el navegador aprovechando cookies de sesión; una API *stateless* que autentica con un token JWT en la cabecera `Authorization` no usa cookies para autenticar, así que el ataque no aplica y la protección solo estorba. `SecurityConfig` la desactivará explícitamente.
-2. **El usuario por defecto queda inutilizable.** Al declarar un bean `PasswordEncoder`, Spring Boot deja de prefijar con `{noop}` la contraseña generada que imprime al arrancar, y el encoder delegado no puede interpretar un hash sin prefijo — el login falla incluso con la contraseña correcta de la consola.
-
-Mientras YS-46 no exista, para probar las lecturas en Postman se puede arrancar con una credencial temporal de desarrollo:
-
-```
-./mvnw.cmd spring-boot:run -Dspring-boot.run.arguments="--spring.security.user.password={noop}dev123"
-```
-
-y autenticar con usuario `user` / contraseña `dev123`. Es solo un apoyo de desarrollo: no debe quedar en `application.properties` ni usarse fuera de la máquina local.
-
-## 6. Qué falta
+## 7. Qué falta
 
 De HU-29 ([YS-37](https://joaquingsuy93.atlassian.net/browse/YS-37)):
 
@@ -92,8 +111,7 @@ De HU-29 ([YS-37](https://joaquingsuy93.atlassian.net/browse/YS-37)):
 
 De HU-30 ([YS-38](https://joaquingsuy93.atlassian.net/browse/YS-38)) y HU-31 ([YS-39](https://joaquingsuy93.atlassian.net/browse/YS-39)):
 
-- **YS-46:** `SecurityConfig` — cadena de filtros, sesión *stateless*, CSRF desactivado (innecesario y contraproducente en una API con JWT, donde no se usan cookies de sesión) y CORS para el frontend.
-- **YS-47:** endpoint de login que valida credenciales y emite el JWT.
+- **YS-47:** endpoint de login que valida credenciales y emite el JWT, más el `JwtAuthenticationFilter` que reemplazará al HTTP Basic provisional.
 - **YS-48:** expiración del token.
 - **YS-52/YS-53:** `@PreAuthorize` por endpoint y protección de los endpoints ya existentes según rol.
 - **YS-54:** registro (log) de intentos de acceso denegado.

@@ -4,6 +4,7 @@ import java.util.EnumMap;
 import java.util.Map;
 
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
 import app.cabezadealgodon.com.gestionasilobackend.models.Rol;
@@ -17,6 +18,7 @@ import app.cabezadealgodon.com.gestionasilobackend.repository.RolRepository;
  * endpoint para crearlos.
  */
 @Component
+@Order(1)
 public class RolSeeder implements CommandLineRunner {
 
     private static final Map<RolNombre, String> DESCRIPCIONES = new EnumMap<>(RolNombre.class);
