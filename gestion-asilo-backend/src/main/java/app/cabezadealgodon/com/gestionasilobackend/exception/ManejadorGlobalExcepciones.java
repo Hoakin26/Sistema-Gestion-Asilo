@@ -8,6 +8,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -36,6 +37,18 @@ public class ManejadorGlobalExcepciones {
         return ResponseEntity.badRequest().body(ErrorResponse.de(HttpStatus.BAD_REQUEST,
                 "El cuerpo de la petición no es válido: revise el formato JSON y los valores enviados",
                 peticion.getRequestURI()));
+    }
+
+    /**
+     * Mismo mensaje para contraseña incorrecta, correo inexistente y cuenta
+     * desactivada. Distinguirlos le diría a un atacante qué correos están
+     * registrados, y Spring lanza DisabledException antes de comprobar la
+     * contraseña: bastaría con acertar el correo para saberlo.
+     */
+    @ExceptionHandler(AuthenticationException.class)
+    public ResponseEntity<ErrorResponse> manejarAutenticacion(HttpServletRequest peticion) {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(ErrorResponse.de(HttpStatus.UNAUTHORIZED, "Credenciales inválidas", peticion.getRequestURI()));
     }
 
     @ExceptionHandler(RecursoNoEncontradoException.class)

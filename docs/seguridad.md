@@ -28,7 +28,9 @@ Ese prefijo hace posible **migrar de algoritmo sin invalidar las contraseñas ex
 - **Algoritmo de firma: HS256** (HMAC-SHA256), vía la librería `jjwt` (`io.jsonwebtoken`, ya en el `pom.xml`). Es un algoritmo simétrico: la misma clave (`jwt.secret` en `application.properties`, no versionada) firma y valida el token. Se eligió sobre RS256 (asimétrico, clave pública/privada) porque el backend es el único emisor y validador de tokens — no hay un tercero que necesite verificar el token sin conocer el secreto, así que la complejidad adicional de un par de claves no aporta beneficio real aquí.
 - El token incluye como *claims* mínimos: el correo del usuario (subject) y el **nombre del rol** (`RolNombre`, ver sección 3). El rol viaja dentro del token firmado — no se consulta al frontend qué rol dice tener el usuario, porque un token firmado no puede alterarse sin invalidar la firma.
 - `jwt.expiration` (actualmente 86400000 ms = 24 h) limita la ventana de uso de un token robado.
-- Esto es lo que hace cumplible la regla **RNF-03**: cada endpoint puede confiar en el rol que viene en el token validado por el filtro JWT (`security/JwtAuthenticationFilter`, a implementar en la historia de login) para decidir qué datos devolver — nunca en lo que el cliente afirme o en lo que la UI oculte.
+- Esto es lo que hace cumplible la regla **RNF-03**: cada endpoint puede confiar en la identidad que trae el token validado por [JwtAuthenticationFilter.java](../gestion-asilo-backend/src/main/java/app/cabezadealgodon/com/gestionasilobackend/security/JwtAuthenticationFilter.java) para decidir qué datos devolver — nunca en lo que el cliente afirme o en lo que la UI oculte.
+
+La clave HMAC debe medir al menos 256 bits para HS256; el `jwt.secret` actual tiene exactamente 32 caracteres. Si se acorta, la aplicación falla al arrancar en vez de firmar con una clave débil.
 
 ## 3. Modelo de roles (RBAC) — decisiones de esta subtarea (YS-40)
 
@@ -76,7 +78,9 @@ Endpoints expuestos en `/api/usuarios` ([UsuarioController.java](../gestion-asil
 - **CORS restringido al origen del frontend** (`http://localhost:5173` en desarrollo, configurable con `app.cors.origen-frontend`). Se listan explícitamente los orígenes, métodos y cabeceras permitidos en vez de abrir a `*`, para que ninguna otra página pueda consumir la API desde el navegador de un usuario autenticado.
 - **Todo requiere autenticación salvo `/api/auth/**`**, que queda público porque ahí vivirá el login (YS-47): un endpoint de login protegido por autenticación sería imposible de usar.
 
-Mientras YS-47 no exista, la autenticación provisional es HTTP Basic contra los usuarios reales de la base de datos. Al llegar el filtro JWT, el resto de la configuración no cambia.
+La autenticación por HTTP Basic que sirvió de puente en YS-46 quedó **eliminada** al entrar el filtro JWT (YS-47): dejarla habilitada mantendría abierta una segunda puerta de entrada que ya nadie usa, y toda puerta que no se vigila termina siendo la que se olvida cerrar.
+
+Como ya no hay un mecanismo de login integrado de Spring (ni Basic ni formulario), una petición sin autenticar no tendría a dónde ser redirigida y Spring respondería 403. Por eso [EntryPointNoAutenticado.java](../gestion-asilo-backend/src/main/java/app/cabezadealgodon/com/gestionasilobackend/security/EntryPointNoAutenticado.java) devuelve un 401 con el mismo formato de error que el resto de la API — 401 ("no sé quién eres") y 403 ("sé quién eres, pero no puedes") significan cosas distintas para el frontend.
 
 ### Autenticación contra la base de datos
 
@@ -149,11 +153,36 @@ Dos criterios de seguridad en ese manejador:
 
 Con esto quedan cubiertos los seis criterios de aceptación de HU-29.
 
-## 8. Qué falta
+## 8. Login y sesión con JWT (YS-47)
+
+`POST /api/auth/login` recibe correo y contraseña y devuelve el token junto con el nombre y el rol del usuario (el frontend necesita el rol para armar su menú en YS-55). A partir de ahí, cada petición lleva el token en `Authorization: Bearer <token>`.
+
+**Cómo se validan las credenciales.** [AuthService.java](../gestion-asilo-backend/src/main/java/app/cabezadealgodon/com/gestionasilobackend/services/AuthService.java) delega en el `AuthenticationManager` de Spring en vez de comparar contraseñas a mano. Eso importa: el `AuthenticationManager` usa el `PasswordEncoder` configurado, compara los hashes en tiempo constante (una comparación normal de cadenas se puede medir para adivinar el hash carácter por carácter) y aplica las comprobaciones de cuenta deshabilitada. El correo se pasa a minúsculas antes de autenticar, porque así se guardó al registrarlo.
+
+**El mismo mensaje para todos los fallos.** Contraseña incorrecta, correo inexistente y cuenta desactivada devuelven exactamente `401 Credenciales inválidas`. Distinguirlos convertiría el login en un buscador de correos válidos, y el caso de la cuenta desactivada es el más delicado: Spring lanza `DisabledException` *antes* de comprobar la contraseña, así que un mensaje específico revelaría que la cuenta existe con solo acertar el correo. El costo es que un empleado desactivado no sabe por qué no entra — se asume que el administrador se lo comunica.
+
+**Por qué el filtro relee el usuario de la base de datos.** El token ya trae el rol firmado, así que el filtro podría confiar en ese claim y ahorrarse una consulta. No lo hace: carga el usuario con `UsuarioDetailsService` en cada petición. La razón es que un token vive 24 horas, y sin esa relectura, desactivar a alguien o quitarle un permiso no surtiría efecto hasta que su token expirara — un empleado despedido conservaría acceso el resto del día. Es el precio de una consulta por petición a cambio de que "desactivar" signifique de verdad "fuera ahora". Verificado: un token emitido y todavía vigente deja de funcionar en cuanto el administrador desactiva a ese usuario.
+
+### Verificación realizada
+
+| Prueba | Resultado |
+|---|---|
+| Login correcto (correo escrito en mayúsculas) | 200 con token, expiración a 24 h |
+| Login con contraseña incorrecta | 401 "Credenciales inválidas" |
+| Login con correo inexistente | 401, mensaje idéntico |
+| Login de una usuaria desactivada | 401, mensaje idéntico |
+| Login con campos vacíos | 400 con el detalle por campo |
+| `GET /api/usuarios` con token válido | 200 |
+| `GET /api/usuarios` sin token | 401 con el formato de error de la API |
+| `GET /api/usuarios` con el token alterado en un carácter | 401 |
+| Acceso con HTTP Basic | 401 — la puerta anterior quedó cerrada |
+| Token válido usado después de que el admin desactivara a su dueño | 401 |
+
+## 9. Qué falta
 
 De HU-30 ([YS-38](https://joaquingsuy93.atlassian.net/browse/YS-38)) y HU-31 ([YS-39](https://joaquingsuy93.atlassian.net/browse/YS-39)):
 
-- **YS-47:** endpoint de login que valida credenciales y emite el JWT, más el `JwtAuthenticationFilter` que reemplazará al HTTP Basic provisional.
-- **YS-48:** expiración del token.
+- **YS-48:** expiración del token. La expiración ya se aplica (`jwt.expiration`, 24 h), porque emitir un token sin `exp` habría sido peor; queda revisar si 24 h es el plazo adecuado y probar el vencimiento.
+- **Cerrar sesión** (criterio de HU-30 que ninguna subtarea cubre todavía). Con JWT no basta con que el frontend borre el token: el que ya se emitió sigue siendo válido hasta que expire. Cerrar sesión de verdad exige una lista de tokens revocados, y conviene decidirlo explícitamente en vez de darlo por hecho.
 - **YS-52/YS-53:** `@PreAuthorize` por endpoint y protección de los endpoints ya existentes según rol.
 - **YS-54:** registro (log) de intentos de acceso denegado.

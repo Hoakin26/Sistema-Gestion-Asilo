@@ -5,24 +5,39 @@ import java.util.List;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.security.config.Customizer;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
-/** YS-46: cadena de filtros, CORS y reglas de acceso por ruta. */
+import app.cabezadealgodon.com.gestionasilobackend.security.EntryPointNoAutenticado;
+import app.cabezadealgodon.com.gestionasilobackend.security.JwtAuthenticationFilter;
+
+/** YS-46 y YS-47: cadena de filtros, CORS y reglas de acceso por ruta. */
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
 
     private final String origenFrontend;
+    private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final EntryPointNoAutenticado entryPointNoAutenticado;
 
-    public SecurityConfig(@Value("${app.cors.origen-frontend:http://localhost:5173}") String origenFrontend) {
+    public SecurityConfig(@Value("${app.cors.origen-frontend:http://localhost:5173}") String origenFrontend,
+            JwtAuthenticationFilter jwtAuthenticationFilter, EntryPointNoAutenticado entryPointNoAutenticado) {
         this.origenFrontend = origenFrontend;
+        this.jwtAuthenticationFilter = jwtAuthenticationFilter;
+        this.entryPointNoAutenticado = entryPointNoAutenticado;
+    }
+
+    @Bean
+    public AuthenticationManager authenticationManager(AuthenticationConfiguration configuracion) throws Exception {
+        return configuracion.getAuthenticationManager();
     }
 
     @Bean
@@ -36,11 +51,12 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .sessionManagement(sesion -> sesion.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(rutas -> rutas
-                        // El login vive aquí y debe ser público (YS-47).
+                        // El login debe ser público: exigir autenticación para
+                        // obtener un token sería un círculo sin salida.
                         .requestMatchers("/api/auth/**").permitAll()
                         .anyRequest().authenticated())
-                // Autenticación provisional hasta que YS-47 agregue el filtro JWT.
-                .httpBasic(Customizer.withDefaults())
+                .exceptionHandling(manejo -> manejo.authenticationEntryPoint(entryPointNoAutenticado))
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
                 .build();
     }
 
