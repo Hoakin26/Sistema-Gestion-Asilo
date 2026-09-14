@@ -49,6 +49,9 @@ Patrón de capas: `Controller → Service → Repository`. El controller nunca h
 
 - Backend: `backend/src/main/resources/application.properties` (no versionado, contiene credenciales de PostgreSQL y `jwt.secret`). Existe `application-example.properties` versionado como plantilla.
 - Frontend: `frontend/.env` (no versionado, `VITE_API_URL` apuntando a la API). Existe `.env.example` versionado como plantilla.
+- Docker: `.env` en la raíz (no versionado, `POSTGRES_PASSWORD`). `docker-compose.yml` sí se versiona, pero lee las credenciales de ese `.env`; nunca escribir una contraseña literal en él. Existe `.env.example` como plantilla.
+
+Ninguno de estos archivos debe llegar a git. Tener la regla en `.gitignore` no basta si el archivo ya estaba rastreado: `.gitignore` solo aplica a archivos que git aún no sigue. Antes de dar por seguro un archivo de credenciales, comprobarlo con `git ls-files --error-unmatch <ruta>` — si responde con la ruta, está versionado.
 
 ## Convenciones de trabajo
 
