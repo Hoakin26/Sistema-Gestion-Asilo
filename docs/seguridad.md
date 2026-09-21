@@ -94,7 +94,7 @@ Como ya no hay un mecanismo de login integrado de Spring (ni Basic ni formulario
 
 [AdminInicialSeeder.java](../gestion-asilo-backend/src/main/java/app/cabezadealgodon/com/gestionasilobackend/config/AdminInicialSeeder.java) crea un Administrador del Asilo la primera vez que arranca el sistema con la tabla `usuario` vacía. Resuelve un bloqueo circular: crear usuarios exige estar autenticado, pero sin ningún usuario en la base no hay con qué autenticarse.
 
-Credenciales por defecto: `admin@asilo.gt` / `Admin123*` (pendiente de retirar del código: ver YS-69), sobrescribibles con `app.admin-inicial.correo` y `app.admin-inicial.password` en `application.properties` (archivo no versionado). **Esa contraseña por defecto es pública en el código y debe cambiarse antes de cualquier uso real**; la aplicación lo advierte en el log al crear la cuenta. El seeder corre con `@Order(2)`, después del de roles, porque necesita que el rol `ADMINISTRADOR_ASILO` ya exista.
+Correo por defecto: `admin@asilo.gt`, configurable con `app.admin-inicial.correo` en `application.properties` (archivo no versionado). La contraseña **no tiene valor por defecto en el código** (YS-69, sección 11): se toma de `app.admin-inicial.password` o, si no está configurada, se genera al azar y se muestra una sola vez en el log del primer arranque. En ambos casos debe cambiarse de inmediato con `PUT /api/auth/password`. El seeder corre con `@Order(2)`, después del de roles, porque necesita que el rol `ADMINISTRADOR_ASILO` ya exista.
 
 ### Verificación realizada
 
@@ -248,11 +248,52 @@ Los tokens de prueba se fabricaron firmándolos directamente con HMAC, para cont
 | Hashes de la tabla `usuario` | Todos con prefijo `{bcrypt}$2a$10$` |
 | Secretos nuevos en archivos versionados, historial de git y log de arranque | Ausentes |
 
-## 11. Qué falta
+## 11. Cambio de contraseña (YS-69)
+
+**El problema.** El administrador inicial se creaba con una contraseña fija escrita en el código, y no había forma de cambiarla: la edición de usuarios no incluye la contraseña, y configurar otra en `app.admin-inicial.password` no afecta a un administrador que ya existe, porque el seeder solo actúa con la tabla vacía. Cualquier instalación que no la sobrescribiera quedaba abierta para quien leyera el repositorio.
+
+**El endpoint.** `PUT /api/auth/password` permite a un usuario autenticado cambiar su propia contraseña. Recibe `passwordActual` y `passwordNueva`:
+
+- Pide la contraseña actual aunque la petición ya traiga un token válido. Sin ese requisito, quien encontrara una sesión abierta —una tableta olvidada en un dormitorio— podría cambiarla y quedarse con la cuenta.
+- La nueva sigue las reglas de YS-42: entre 8 y 64 caracteres, guardada con BCrypt.
+- Debe ser distinta de la actual. Si no, el sistema registraría un cambio que no ocurrió, y la operación serviría solo para cerrar las sesiones de otros dispositivos.
+
+**Errores con 400, nunca con 401.** Una contraseña actual incorrecta responde 400 con el error en el campo `passwordActual`, en el mismo formato que las validaciones (sección 7). No reutiliza la `AuthenticationException` de Spring —que el manejador global traduce a 401— porque el interceptor del frontend trata todo 401 como sesión terminada: quien solo se equivocó al escribir quedaría fuera del sistema.
+
+**Sesiones.** El cambio actualiza `fechaInvalidacionSesiones` (el mecanismo de la sección 9), así que todo token emitido antes deja de valer, incluidos los de otros dispositivos. La respuesta trae un token nuevo, emitido después de esa marca, para que quien hizo el cambio siga dentro.
+
+La marca se trunca a milisegundos antes de guardarse. PostgreSQL guarda microsegundos, y al redondearlos la marca podría pasar al milisegundo siguiente; como el filtro compara en milisegundos, el token recién emitido quedaría con fecha anterior a la marca y sería rechazado en cuanto se usara.
+
+**Sin contraseña por defecto en el código.** `AdminInicialSeeder` ya no tiene un valor fijo. Si `app.admin-inicial.password` está configurada, usa esa; si no, genera una de 16 caracteres con `SecureRandom` y la muestra una sola vez en el log del primer arranque. El alfabeto excluye los caracteres que se confunden al copiarlos (`0`/`O`, `1`/`l`/`I`); aun así, 16 caracteres entre 56 posibles dan unos 93 bits de entropía.
+
+El riesgo que queda: esa contraseña permanece escrita en el log. Por eso el aviso pide cambiarla de inmediato, y en una instalación real conviene configurarla antes del primer arranque.
+
+### Verificación realizada
+
+Las pruebas del endpoint se hicieron con un usuario creado para la ocasión y desactivado al terminar (la API no permite borrar usuarios). Las del seeder, con una segunda instancia apuntando a una base de datos temporal vacía, eliminada después: así no se tocó el administrador real.
+
+| Prueba | Resultado |
+|---|---|
+| Cambio sin token | 401 |
+| Contraseña actual incorrecta | 400, error en `passwordActual`; la sesión sigue abierta |
+| Nueva igual a la actual | 400, error en `passwordNueva` |
+| Nueva de 5 caracteres | 400: «La contraseña debe tener entre 8 y 64 caracteres» |
+| Sin `passwordActual` | 400 |
+| Cambio correcto | 200 con token nuevo, aceptado de inmediato |
+| Token usado para el cambio / token de otro dispositivo | 401 / 401 |
+| Login con la contraseña vieja / con la nueva | 401 / 200 |
+| 5 cambios seguidos, usando cada token al instante | 5 de 5: el nuevo 200, el anterior 401 |
+| Hash guardado | Prefijo `{bcrypt}$2a$10$` |
+| Seeder con base vacía y sin `app.admin-inicial.password` | Genera 16 caracteres del alfabeto sin ambiguos y los muestra una sola vez en el log |
+| Login con la contraseña generada / con `Admin123*` | 200 / 401 |
+| Cambio de la generada con el endpoint | 200; la generada deja de servir |
+
+## 12. Qué falta
 
 De HU-30 ([YS-38](https://joaquingsuy93.atlassian.net/browse/YS-38)) y HU-31 ([YS-39](https://joaquingsuy93.atlassian.net/browse/YS-39)):
 
 - **YS-51:** pruebas de login exitoso, credenciales inválidas y expiración del token.
 - **YS-52/YS-53:** `@PreAuthorize` por endpoint y protección de los endpoints ya existentes según rol.
 - **YS-54:** registro (log) de intentos de acceso denegado.
-- **YS-69:** cambio de contraseña. El administrador inicial conserva la contraseña por defecto, escrita en el código, y no existe forma de cambiarla: falta un endpoint para cambiar la propia contraseña (pidiendo la actual) y retirar ese valor por defecto del seeder.
+- **YS-70:** aviso en el frontend cuando la sesión termina, para que un 401 no lleve al login sin explicación.
+- **YS-71:** restablecer desde administración la contraseña de un usuario que la olvidó. Hoy el login indica acudir al administrador, pero el administrador no tiene cómo hacerlo.

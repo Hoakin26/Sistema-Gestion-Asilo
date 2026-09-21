@@ -51,6 +51,19 @@ public class ManejadorGlobalExcepciones {
                 .body(ErrorResponse.de(HttpStatus.UNAUTHORIZED, "Credenciales inválidas", peticion.getRequestURI()));
     }
 
+    /**
+     * YS-69. Mismo formato que una validación fallida (errores por campo), para
+     * que el frontend lo muestre junto al campo. 400 y no 401: ver la excepción.
+     */
+    @ExceptionHandler(CambioPasswordInvalidoException.class)
+    public ResponseEntity<ErrorResponse> manejarCambioPassword(CambioPasswordInvalidoException ex,
+            HttpServletRequest peticion) {
+        ErrorResponse cuerpo = new ErrorResponse(LocalDateTime.now(), HttpStatus.BAD_REQUEST.value(),
+                HttpStatus.BAD_REQUEST.getReasonPhrase(), "Hay campos inválidos", peticion.getRequestURI(),
+                Map.of(ex.getCampo(), ex.getMessage()));
+        return ResponseEntity.badRequest().body(cuerpo);
+    }
+
     @ExceptionHandler(RecursoNoEncontradoException.class)
     public ResponseEntity<ErrorResponse> manejarNoEncontrado(RecursoNoEncontradoException ex,
             HttpServletRequest peticion) {
