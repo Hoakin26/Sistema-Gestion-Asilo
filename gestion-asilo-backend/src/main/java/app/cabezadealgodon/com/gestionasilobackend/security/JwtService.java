@@ -42,7 +42,9 @@ public class JwtService {
                 .claim(EMISION, ahora.getTime())
                 .issuedAt(ahora)
                 .expiration(new Date(ahora.getTime() + expiracionMs))
-                .signWith(clave)
+                // Algoritmo fijo: sin él, jjwt lo elige según el largo de la
+                // clave, y cambiar el secreto cambiaría el algoritmo sin aviso.
+                .signWith(clave, Jwts.SIG.HS256)
                 .compact();
     }
 

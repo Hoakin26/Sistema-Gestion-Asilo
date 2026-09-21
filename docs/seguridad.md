@@ -25,12 +25,12 @@ Ese prefijo hace posible **migrar de algoritmo sin invalidar las contraseñas ex
 
 ## 2. Autenticación: JWT
 
-- **Algoritmo de firma: HS256** (HMAC-SHA256), vía la librería `jjwt` (`io.jsonwebtoken`, ya en el `pom.xml`). Es un algoritmo simétrico: la misma clave (`jwt.secret` en `application.properties`, no versionada) firma y valida el token. Se eligió sobre RS256 (asimétrico, clave pública/privada) porque el backend es el único emisor y validador de tokens — no hay un tercero que necesite verificar el token sin conocer el secreto, así que la complejidad adicional de un par de claves no aporta beneficio real aquí.
+- **Algoritmo de firma: HS256** (HMAC-SHA256), fijado explícitamente en el código desde YS-48, vía la librería `jjwt` (`io.jsonwebtoken`, ya en el `pom.xml`). Es un algoritmo simétrico: la misma clave (`jwt.secret` en `application.properties`, no versionada) firma y valida el token. Se eligió sobre RS256 (asimétrico, clave pública/privada) porque el backend es el único emisor y validador de tokens — no hay un tercero que necesite verificar el token sin conocer el secreto, así que la complejidad adicional de un par de claves no aporta beneficio real aquí.
 - El token incluye como *claims* mínimos: el correo del usuario (subject) y el **nombre del rol** (`RolNombre`, ver sección 3). El rol viaja dentro del token firmado — no se consulta al frontend qué rol dice tener el usuario, porque un token firmado no puede alterarse sin invalidar la firma.
-- `jwt.expiration` (actualmente 86400000 ms = 24 h) limita la ventana de uso de un token robado.
+- `jwt.expiration` (28800000 ms = 8 h, un turno; ver sección 10) limita la ventana de uso de un token robado.
 - Esto es lo que hace cumplible la regla **RNF-03**: cada endpoint puede confiar en la identidad que trae el token validado por [JwtAuthenticationFilter.java](../gestion-asilo-backend/src/main/java/app/cabezadealgodon/com/gestionasilobackend/security/JwtAuthenticationFilter.java) para decidir qué datos devolver — nunca en lo que el cliente afirme o en lo que la UI oculte.
 
-La clave HMAC debe medir al menos 256 bits para HS256; el `jwt.secret` actual tiene exactamente 32 caracteres. Si se acorta, la aplicación falla al arrancar en vez de firmar con una clave débil.
+La clave HMAC debe medir al menos 256 bits para HS256; debe generarse al azar, nunca escribirse a mano (ver sección 10). Si se acorta, la aplicación falla al arrancar en vez de firmar con una clave débil.
 
 ## 3. Modelo de roles (RBAC) — decisiones de esta subtarea (YS-40)
 
@@ -94,7 +94,7 @@ Como ya no hay un mecanismo de login integrado de Spring (ni Basic ni formulario
 
 [AdminInicialSeeder.java](../gestion-asilo-backend/src/main/java/app/cabezadealgodon/com/gestionasilobackend/config/AdminInicialSeeder.java) crea un Administrador del Asilo la primera vez que arranca el sistema con la tabla `usuario` vacía. Resuelve un bloqueo circular: crear usuarios exige estar autenticado, pero sin ningún usuario en la base no hay con qué autenticarse.
 
-Credenciales por defecto: `admin@asilo.gt` / `Admin123*`, sobrescribibles con `app.admin-inicial.correo` y `app.admin-inicial.password` en `application.properties` (archivo no versionado). **Esa contraseña por defecto es pública en el código y debe cambiarse antes de cualquier uso real**; la aplicación lo advierte en el log al crear la cuenta. El seeder corre con `@Order(2)`, después del de roles, porque necesita que el rol `ADMINISTRADOR_ASILO` ya exista.
+Credenciales por defecto: `admin@asilo.gt` / `Admin123*` (pendiente de retirar del código: ver YS-69), sobrescribibles con `app.admin-inicial.correo` y `app.admin-inicial.password` en `application.properties` (archivo no versionado). **Esa contraseña por defecto es pública en el código y debe cambiarse antes de cualquier uso real**; la aplicación lo advierte en el log al crear la cuenta. El seeder corre con `@Order(2)`, después del de roles, porque necesita que el rol `ADMINISTRADOR_ASILO` ya exista.
 
 ### Verificación realizada
 
@@ -204,11 +204,55 @@ Un detalle de implementación: el filtro necesitaba la entidad `Usuario` complet
 | Token anterior al cierre, ya habiendo vuelto a iniciar sesión | 401 |
 | Cerrar sesión dos veces con el mismo token | 204 y luego 401 |
 
-## 10. Qué falta
+## 10. Expiración del token y manejo de secretos (YS-48)
+
+**Contraseñas con BCrypt: ya estaba resuelto.** El título de la subtarea incluye cifrar contraseñas, pero eso quedó hecho en YS-41 (sección 1): el codificador delegante guarda cada hash con el prefijo `{bcrypt}`. Aquí se verificó directamente en la base de datos: los usuarios registrados tienen hashes `{bcrypt}$2a$10$…` de 68 caracteres — prefijo del codificador, versión `2a` del algoritmo y factor de costo 10 (2¹⁰ = 1 024 rondas). Ningún hash carece del prefijo.
+
+**Expiración: 8 horas, un turno.** `jwt.expiration` bajó de 86 400 000 ms (24 h) a 28 800 000 ms (8 h). El criterio es el uso real del sistema: el personal del asilo trabaja por turnos, y enfermería opera en tabletas que se mueven entre dormitorios. Con 24 horas, una tableta olvidada mantenía una sesión válida sobre datos clínicos durante un día completo, a lo largo de tres turnos y al alcance de cualquiera. Ocho horas cubren una jornada completa sin obligar a volver a ingresar a mitad de ella, y acotan a un turno la ventana de uso de un token robado.
+
+La expiración no reemplaza al cierre de sesión (sección 9): quien termina su turno debe cerrar sesión, y eso invalida el token de inmediato. Las 8 horas son la red para cuando eso no ocurre.
+
+No hay tokens de renovación (*refresh tokens*): al vencer, el usuario vuelve a iniciar sesión. Para un sistema de uso interno por turnos es suficiente, y evita almacenar y revocar un segundo tipo de credencial de larga duración.
+
+**Algoritmo fijo en el código.** `generarToken` llamaba a `signWith(clave)` sin indicar algoritmo, y en ese caso jjwt lo elige según el largo de la clave: HS256 desde 256 bits, HS384 desde 384 y HS512 desde 512. Al rotar el secreto por uno más largo, los tokens pasaron a firmarse con HS512 sin que nadie lo decidiera, y esta documentación quedó diciendo HS256. Ahora se llama `signWith(clave, Jwts.SIG.HS256)`: el algoritmo es una decisión explícita y no un efecto secundario del largo del secreto. Una clave de menos de 256 bits sigue haciendo fallar el arranque.
+
+Al validar no hace falta restringir el algoritmo del encabezado. La clave es simétrica, así que cualquier variante HS exige conocer el secreto para producir una firma válida, y jjwt rechaza por defecto los tokens sin firma (`alg: none`).
+
+### Rotación de secretos
+
+Durante esta subtarea se descubrió que `application.properties` estaba versionado desde el commit `90bdd22`, aunque figuraba en `.gitignore`: esa regla no tiene efecto sobre archivos que git ya rastrea. Con él habían llegado al repositorio remoto la contraseña de PostgreSQL y el `jwt.secret` (este último desde `2894d9a`). El repositorio es privado, así que no hubo exposición pública, pero ambas credenciales se dieron por comprometidas:
+
+- `application.properties` se retiró del control de versiones con `git rm --cached`; `application-example.properties` queda como plantilla.
+- `docker-compose.yml` dejó de contener la contraseña literal: la lee de un `.env` no versionado, con `.env.example` como plantilla, y se niega a arrancar si falta.
+- Se generó un `jwt.secret` aleatorio nuevo. Consecuencia buscada: todo token firmado con el secreto anterior dejó de ser válido.
+- Se cambió la contraseña de PostgreSQL con `ALTER USER`. Cambiarla solo en el `.env` no habría bastado: la imagen de Postgres lee `POSTGRES_PASSWORD` únicamente al inicializar un volumen vacío.
+- **No se reescribió el historial.** Purgar los commits con `git-filter-repo` cambiaría el identificador de todos ellos y rompería la trazabilidad entre git y las historias de Jira. Con las credenciales rotadas, las que quedan en el historial ya no abren nada. Si el repositorio se hace público, conviene reevaluarlo.
+
+### Verificación realizada
+
+Los tokens de prueba se fabricaron firmándolos directamente con HMAC, para controlar cada campo. Los que comparan vigente contra vencido son idénticos salvo `exp` —mismo `iat`, misma `emision`—, así que el rechazo solo puede deberse a la expiración y no al cierre de sesión de la sección 9. Las pruebas de PostgreSQL se hicieron por la IP del contenedor: por `127.0.0.1` la imagen no pide contraseña y la prueba no discriminaría.
+
+| Prueba | Resultado |
+|---|---|
+| Token real del login: algoritmo del encabezado | `HS256`, fijado (antes de este cambio salía `HS512`) |
+| Token real del login: `exp` − `iat` | 28 800 s = 8 h exactas |
+| Token real contra `GET /api/usuarios` | 200 |
+| Token vigente, vence en 10 min (control) | 200 |
+| El mismo token, vencido hace 1 min | 401 |
+| El mismo token, vencido hace 1 s | 401 (sin tolerancia de reloj) |
+| Token `HS512` firmado con el secreto actual | 200: los emitidos antes de fijar el algoritmo siguen valiendo hasta vencer |
+| Token firmado con el `jwt.secret` filtrado | 401 |
+| Token con el contenido alterado después de firmar | 401 |
+| Contraseña de PostgreSQL filtrada | Rechazada (una clave inventada, usada como control, también) |
+| Contraseña de PostgreSQL nueva | Aceptada; la aplicación arranca y conecta |
+| Hashes de la tabla `usuario` | Todos con prefijo `{bcrypt}$2a$10$` |
+| Secretos nuevos en archivos versionados, historial de git y log de arranque | Ausentes |
+
+## 11. Qué falta
 
 De HU-30 ([YS-38](https://joaquingsuy93.atlassian.net/browse/YS-38)) y HU-31 ([YS-39](https://joaquingsuy93.atlassian.net/browse/YS-39)):
 
-- **YS-48:** expiración del token. La expiración ya se aplica (`jwt.expiration`, 24 h), porque emitir un token sin `exp` habría sido peor; queda revisar si 24 h es el plazo adecuado y probar el vencimiento.
-- **YS-49/YS-50:** pantalla de login y manejo de sesión en el frontend (guardar el token, interceptor de Axios, botón de cerrar sesión que llame a `/api/auth/logout`).
+- **YS-51:** pruebas de login exitoso, credenciales inválidas y expiración del token.
 - **YS-52/YS-53:** `@PreAuthorize` por endpoint y protección de los endpoints ya existentes según rol.
 - **YS-54:** registro (log) de intentos de acceso denegado.
+- **YS-69:** cambio de contraseña. El administrador inicial conserva la contraseña por defecto, escrita en el código, y no existe forma de cambiarla: falta un endpoint para cambiar la propia contraseña (pidiendo la actual) y retirar ese valor por defecto del seeder.
