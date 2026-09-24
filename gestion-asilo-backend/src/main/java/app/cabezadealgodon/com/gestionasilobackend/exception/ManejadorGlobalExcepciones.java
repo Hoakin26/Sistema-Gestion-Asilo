@@ -51,11 +51,36 @@ public class ManejadorGlobalExcepciones {
                 .body(ErrorResponse.de(HttpStatus.UNAUTHORIZED, "Credenciales inválidas", peticion.getRequestURI()));
     }
 
+    /**
+     * YS-69. Mismo formato que una validación fallida (errores por campo), para
+     * que el frontend lo muestre junto al campo. 400 y no 401: ver la excepción.
+     */
+    @ExceptionHandler(CambioPasswordInvalidoException.class)
+    public ResponseEntity<ErrorResponse> manejarCambioPassword(CambioPasswordInvalidoException ex,
+            HttpServletRequest peticion) {
+        ErrorResponse cuerpo = new ErrorResponse(LocalDateTime.now(), HttpStatus.BAD_REQUEST.value(),
+                HttpStatus.BAD_REQUEST.getReasonPhrase(), "Hay campos inválidos", peticion.getRequestURI(),
+                Map.of(ex.getCampo(), ex.getMessage()));
+        return ResponseEntity.badRequest().body(cuerpo);
+    }
+
     @ExceptionHandler(RecursoNoEncontradoException.class)
     public ResponseEntity<ErrorResponse> manejarNoEncontrado(RecursoNoEncontradoException ex,
             HttpServletRequest peticion) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(ErrorResponse.de(HttpStatus.NOT_FOUND, ex.getMessage(), peticion.getRequestURI()));
+    }
+
+    /**
+     * YS-71. 403 y no 401: quien la recibe tiene sesión válida, solo que esa
+     * operación no corresponde. Un 401 haría que el frontend lo diera por
+     * expulsado del sistema.
+     */
+    @ExceptionHandler(OperacionNoPermitidaException.class)
+    public ResponseEntity<ErrorResponse> manejarOperacionNoPermitida(OperacionNoPermitidaException ex,
+            HttpServletRequest peticion) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(ErrorResponse.de(HttpStatus.FORBIDDEN, ex.getMessage(), peticion.getRequestURI()));
     }
 
     @ExceptionHandler(CorreoDuplicadoException.class)

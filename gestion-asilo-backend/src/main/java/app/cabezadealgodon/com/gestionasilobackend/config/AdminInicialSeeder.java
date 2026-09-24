@@ -1,5 +1,7 @@
 package app.cabezadealgodon.com.gestionasilobackend.config;
 
+import java.security.SecureRandom;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -18,12 +20,20 @@ import app.cabezadealgodon.com.gestionasilobackend.repository.UsuarioRepository;
  * Crea el primer Administrador del Asilo si no hay ningún usuario. Sin esto el
  * sistema quedaría bloqueado: crear usuarios exige estar autenticado, y no
  * habría con qué autenticarse.
+ *
+ * YS-69: no hay contraseña por defecto en el código, porque la conocería
+ * cualquiera que lea el repositorio. Si no se configura, se genera al azar y
+ * se muestra una sola vez en el log.
  */
 @Component
 @Order(2)
 public class AdminInicialSeeder implements CommandLineRunner {
 
     private static final Logger log = LoggerFactory.getLogger(AdminInicialSeeder.class);
+
+    // Sin los caracteres que se confunden al copiarlos del log: 0/O y 1/l/I.
+    private static final String ALFABETO = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
+    private static final int LARGO_GENERADA = 16;
 
     private final UsuarioRepository usuarioRepository;
     private final RolRepository rolRepository;
@@ -34,7 +44,7 @@ public class AdminInicialSeeder implements CommandLineRunner {
     public AdminInicialSeeder(UsuarioRepository usuarioRepository, RolRepository rolRepository,
             PasswordEncoder passwordEncoder,
             @Value("${app.admin-inicial.correo:admin@asilo.gt}") String correo,
-            @Value("${app.admin-inicial.password:Admin123*}") String password) {
+            @Value("${app.admin-inicial.password:}") String password) {
         this.usuarioRepository = usuarioRepository;
         this.rolRepository = rolRepository;
         this.passwordEncoder = passwordEncoder;
@@ -51,14 +61,33 @@ public class AdminInicialSeeder implements CommandLineRunner {
         Rol rol = rolRepository.findByNombre(RolNombre.ADMINISTRADOR_ASILO)
                 .orElseThrow(() -> new IllegalStateException("Falta el rol ADMINISTRADOR_ASILO"));
 
+        boolean generada = password.isBlank();
+        String inicial = generada ? generarPassword() : password;
+
         Usuario admin = new Usuario();
         admin.setNombreCompleto("Administrador del Asilo");
         admin.setCorreo(correo);
-        admin.setPasswordHash(passwordEncoder.encode(password));
+        admin.setPasswordHash(passwordEncoder.encode(inicial));
         admin.setRol(rol);
         admin.setActivo(true);
         usuarioRepository.save(admin);
 
-        log.warn("Administrador inicial creado ({}). Cambia su contraseña antes de usar el sistema.", correo);
+        if (generada) {
+            log.warn("Administrador inicial creado ({}) con la contraseña generada: {} "
+                    + "-- se muestra solo esta vez. Cámbiela de inmediato con PUT /api/auth/password.",
+                    correo, inicial);
+        } else {
+            log.warn("Administrador inicial creado ({}) con la contraseña de app.admin-inicial.password. "
+                    + "Cámbiela de inmediato con PUT /api/auth/password.", correo);
+        }
+    }
+
+    private static String generarPassword() {
+        SecureRandom azar = new SecureRandom();
+        StringBuilder generada = new StringBuilder(LARGO_GENERADA);
+        for (int i = 0; i < LARGO_GENERADA; i++) {
+            generada.append(ALFABETO.charAt(azar.nextInt(ALFABETO.length())));
+        }
+        return generada.toString();
     }
 }

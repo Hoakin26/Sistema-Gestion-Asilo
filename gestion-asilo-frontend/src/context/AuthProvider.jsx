@@ -1,0 +1,87 @@
+import { useCallback, useEffect, useMemo, useState } from "react";
+
+import { CLAVE_TOKEN } from "../services/api";
+import { cerrarSesion, iniciarSesion } from "../services/authService";
+import { AuthContext } from "./authContext";
+
+const CLAVE_USUARIO = "asilo.usuario";
+
+function leerUsuarioGuardado() {
+  const crudo = localStorage.getItem(CLAVE_USUARIO);
+  if (!crudo || !localStorage.getItem(CLAVE_TOKEN)) {
+    return null;
+  }
+  try {
+    return JSON.parse(crudo);
+  } catch {
+    return null;
+  }
+}
+
+export function AuthProvider({ children }) {
+  const [usuario, setUsuario] = useState(leerUsuarioGuardado);
+  // YS-70: distingue "la sesión se cayó sola" de "el usuario decidió salir".
+  // Solo el primer caso merece una explicación en la pantalla de login.
+  const [sesionTerminada, setSesionTerminada] = useState(false);
+
+  const limpiar = useCallback(() => {
+    localStorage.removeItem(CLAVE_TOKEN);
+    localStorage.removeItem(CLAVE_USUARIO);
+    setUsuario(null);
+  }, []);
+
+  const terminarSesionSola = useCallback(() => {
+    limpiar();
+    setSesionTerminada(true);
+  }, [limpiar]);
+
+  // El interceptor avisa cuando el backend rechaza el token (expirado,
+  // invalidado por un cierre de sesión, o usuario desactivado).
+  useEffect(() => {
+    window.addEventListener("asilo:sesion-expirada", terminarSesionSola);
+    return () => window.removeEventListener("asilo:sesion-expirada", terminarSesionSola);
+  }, [terminarSesionSola]);
+
+  const login = useCallback(async (correo, password) => {
+    const sesion = await iniciarSesion(correo, password);
+    const datos = {
+      correo: sesion.correo,
+      nombreCompleto: sesion.nombreCompleto,
+      rol: sesion.rol,
+    };
+
+    localStorage.setItem(CLAVE_TOKEN, sesion.token);
+    localStorage.setItem(CLAVE_USUARIO, JSON.stringify(datos));
+    setSesionTerminada(false);
+    setUsuario(datos);
+  }, []);
+
+  const logout = useCallback(async () => {
+    try {
+      await cerrarSesion();
+    } finally {
+      // Aunque el backend falle, quien pidió salir debe quedar fuera aquí.
+      limpiar();
+      // Salir por decisión propia no es una sesión caída. Se limpia al final
+      // porque si el token ya estaba vencido, la llamada anterior habrá
+      // respondido 401 y el interceptor la habrá marcado como caída.
+      setSesionTerminada(false);
+    }
+  }, [limpiar]);
+
+  const descartarAvisoSesion = useCallback(() => setSesionTerminada(false), []);
+
+  const valor = useMemo(
+    () => ({
+      usuario,
+      login,
+      logout,
+      autenticado: usuario !== null,
+      sesionTerminada,
+      descartarAvisoSesion,
+    }),
+    [usuario, login, logout, sesionTerminada, descartarAvisoSesion],
+  );
+
+  return <AuthContext value={valor}>{children}</AuthContext>;
+}

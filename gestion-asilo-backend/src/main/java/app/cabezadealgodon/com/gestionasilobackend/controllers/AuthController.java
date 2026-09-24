@@ -3,11 +3,13 @@ package app.cabezadealgodon.com.gestionasilobackend.controllers;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import app.cabezadealgodon.com.gestionasilobackend.dto.CambioPasswordRequest;
 import app.cabezadealgodon.com.gestionasilobackend.dto.LoginRequest;
 import app.cabezadealgodon.com.gestionasilobackend.dto.LoginResponse;
 import app.cabezadealgodon.com.gestionasilobackend.security.UsuarioAutenticado;
@@ -35,5 +37,15 @@ public class AuthController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void logout(@AuthenticationPrincipal UsuarioAutenticado usuario) {
         authService.logout(usuario.getUsername());
+    }
+
+    /**
+     * YS-69. Responde con un token nuevo: el cambio invalida todos los
+     * anteriores, incluido el que trae esta misma petición.
+     */
+    @PutMapping("/password")
+    public LoginResponse cambiarPassword(@AuthenticationPrincipal UsuarioAutenticado usuario,
+            @Valid @RequestBody CambioPasswordRequest request) {
+        return authService.cambiarPassword(usuario.getUsername(), request);
     }
 }

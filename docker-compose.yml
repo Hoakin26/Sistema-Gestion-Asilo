@@ -1,5 +1,7 @@
 # docker-compose.yml
-version: '3.8'
+#
+# Las credenciales salen del archivo .env (no versionado), no del código.
+# Copie .env.example como .env y complete POSTGRES_PASSWORD antes de levantar.
 
 services:
   db_asilo:
@@ -7,11 +9,11 @@ services:
     container_name: postgres_asilo_db
     restart: always
     environment:
-      # Credenciales de acceso a la base de datos
-      POSTGRES_USER: admin_asilo
-      POSTGRES_PASSWORD: cabezalgodon2910
-      # Nombre exacto de la base de datos que se creará automáticamente
-      POSTGRES_DB: asilo_cabeza_algodon
+      POSTGRES_USER: ${POSTGRES_USER:-admin_asilo}
+      POSTGRES_DB: ${POSTGRES_DB:-asilo_cabeza_algodon}
+      # Sin valor por defecto a propósito: si falta el .env, compose falla con
+      # este mensaje en vez de crear la base con una credencial vacía.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Falta POSTGRES_PASSWORD. Copie .env.example como .env y complete el valor.}
     ports:
       # Mapeo del puerto local al puerto del contenedor
       - "5433:5432"

@@ -25,12 +25,12 @@ Ese prefijo hace posible **migrar de algoritmo sin invalidar las contraseñas ex
 
 ## 2. Autenticación: JWT
 
-- **Algoritmo de firma: HS256** (HMAC-SHA256), vía la librería `jjwt` (`io.jsonwebtoken`, ya en el `pom.xml`). Es un algoritmo simétrico: la misma clave (`jwt.secret` en `application.properties`, no versionada) firma y valida el token. Se eligió sobre RS256 (asimétrico, clave pública/privada) porque el backend es el único emisor y validador de tokens — no hay un tercero que necesite verificar el token sin conocer el secreto, así que la complejidad adicional de un par de claves no aporta beneficio real aquí.
+- **Algoritmo de firma: HS256** (HMAC-SHA256), fijado explícitamente en el código desde YS-48, vía la librería `jjwt` (`io.jsonwebtoken`, ya en el `pom.xml`). Es un algoritmo simétrico: la misma clave (`jwt.secret` en `application.properties`, no versionada) firma y valida el token. Se eligió sobre RS256 (asimétrico, clave pública/privada) porque el backend es el único emisor y validador de tokens — no hay un tercero que necesite verificar el token sin conocer el secreto, así que la complejidad adicional de un par de claves no aporta beneficio real aquí.
 - El token incluye como *claims* mínimos: el correo del usuario (subject) y el **nombre del rol** (`RolNombre`, ver sección 3). El rol viaja dentro del token firmado — no se consulta al frontend qué rol dice tener el usuario, porque un token firmado no puede alterarse sin invalidar la firma.
-- `jwt.expiration` (actualmente 86400000 ms = 24 h) limita la ventana de uso de un token robado.
+- `jwt.expiration` (28800000 ms = 8 h, un turno; ver sección 10) limita la ventana de uso de un token robado.
 - Esto es lo que hace cumplible la regla **RNF-03**: cada endpoint puede confiar en la identidad que trae el token validado por [JwtAuthenticationFilter.java](../gestion-asilo-backend/src/main/java/app/cabezadealgodon/com/gestionasilobackend/security/JwtAuthenticationFilter.java) para decidir qué datos devolver — nunca en lo que el cliente afirme o en lo que la UI oculte.
 
-La clave HMAC debe medir al menos 256 bits para HS256; el `jwt.secret` actual tiene exactamente 32 caracteres. Si se acorta, la aplicación falla al arrancar en vez de firmar con una clave débil.
+La clave HMAC debe medir al menos 256 bits para HS256; debe generarse al azar, nunca escribirse a mano (ver sección 10). Si se acorta, la aplicación falla al arrancar en vez de firmar con una clave débil.
 
 ## 3. Modelo de roles (RBAC) — decisiones de esta subtarea (YS-40)
 
@@ -94,7 +94,7 @@ Como ya no hay un mecanismo de login integrado de Spring (ni Basic ni formulario
 
 [AdminInicialSeeder.java](../gestion-asilo-backend/src/main/java/app/cabezadealgodon/com/gestionasilobackend/config/AdminInicialSeeder.java) crea un Administrador del Asilo la primera vez que arranca el sistema con la tabla `usuario` vacía. Resuelve un bloqueo circular: crear usuarios exige estar autenticado, pero sin ningún usuario en la base no hay con qué autenticarse.
 
-Credenciales por defecto: `admin@asilo.gt` / `Admin123*`, sobrescribibles con `app.admin-inicial.correo` y `app.admin-inicial.password` en `application.properties` (archivo no versionado). **Esa contraseña por defecto es pública en el código y debe cambiarse antes de cualquier uso real**; la aplicación lo advierte en el log al crear la cuenta. El seeder corre con `@Order(2)`, después del de roles, porque necesita que el rol `ADMINISTRADOR_ASILO` ya exista.
+Correo por defecto: `admin@asilo.gt`, configurable con `app.admin-inicial.correo` en `application.properties` (archivo no versionado). La contraseña **no tiene valor por defecto en el código** (YS-69, sección 11): se toma de `app.admin-inicial.password` o, si no está configurada, se genera al azar y se muestra una sola vez en el log del primer arranque. En ambos casos debe cambiarse de inmediato con `PUT /api/auth/password`. El seeder corre con `@Order(2)`, después del de roles, porque necesita que el rol `ADMINISTRADOR_ASILO` ya exista.
 
 ### Verificación realizada
 
@@ -204,11 +204,156 @@ Un detalle de implementación: el filtro necesitaba la entidad `Usuario` complet
 | Token anterior al cierre, ya habiendo vuelto a iniciar sesión | 401 |
 | Cerrar sesión dos veces con el mismo token | 204 y luego 401 |
 
-## 10. Qué falta
+## 10. Expiración del token y manejo de secretos (YS-48)
+
+**Contraseñas con BCrypt: ya estaba resuelto.** El título de la subtarea incluye cifrar contraseñas, pero eso quedó hecho en YS-41 (sección 1): el codificador delegante guarda cada hash con el prefijo `{bcrypt}`. Aquí se verificó directamente en la base de datos: los usuarios registrados tienen hashes `{bcrypt}$2a$10$…` de 68 caracteres — prefijo del codificador, versión `2a` del algoritmo y factor de costo 10 (2¹⁰ = 1 024 rondas). Ningún hash carece del prefijo.
+
+**Expiración: 8 horas, un turno.** `jwt.expiration` bajó de 86 400 000 ms (24 h) a 28 800 000 ms (8 h). El criterio es el uso real del sistema: el personal del asilo trabaja por turnos, y enfermería opera en tabletas que se mueven entre dormitorios. Con 24 horas, una tableta olvidada mantenía una sesión válida sobre datos clínicos durante un día completo, a lo largo de tres turnos y al alcance de cualquiera. Ocho horas cubren una jornada completa sin obligar a volver a ingresar a mitad de ella, y acotan a un turno la ventana de uso de un token robado.
+
+La expiración no reemplaza al cierre de sesión (sección 9): quien termina su turno debe cerrar sesión, y eso invalida el token de inmediato. Las 8 horas son la red para cuando eso no ocurre.
+
+No hay tokens de renovación (*refresh tokens*): al vencer, el usuario vuelve a iniciar sesión. Para un sistema de uso interno por turnos es suficiente, y evita almacenar y revocar un segundo tipo de credencial de larga duración.
+
+**Algoritmo fijo en el código.** `generarToken` llamaba a `signWith(clave)` sin indicar algoritmo, y en ese caso jjwt lo elige según el largo de la clave: HS256 desde 256 bits, HS384 desde 384 y HS512 desde 512. Al rotar el secreto por uno más largo, los tokens pasaron a firmarse con HS512 sin que nadie lo decidiera, y esta documentación quedó diciendo HS256. Ahora se llama `signWith(clave, Jwts.SIG.HS256)`: el algoritmo es una decisión explícita y no un efecto secundario del largo del secreto. Una clave de menos de 256 bits sigue haciendo fallar el arranque.
+
+Al validar no hace falta restringir el algoritmo del encabezado. La clave es simétrica, así que cualquier variante HS exige conocer el secreto para producir una firma válida, y jjwt rechaza por defecto los tokens sin firma (`alg: none`).
+
+### Rotación de secretos
+
+Durante esta subtarea se descubrió que `application.properties` estaba versionado desde el commit `90bdd22`, aunque figuraba en `.gitignore`: esa regla no tiene efecto sobre archivos que git ya rastrea. Con él habían llegado al repositorio remoto la contraseña de PostgreSQL y el `jwt.secret` (este último desde `2894d9a`). El repositorio es privado, así que no hubo exposición pública, pero ambas credenciales se dieron por comprometidas:
+
+- `application.properties` se retiró del control de versiones con `git rm --cached`; `application-example.properties` queda como plantilla.
+- `docker-compose.yml` dejó de contener la contraseña literal: la lee de un `.env` no versionado, con `.env.example` como plantilla, y se niega a arrancar si falta.
+- Se generó un `jwt.secret` aleatorio nuevo. Consecuencia buscada: todo token firmado con el secreto anterior dejó de ser válido.
+- Se cambió la contraseña de PostgreSQL con `ALTER USER`. Cambiarla solo en el `.env` no habría bastado: la imagen de Postgres lee `POSTGRES_PASSWORD` únicamente al inicializar un volumen vacío.
+- **No se reescribió el historial.** Purgar los commits con `git-filter-repo` cambiaría el identificador de todos ellos y rompería la trazabilidad entre git y las historias de Jira. Con las credenciales rotadas, las que quedan en el historial ya no abren nada. Si el repositorio se hace público, conviene reevaluarlo.
+
+### Verificación realizada
+
+Los tokens de prueba se fabricaron firmándolos directamente con HMAC, para controlar cada campo. Los que comparan vigente contra vencido son idénticos salvo `exp` —mismo `iat`, misma `emision`—, así que el rechazo solo puede deberse a la expiración y no al cierre de sesión de la sección 9. Las pruebas de PostgreSQL se hicieron por la IP del contenedor: por `127.0.0.1` la imagen no pide contraseña y la prueba no discriminaría.
+
+| Prueba | Resultado |
+|---|---|
+| Token real del login: algoritmo del encabezado | `HS256`, fijado (antes de este cambio salía `HS512`) |
+| Token real del login: `exp` − `iat` | 28 800 s = 8 h exactas |
+| Token real contra `GET /api/usuarios` | 200 |
+| Token vigente, vence en 10 min (control) | 200 |
+| El mismo token, vencido hace 1 min | 401 |
+| El mismo token, vencido hace 1 s | 401 (sin tolerancia de reloj) |
+| Token `HS512` firmado con el secreto actual | 200: los emitidos antes de fijar el algoritmo siguen valiendo hasta vencer |
+| Token firmado con el `jwt.secret` filtrado | 401 |
+| Token con el contenido alterado después de firmar | 401 |
+| Contraseña de PostgreSQL filtrada | Rechazada (una clave inventada, usada como control, también) |
+| Contraseña de PostgreSQL nueva | Aceptada; la aplicación arranca y conecta |
+| Hashes de la tabla `usuario` | Todos con prefijo `{bcrypt}$2a$10$` |
+| Secretos nuevos en archivos versionados, historial de git y log de arranque | Ausentes |
+
+## 11. Cambio de contraseña (YS-69)
+
+**El problema.** El administrador inicial se creaba con una contraseña fija escrita en el código, y no había forma de cambiarla: la edición de usuarios no incluye la contraseña, y configurar otra en `app.admin-inicial.password` no afecta a un administrador que ya existe, porque el seeder solo actúa con la tabla vacía. Cualquier instalación que no la sobrescribiera quedaba abierta para quien leyera el repositorio.
+
+**El endpoint.** `PUT /api/auth/password` permite a un usuario autenticado cambiar su propia contraseña. Recibe `passwordActual` y `passwordNueva`:
+
+- Pide la contraseña actual aunque la petición ya traiga un token válido. Sin ese requisito, quien encontrara una sesión abierta —una tableta olvidada en un dormitorio— podría cambiarla y quedarse con la cuenta.
+- La nueva sigue las reglas de YS-42: entre 8 y 64 caracteres, guardada con BCrypt.
+- Debe ser distinta de la actual. Si no, el sistema registraría un cambio que no ocurrió, y la operación serviría solo para cerrar las sesiones de otros dispositivos.
+
+**Errores con 400, nunca con 401.** Una contraseña actual incorrecta responde 400 con el error en el campo `passwordActual`, en el mismo formato que las validaciones (sección 7). No reutiliza la `AuthenticationException` de Spring —que el manejador global traduce a 401— porque el interceptor del frontend trata todo 401 como sesión terminada: quien solo se equivocó al escribir quedaría fuera del sistema.
+
+**Sesiones.** El cambio actualiza `fechaInvalidacionSesiones` (el mecanismo de la sección 9), así que todo token emitido antes deja de valer, incluidos los de otros dispositivos. La respuesta trae un token nuevo, emitido después de esa marca, para que quien hizo el cambio siga dentro.
+
+La marca se trunca a milisegundos antes de guardarse. PostgreSQL guarda microsegundos, y al redondearlos la marca podría pasar al milisegundo siguiente; como el filtro compara en milisegundos, el token recién emitido quedaría con fecha anterior a la marca y sería rechazado en cuanto se usara.
+
+**Sin contraseña por defecto en el código.** `AdminInicialSeeder` ya no tiene un valor fijo. Si `app.admin-inicial.password` está configurada, usa esa; si no, genera una de 16 caracteres con `SecureRandom` y la muestra una sola vez en el log del primer arranque. El alfabeto excluye los caracteres que se confunden al copiarlos (`0`/`O`, `1`/`l`/`I`); aun así, 16 caracteres entre 56 posibles dan unos 93 bits de entropía.
+
+El riesgo que queda: esa contraseña permanece escrita en el log. Por eso el aviso pide cambiarla de inmediato, y en una instalación real conviene configurarla antes del primer arranque.
+
+### Verificación realizada
+
+Las pruebas del endpoint se hicieron con un usuario creado para la ocasión y desactivado al terminar (la API no permite borrar usuarios). Las del seeder, con una segunda instancia apuntando a una base de datos temporal vacía, eliminada después: así no se tocó el administrador real.
+
+| Prueba | Resultado |
+|---|---|
+| Cambio sin token | 401 |
+| Contraseña actual incorrecta | 400, error en `passwordActual`; la sesión sigue abierta |
+| Nueva igual a la actual | 400, error en `passwordNueva` |
+| Nueva de 5 caracteres | 400: «La contraseña debe tener entre 8 y 64 caracteres» |
+| Sin `passwordActual` | 400 |
+| Cambio correcto | 200 con token nuevo, aceptado de inmediato |
+| Token usado para el cambio / token de otro dispositivo | 401 / 401 |
+| Login con la contraseña vieja / con la nueva | 401 / 200 |
+| 5 cambios seguidos, usando cada token al instante | 5 de 5: el nuevo 200, el anterior 401 |
+| Hash guardado | Prefijo `{bcrypt}$2a$10$` |
+| Seeder con base vacía y sin `app.admin-inicial.password` | Genera 16 caracteres del alfabeto sin ambiguos y los muestra una sola vez en el log |
+| Login con la contraseña generada / con `Admin123*` | 200 / 401 |
+| Cambio de la generada con el endpoint | 200; la generada deja de servir |
+
+## 12. Restablecer contraseñas desde administración (YS-71)
+
+**El problema.** El cambio de la sección 11 exige la contraseña actual, así que no sirve para quien la olvidó: esa persona quedaba fuera del sistema sin ninguna vía de regreso, y la pantalla de login prometía una ayuda que el administrador no podía dar.
+
+**El endpoint.** `PUT /api/usuarios/{id}/password` asigna una contraseña temporal a otro usuario. Recibe solo la contraseña nueva, con las reglas de YS-42 (entre 8 y 64 caracteres, guardada con BCrypt), y responde 404 si el id no existe.
+
+**Nadie puede restablecerse a sí mismo.** Este endpoint no pide la contraseña anterior —se usa justamente cuando nadie la sabe—, así que permitirlo sobre la cuenta propia abriría el agujero que la sección 11 cierra: quien encontrara una sesión abierta, como una tableta olvidada en un dormitorio, se apropiaría de la cuenta sin conocer la contraseña. El intento responde 403 indicando la vía correcta, que es el cambio de contraseña propio.
+
+**Por qué 403 y no 400 ni 401.** El frontend trata todo 401 como sesión terminada (YS-70), así que devolverlo aquí expulsaría del sistema a quien solo se equivocó de destinatario. Un 400 sugeriría que los datos enviados están mal, y no lo están. El 403 dice lo que realmente ocurre: la petición es válida y la sesión también, pero esa operación no corresponde sobre ese usuario.
+
+**Sesiones.** Restablecer invalida todas las sesiones del usuario afectado, con el mismo `fechaInvalidacionSesiones` truncado a milisegundos de la sección 11, y no toca las de quien la restablece.
+
+**Pendiente: autorización por rol.** Hoy cualquier usuario autenticado puede llamar a este endpoint, igual que a los demás de `/api/usuarios`; la restricción llega en YS-52/YS-53. Hasta entonces, cualquiera con sesión válida puede restablecer la contraseña de otra persona, incluida la del administrador. Es la misma limitación que ya tenían crear y editar usuarios, pero con contraseñas de por medio conviene decirla con todas las letras: **el sistema no debe usarse con datos reales hasta cerrar HU-31.**
+
+**Lo que queda abierto.** El administrador conoce la contraseña temporal hasta que el usuario la cambie, y nada lo obliga a hacerlo: dos personas comparten una credencial, lo que rompe la trazabilidad de quién hizo cada registro. Para resolverlo se abrió HU-32 (YS-72), que marcará al usuario como obligado a cambiarla en su primer ingreso. La pantalla llegó con YS-73: el administrador restablece desde la lista de usuarios, el sistema sugiere una contraseña sin caracteres ambiguos y la muestra una sola vez para que pueda dictarla o anotarla. La acción no aparece en su propia fila, porque el backend la rechazaría.
+
+### Verificación realizada
+
+Sobre una instancia aparte con una base de datos temporal vacía, eliminada al terminar: así las pruebas no dependieron de la contraseña del administrador real ni dejaron usuarios de prueba en los datos.
+
+| Prueba | Resultado |
+|---|---|
+| Restablecer sin token | 401 |
+| Id inexistente | 404 |
+| Contraseña de 5 caracteres | 400, error en `password` |
+| Restablecer la propia | 403, y la sesión sigue abierta |
+| Restablecer la de otra persona | 200 |
+| Sus dos sesiones abiertas | 401 las dos |
+| Sesión de quien restableció | Intacta (200) |
+| Su contraseña anterior / la temporal | 401 / 200 |
+| Ella cambia la temporal por una propia (sección 11) | 200; entra con la suya y la temporal deja de servir |
+| Hash guardado | Prefijo `{bcrypt}$2a$10$` |
+
+## 13. Pruebas automatizadas de autenticación (YS-51)
+
+Son las primeras pruebas automatizadas del proyecto. Cubren los tres criterios de la subtarea —login correcto, credenciales inválidas y expiración del token— más los casos sin los cuales esas comprobaciones no significarían gran cosa.
+
+**Contra PostgreSQL de verdad, no una base en memoria.** `PruebaConBaseDeDatos` levanta un contenedor con Testcontainers y le pasa la conexión a Spring. Se eligió así por dos razones: una base en memoria se comporta distinto del motor real, y apuntar a la base de desarrollo obligaría a tenerla encendida y ensuciaría sus datos. El contenedor se arranca una sola vez para toda la ejecución y se destruye al terminar.
+
+El secreto de firma y la contraseña del administrador inicial se fijan en `src/test/resources/application.properties`. Ese archivo sí se versiona: solo firma tokens de una base efímera, y tener valores predecibles es lo que permite que las pruebas se ejecuten en cualquier máquina sin configuración previa.
+
+**La prueba más valiosa es la de los tres mensajes iguales.** Comprueba que contraseña incorrecta, correo inexistente y usuario desactivado devuelvan exactamente el mismo texto (sección 5). Si alguien más adelante hace más específico alguno de esos mensajes creyendo que ayuda al usuario, esta prueba falla y explica por qué: distinguirlos permitiría averiguar qué correos están registrados.
+
+**Los tokens se fabrican, no se esperan.** Para probar la expiración no se espera a que venza uno real: se firma con el mismo secreto y fecha de vencimiento pasada, y se compara contra otro idéntico salvo por ese campo. Así la prueba tarda milisegundos y el rechazo no puede deberse a ninguna otra causa.
+
+Se ejecutan con `./mvnw test` desde `gestion-asilo-backend`, con Docker encendido.
+
+### Verificación realizada
+
+| Prueba | Resultado |
+|---|---|
+| Login correcto | 200 con token, tipo, correo y rol |
+| Correo escrito en mayúsculas | 200 |
+| Contraseña incorrecta, correo inexistente y usuario desactivado | 401, y los tres mensajes idénticos |
+| Login sin credenciales | 400 con el error en cada campo |
+| Token válido / sin token | 200 / 401 |
+| Token vencido, contra uno idéntico sin vencer | 401 / 200 |
+| Token con el rol alterado tras la firma | 401 |
+| Token firmado con otro secreto | 401 |
+| Cierre de sesión y reingreso | 204, el token viejo 401 y el nuevo 200 |
+| Arranque del contexto de Spring | Levanta con todas sus piezas |
+
+## 14. Qué falta
 
 De HU-30 ([YS-38](https://joaquingsuy93.atlassian.net/browse/YS-38)) y HU-31 ([YS-39](https://joaquingsuy93.atlassian.net/browse/YS-39)):
 
-- **YS-48:** expiración del token. La expiración ya se aplica (`jwt.expiration`, 24 h), porque emitir un token sin `exp` habría sido peor; queda revisar si 24 h es el plazo adecuado y probar el vencimiento.
-- **YS-49/YS-50:** pantalla de login y manejo de sesión en el frontend (guardar el token, interceptor de Axios, botón de cerrar sesión que llame a `/api/auth/logout`).
 - **YS-52/YS-53:** `@PreAuthorize` por endpoint y protección de los endpoints ya existentes según rol.
 - **YS-54:** registro (log) de intentos de acceso denegado.
+- **HU-32 (YS-72):** forzar el cambio de la contraseña temporal en el primer ingreso, para que el administrador deje de conocerla.

@@ -1,15 +1,19 @@
 package app.cabezadealgodon.com.gestionasilobackend.services;
 
+import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import app.cabezadealgodon.com.gestionasilobackend.dto.RestablecerPasswordRequest;
 import app.cabezadealgodon.com.gestionasilobackend.dto.UsuarioRequest;
 import app.cabezadealgodon.com.gestionasilobackend.dto.UsuarioResponse;
 import app.cabezadealgodon.com.gestionasilobackend.dto.UsuarioUpdateRequest;
 import app.cabezadealgodon.com.gestionasilobackend.exception.CorreoDuplicadoException;
+import app.cabezadealgodon.com.gestionasilobackend.exception.OperacionNoPermitidaException;
 import app.cabezadealgodon.com.gestionasilobackend.exception.RecursoNoEncontradoException;
 import app.cabezadealgodon.com.gestionasilobackend.models.Rol;
 import app.cabezadealgodon.com.gestionasilobackend.models.RolNombre;
@@ -82,6 +86,30 @@ public class UsuarioService {
     public UsuarioResponse cambiarEstado(Long id, boolean activo) {
         Usuario usuario = buscarUsuario(id);
         usuario.setActivo(activo);
+        return mapear(usuarioRepository.save(usuario));
+    }
+
+    /**
+     * YS-71: un administrador asigna una contraseña temporal a quien olvidó la
+     * suya. No pide la anterior, y por eso no puede usarse sobre uno mismo:
+     * quien encontrara una sesión abierta se apropiaría de esa cuenta sin
+     * conocer su contraseña. Para la propia está el cambio de YS-69, que sí la
+     * exige.
+     */
+    @Transactional
+    public UsuarioResponse restablecerPassword(Long id, String correoSolicitante,
+            RestablecerPasswordRequest request) {
+        Usuario usuario = buscarUsuario(id);
+
+        if (usuario.getCorreo().equals(normalizarCorreo(correoSolicitante))) {
+            throw new OperacionNoPermitidaException(
+                    "Para cambiar su propia contraseña use el cambio de contraseña, que exige la actual");
+        }
+
+        usuario.setPasswordHash(passwordEncoder.encode(request.password()));
+        // Igual que en YS-69: truncada a milisegundos, porque PostgreSQL guarda
+        // microsegundos y al redondear podría pasar al milisegundo siguiente.
+        usuario.setFechaInvalidacionSesiones(LocalDateTime.now().truncatedTo(ChronoUnit.MILLIS));
         return mapear(usuarioRepository.save(usuario));
     }
 
