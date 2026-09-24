@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Navigate } from "react-router-dom";
+import { Navigate, useLocation } from "react-router-dom";
 
 import logo from "../assets/isotipo/horizontal-primario.svg";
 import { Alert } from "../components/ui/Alert";
@@ -10,20 +10,28 @@ import { useAuth } from "../hooks/useAuth";
 import { mensajeDeError } from "../services/api";
 
 export function LoginPage() {
-  const { login, autenticado } = useAuth();
+  const { login, autenticado, sesionTerminada, descartarAvisoSesion } = useAuth();
+  const ubicacion = useLocation();
   const [correo, setCorreo] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState(null);
   const [entrando, setEntrando] = useState(false);
   const [ayudaVisible, setAyudaVisible] = useState(false);
 
+  // La dejó anotada RutaPrivada al expulsarlo; si entró al login por su cuenta,
+  // no hay ninguna y va a la pantalla inicial.
+  const destino = ubicacion.state?.desde ?? "/usuarios";
+
   if (autenticado) {
-    return <Navigate to="/usuarios" replace />;
+    return <Navigate to={destino} replace />;
   }
 
   const enviar = async (evento) => {
     evento.preventDefault();
     setError(null);
+    // El aviso ya cumplió su función: sin esto quedaría junto a un eventual
+    // error de credenciales, diciendo dos cosas distintas a la vez.
+    descartarAvisoSesion();
     setEntrando(true);
 
     try {
@@ -45,6 +53,15 @@ export function LoginPage() {
         </p>
 
         <form onSubmit={enviar} noValidate className="mt-8 flex flex-col gap-6">
+          {/* YS-70. El mensaje no dice "venció": el mismo 401 llega por
+              expiración, por cierre de sesión en otro dispositivo o porque
+              desactivaron al usuario, y el backend no los distingue a propósito. */}
+          {sesionTerminada && (
+            <Alert tipo="info" rol="status">
+              Su sesión terminó. Vuelva a iniciar sesión para continuar.
+            </Alert>
+          )}
+
           {error && <Alert>{error}</Alert>}
 
           <FormField etiqueta="Correo electrónico">
