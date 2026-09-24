@@ -43,10 +43,17 @@ export function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center gap-8 bg-fondo px-6 py-12">
-      <img src={logo} alt="Asilo de Ancianos Cabeza de Algodón" className="h-16" />
+    /* min-h-dvh y no min-h-screen, por lo mismo que el esqueleto de la
+       aplicación (YS-78): en el teléfono 100vh no descuenta la barra del
+       navegador y el pie de la tarjeta queda fuera de alcance. */
+    <div className="flex min-h-dvh flex-col items-center justify-center gap-8 bg-fondo px-4 py-12 sm:px-6">
+      <img
+        src={logo}
+        alt="Asilo de Ancianos Cabeza de Algodón"
+        className="h-12 w-auto max-w-full sm:h-16"
+      />
 
-      <div className="w-full max-w-md rounded-tarjeta border border-divisor bg-superficie p-8 shadow-tarjeta">
+      <div className="w-full max-w-md rounded-tarjeta border border-divisor bg-superficie p-6 shadow-tarjeta sm:p-8">
         <h1 className="text-h2 font-semibold">Iniciar sesión</h1>
         <p className="mt-2 text-texto-secundario">
           Ingrese sus credenciales institucionales para acceder al sistema.

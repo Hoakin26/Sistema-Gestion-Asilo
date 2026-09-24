@@ -40,7 +40,7 @@ export function ToastProvider({ children }) {
       <div
         role="status"
         aria-live="polite"
-        className="pointer-events-none fixed inset-x-0 bottom-0 z-50 flex flex-col items-center gap-3 px-6 py-6 sm:items-end"
+        className="pointer-events-none fixed inset-x-0 bottom-0 z-50 flex flex-col items-center gap-3 px-4 py-6 sm:items-end sm:px-6"
       >
         {avisos.map(({ id, mensaje, tipo }) => {
           const { Icono, clases } = TIPOS[tipo];
@@ -55,7 +55,10 @@ export function ToastProvider({ children }) {
                 type="button"
                 onClick={() => descartar(id)}
                 aria-label="Descartar aviso"
-                className="-my-1 -mr-1 ml-2 flex size-8 shrink-0 items-center justify-center rounded-campo hover:bg-superficie/50"
+                /* 44px de área táctil como exige el manual; los márgenes
+                   negativos la extienden sobre el relleno del aviso para que
+                   el botón no se vea desproporcionado (YS-80). */
+                className="-my-2 -mr-2 ml-2 flex size-11 shrink-0 items-center justify-center rounded-campo hover:bg-superficie/50"
               >
                 <X aria-hidden="true" size={16} />
               </button>

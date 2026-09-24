@@ -40,7 +40,7 @@ export function Navbar({ migas, menuAbierto, alAbrirMenu }) {
   return (
     /* shrink-0: dentro del esqueleto de altura fija (YS-78), sin esto la barra
        se comprimiría cuando el contenido de abajo es alto. */
-    <header className="flex shrink-0 items-center justify-between gap-4 border-b border-divisor bg-superficie px-6 py-4">
+    <header className="flex shrink-0 items-center justify-between gap-4 border-b border-divisor bg-superficie px-4 py-4 sm:px-6">
       <div className="flex min-w-0 items-center gap-2">
         {/* Único acceso al menú por debajo de 1024px, donde el menú fijo no
             está (YS-79). Arriba de ese ancho sobra y se oculta. */}
@@ -50,7 +50,7 @@ export function Navbar({ migas, menuAbierto, alAbrirMenu }) {
           onClick={alAbrirMenu}
           aria-expanded={menuAbierto}
           aria-controls="cajon-navegacion"
-          className="-ml-2 lg:hidden"
+          className="lg:hidden"
         >
           <Menu aria-hidden="true" size={24} />
         </IconButton>

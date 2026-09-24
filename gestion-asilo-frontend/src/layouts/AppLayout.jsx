@@ -31,7 +31,9 @@ export function AppLayout({ migas, children }) {
           menuAbierto={cajonAbierto}
           alAbrirMenu={() => setCajonAbierto(true)}
         />
-        <main className="flex-1 overflow-y-auto px-6 py-8">{children}</main>
+        {/* px-4 en teléfono: con px-6 los márgenes se comían 48 de los 375px
+            disponibles, que es justo lo que le falta a la tabla (YS-80). */}
+        <main className="flex-1 overflow-y-auto px-4 py-8 sm:px-6">{children}</main>
       </div>
     </div>
   );
