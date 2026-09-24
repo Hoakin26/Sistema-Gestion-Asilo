@@ -302,7 +302,7 @@ Las pruebas del endpoint se hicieron con un usuario creado para la ocasión y de
 
 **Pendiente: autorización por rol.** Hoy cualquier usuario autenticado puede llamar a este endpoint, igual que a los demás de `/api/usuarios`; la restricción llega en YS-52/YS-53. Hasta entonces, cualquiera con sesión válida puede restablecer la contraseña de otra persona, incluida la del administrador. Es la misma limitación que ya tenían crear y editar usuarios, pero con contraseñas de por medio conviene decirla con todas las letras: **el sistema no debe usarse con datos reales hasta cerrar HU-31.**
 
-**Lo que queda abierto.** El administrador conoce la contraseña temporal hasta que el usuario la cambie, y nada lo obliga a hacerlo: dos personas comparten una credencial, lo que rompe la trazabilidad de quién hizo cada registro. Para resolverlo se abrió HU-32 (YS-72), que marcará al usuario como obligado a cambiarla en su primer ingreso. El endpoint tampoco tiene pantalla todavía (YS-73), así que por ahora solo se usa desde la API; por eso el texto de «¿Olvidó su contraseña?» del login dejó de mencionar el módulo de usuarios.
+**Lo que queda abierto.** El administrador conoce la contraseña temporal hasta que el usuario la cambie, y nada lo obliga a hacerlo: dos personas comparten una credencial, lo que rompe la trazabilidad de quién hizo cada registro. Para resolverlo se abrió HU-32 (YS-72), que marcará al usuario como obligado a cambiarla en su primer ingreso. La pantalla llegó con YS-73: el administrador restablece desde la lista de usuarios, el sistema sugiere una contraseña sin caracteres ambiguos y la muestra una sola vez para que pueda dictarla o anotarla. La acción no aparece en su propia fila, porque el backend la rechazaría.
 
 ### Verificación realizada
 
@@ -328,6 +328,4 @@ De HU-30 ([YS-38](https://joaquingsuy93.atlassian.net/browse/YS-38)) y HU-31 ([Y
 - **YS-51:** pruebas de login exitoso, credenciales inválidas y expiración del token.
 - **YS-52/YS-53:** `@PreAuthorize` por endpoint y protección de los endpoints ya existentes según rol.
 - **YS-54:** registro (log) de intentos de acceso denegado.
-- **YS-70:** aviso en el frontend cuando la sesión termina, para que un 401 no lleve al login sin explicación.
-- **YS-73:** pantalla para restablecer la contraseña de un usuario desde la lista; hoy el endpoint de la sección 12 solo se puede usar desde la API.
 - **HU-32 (YS-72):** forzar el cambio de la contraseña temporal en el primer ingreso, para que el administrador deje de conocerla.

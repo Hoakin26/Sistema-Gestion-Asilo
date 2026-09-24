@@ -1,6 +1,16 @@
 import { useCallback, useEffect, useState } from "react";
-import { Filter, Pencil, Plus, Search, UserCheck, Users, UserX } from "lucide-react";
+import {
+  Filter,
+  KeyRound,
+  Pencil,
+  Plus,
+  Search,
+  UserCheck,
+  Users,
+  UserX,
+} from "lucide-react";
 
+import { RestablecerPasswordModal } from "../components/usuarios/RestablecerPasswordModal";
 import { UsuarioFormModal } from "../components/usuarios/UsuarioFormModal";
 import { Alert } from "../components/ui/Alert";
 import { Button, IconButton } from "../components/ui/Button";
@@ -9,6 +19,7 @@ import { Input, Select } from "../components/ui/Input";
 import { StatusBadge } from "../components/ui/StatusBadge";
 import { TablaSkeleton } from "../components/ui/TablaSkeleton";
 import { ROLES, etiquetaDeRol } from "../constants/roles";
+import { useAuth } from "../hooks/useAuth";
 import { useToast } from "../hooks/useToast";
 import { AppLayout } from "../layouts/AppLayout";
 import { mensajeDeError } from "../services/api";
@@ -24,6 +35,7 @@ function normalizar(texto) {
 
 export function UsuariosPage() {
   const { mostrar } = useToast();
+  const { usuario: sesion } = useAuth();
 
   const [usuarios, setUsuarios] = useState([]);
   const [cargando, setCargando] = useState(true);
@@ -37,6 +49,12 @@ export function UsuariosPage() {
   // Cambia en cada apertura para que el formulario se remonte limpio.
   const [aperturas, setAperturas] = useState(0);
   const [porDesactivar, setPorDesactivar] = useState(null);
+
+  // El usuario se conserva al cerrar para que el modal no quede vacío durante
+  // su animación de salida; lo que controla la visibilidad es el booleano.
+  const [porRestablecer, setPorRestablecer] = useState(null);
+  const [modalPasswordAbierto, setModalPasswordAbierto] = useState(false);
+  const [aperturasPassword, setAperturasPassword] = useState(0);
 
   // No enciende el estado de carga: en la primera vez ya arranca encendido, y
   // al recargar tras guardar es preferible no parpadear la tabla completa.
@@ -59,6 +77,12 @@ export function UsuariosPage() {
     setEnEdicion(usuario);
     setAperturas((valor) => valor + 1);
     setModalAbierto(true);
+  };
+
+  const abrirRestablecer = (usuario) => {
+    setPorRestablecer(usuario);
+    setAperturasPassword((valor) => valor + 1);
+    setModalPasswordAbierto(true);
   };
 
   const cambiarEstado = async (usuario, activo) => {
@@ -242,6 +266,18 @@ export function UsuariosPage() {
                             <Pencil aria-hidden="true" size={20} />
                           </IconButton>
 
+                          {/* En la fila propia no se ofrece: restablecer no pide
+                              la contraseña actual, así que el backend lo rechaza
+                              (YS-71). La propia se cambia desde el perfil. */}
+                          {usuario.correo !== sesion?.correo && (
+                            <IconButton
+                              etiqueta={`Restablecer la contraseña de ${usuario.nombreCompleto}, cerrará sus sesiones abiertas`}
+                              onClick={() => abrirRestablecer(usuario)}
+                            >
+                              <KeyRound aria-hidden="true" size={20} />
+                            </IconButton>
+                          )}
+
                           {usuario.activo ? (
                             <IconButton
                               etiqueta={`Desactivar a ${usuario.nombreCompleto}, le cortará el acceso al sistema`}
@@ -282,6 +318,17 @@ export function UsuariosPage() {
           );
           cargar();
         }}
+      />
+
+      {/* No lleva confirmación aparte: a diferencia de desactivar, que es un
+          clic inmediato, aquí ya hubo que abrir el modal, revisar la contraseña
+          y pulsar el botón. El aviso de la consecuencia va dentro. */}
+      <RestablecerPasswordModal
+        abierto={modalPasswordAbierto}
+        usuario={porRestablecer}
+        clave={aperturasPassword}
+        alCerrar={() => setModalPasswordAbierto(false)}
+        alExito={(nombre) => mostrar(`Se asignó una contraseña nueva a ${nombre}.`)}
       />
 
       {/* Desactivar corta el acceso de inmediato, incluso con sesión abierta:
