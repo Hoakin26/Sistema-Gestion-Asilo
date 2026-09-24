@@ -3,14 +3,17 @@ package app.cabezadealgodon.com.gestionasilobackend;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Locale;
 
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -28,22 +31,32 @@ import app.cabezadealgodon.com.gestionasilobackend.repository.RolRepository;
 import app.cabezadealgodon.com.gestionasilobackend.repository.UsuarioRepository;
 
 /**
- * YS-53. Comprueba que la restricción por rol distinga entre "no tiene sesión"
- * y "tiene sesión pero esto no le corresponde", y que no se haya pasado de
- * largo cerrando endpoints que sí son de todos los roles.
+ * YS-53 y YS-82. Recorre los siete roles del sistema contra la administración
+ * de usuarios y contra los endpoints que son de todos.
  *
  * <p>
- * Las tres pruebas usan tokens reales obtenidos del login, no roles simulados
- * con anotaciones de Spring: así se ejercita la cadena completa —filtro JWT,
- * carga del usuario y autorización— que es donde puede romperse.
+ * El barrido va sobre el enum {@link RolNombre} y no sobre una lista escrita a
+ * mano, para que un rol nuevo entre solo a la prueba. Y la expectativa se
+ * deriva del propio enum —solo ADMINISTRADOR_ASILO entra—, así que un rol nuevo
+ * nace con la expectativa correcta: que se le niegue.
+ *
+ * <p>
+ * Esto importa más de lo que parece. El nombre del rol viaja como texto dentro
+ * de {@code @SoloAdministradorAsilo}, porque una anotación de Java solo admite
+ * constantes y no hay forma de atarlo al enum. Si alguien renombra un valor de
+ * {@code RolNombre}, nada falla al compilar y la restricción puede quedar rota
+ * en silencio: estas pruebas son la única red.
+ *
+ * <p>
+ * Se usan tokens reales obtenidos del login y no roles simulados con
+ * anotaciones de Spring, para ejercitar la cadena completa —filtro JWT, carga
+ * del usuario y autorización—, que es donde puede romperse.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
-@DisplayName("Autorización por rol (YS-53)")
+@DisplayName("Autorización por rol (YS-53, YS-82)")
 class AutorizacionTest extends PruebaConBaseDeDatos {
 
-    private static final String ENFERMERA = "enfermera.autorizacion@asilo.gt";
-    private static final String ADMIN_ASILO = "admin.autorizacion@asilo.gt";
     private static final String PASSWORD = "Prueba1234";
 
     @Autowired
@@ -58,47 +71,47 @@ class AutorizacionTest extends PruebaConBaseDeDatos {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
-    @BeforeEach
-    void prepararUsuarios() {
-        guardarUsuario(ENFERMERA, RolNombre.ENFERMERIA);
-        guardarUsuario(ADMIN_ASILO, RolNombre.ADMINISTRADOR_ASILO);
-    }
+    @ParameterizedTest(name = "{0}")
+    @EnumSource(RolNombre.class)
+    @DisplayName("Solo el Administrador del Asilo administra usuarios")
+    void soloElAdministradorDelAsiloAdministraUsuarios(RolNombre rol) throws Exception {
+        boolean deberiaEntrar = rol == RolNombre.ADMINISTRADOR_ASILO;
 
-    @Test
-    @DisplayName("Un rol sin permiso recibe 403 aunque su token sea válido")
-    void rolSinPermisoRecibe403() throws Exception {
-        mvc.perform(get("/api/usuarios").header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(ENFERMERA)))
-                .andExpect(status().isForbidden());
+        mvc.perform(get("/api/usuarios").header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(rol)))
+                .andExpect(deberiaEntrar ? status().isOk() : status().isForbidden());
     }
 
     /**
-     * YS-54. Un 403 con el cuerpo vacío deja al frontend sin nada que mostrar y
-     * al usuario ante una pantalla que no reacciona. La respuesta debe traer el
-     * mismo formato de error que el resto de la API.
+     * El contrapeso del barrido anterior. Restringir de más es tan defecto como
+     * restringir de menos, y sin esto pasaría inadvertido: dejaría a seis de los
+     * siete roles sin poder salir del sistema.
      */
-    @Test
-    @DisplayName("El 403 explica qué pasó, con el formato de error de la API")
-    void elRechazoTraeMensajeYRuta() throws Exception {
-        mvc.perform(get("/api/usuarios").header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(ENFERMERA)))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.mensaje").isNotEmpty())
-                .andExpect(jsonPath("$.ruta").value("/api/usuarios"));
+    @ParameterizedTest(name = "{0}")
+    @EnumSource(RolNombre.class)
+    @DisplayName("Cerrar sesión está disponible para los siete roles")
+    void cerrarSesionEsDeTodosLosRoles(RolNombre rol) throws Exception {
+        mvc.perform(post("/api/auth/logout").header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(rol)))
+                .andExpect(status().isNoContent());
     }
 
     /**
-     * El mensaje no debe nombrar el rol que haría falta: eso le iría
-     * describiendo el mapa de permisos a quien prueba dónde puede entrar.
+     * El otro endpoint común a los siete: cada quien cambia su propia
+     * contraseña. No confundir con restablecer la de otro, que sí es exclusivo
+     * del Administrador del Asilo (YS-71).
      */
-    @Test
-    @DisplayName("El mensaje del 403 no revela qué rol se necesita")
-    void elMensajeNoRevelaElRolNecesario() throws Exception {
-        String cuerpo = mvc.perform(get("/api/usuarios")
-                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(ENFERMERA)))
-                .andReturn()
-                .getResponse()
-                .getContentAsString(StandardCharsets.UTF_8);
+    @ParameterizedTest(name = "{0}")
+    @EnumSource(RolNombre.class)
+    @DisplayName("Cambiar la propia contraseña está disponible para los siete roles")
+    void cambiarLaPropiaPasswordEsDeTodosLosRoles(RolNombre rol) throws Exception {
+        String cuerpo = """
+                {"passwordActual": "%s", "passwordNueva": "OtraClave9876"}
+                """.formatted(PASSWORD);
 
-        assertThat(cuerpo).doesNotContain(RolNombre.ADMINISTRADOR_ASILO.name());
+        mvc.perform(put("/api/auth/password")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(rol))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(cuerpo))
+                .andExpect(status().isOk());
     }
 
     /**
@@ -111,13 +124,6 @@ class AutorizacionTest extends PruebaConBaseDeDatos {
     void sinTokenResponde401() throws Exception {
         mvc.perform(get("/api/usuarios"))
                 .andExpect(status().isUnauthorized());
-    }
-
-    @Test
-    @DisplayName("El Administrador del Asilo sí entra a la administración de usuarios")
-    void administradorDelAsiloEntra() throws Exception {
-        mvc.perform(get("/api/usuarios").header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(ADMIN_ASILO)))
-                .andExpect(status().isOk());
     }
 
     /**
@@ -136,28 +142,53 @@ class AutorizacionTest extends PruebaConBaseDeDatos {
                 """;
 
         mvc.perform(post("/api/usuarios")
-                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(ENFERMERA))
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(RolNombre.ENFERMERIA))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(cuerpo))
                 .andExpect(status().isForbidden());
     }
 
     /**
-     * El contrapeso de las pruebas anteriores: cerrar sesión es común a los
-     * siete roles. Sin esta comprobación, restringir de más pasaría inadvertido
-     * y dejaría a seis de los siete roles sin poder salir del sistema.
+     * YS-54. Un 403 con el cuerpo vacío deja al frontend sin nada que mostrar y
+     * al usuario ante una pantalla que no reacciona.
      */
     @Test
-    @DisplayName("Cerrar sesión sigue disponible para un rol sin acceso a usuarios")
-    void cerrarSesionSigueSiendoDeTodos() throws Exception {
-        mvc.perform(post("/api/auth/logout")
-                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(ENFERMERA)))
-                .andExpect(status().isNoContent());
+    @DisplayName("El 403 explica qué pasó, con el formato de error de la API")
+    void elRechazoTraeMensajeYRuta() throws Exception {
+        mvc.perform(get("/api/usuarios")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(RolNombre.ENFERMERIA)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.mensaje").isNotEmpty())
+                .andExpect(jsonPath("$.ruta").value("/api/usuarios"));
+    }
+
+    /**
+     * El mensaje no debe nombrar el rol que haría falta: eso le iría
+     * describiendo el mapa de permisos a quien prueba dónde puede entrar.
+     */
+    @Test
+    @DisplayName("El mensaje del 403 no revela qué rol se necesita")
+    void elMensajeNoRevelaElRolNecesario() throws Exception {
+        String cuerpo = mvc.perform(get("/api/usuarios")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(RolNombre.ENFERMERIA)))
+                .andReturn()
+                .getResponse()
+                .getContentAsString(StandardCharsets.UTF_8);
+
+        assertThat(cuerpo).doesNotContain(RolNombre.ADMINISTRADOR_ASILO.name());
     }
 
     // ---- apoyo ----
 
-    private void guardarUsuario(String correo, RolNombre rol) {
+    /**
+     * Rehace el usuario del rol en cada llamada en vez de prepararlos una vez
+     * al inicio. Hay pruebas que le cambian la contraseña y otras que le cierran
+     * la sesión, así que un usuario compartido haría que el resultado dependiera
+     * del orden en que JUnit ejecute las pruebas.
+     */
+    private String tokenDe(RolNombre rol) throws Exception {
+        String correo = rol.name().toLowerCase(Locale.ROOT) + ".autorizacion@asilo.gt";
+
         Usuario usuario = usuarioRepository.findByCorreo(correo).orElseGet(Usuario::new);
         usuario.setNombreCompleto("Persona de prueba");
         usuario.setCorreo(correo);
@@ -166,15 +197,13 @@ class AutorizacionTest extends PruebaConBaseDeDatos {
         usuario.setActivo(true);
         usuario.setFechaInvalidacionSesiones(null);
         usuarioRepository.save(usuario);
-    }
 
-    private String tokenDe(String correo) throws Exception {
-        String cuerpo = mvc.perform(peticionLogin(correo))
+        String respuesta = mvc.perform(peticionLogin(correo))
                 .andExpect(status().isOk())
                 .andReturn()
                 .getResponse()
                 .getContentAsString(StandardCharsets.UTF_8);
-        return JsonPath.read(cuerpo, "$.token");
+        return JsonPath.read(respuesta, "$.token");
     }
 
     private RequestBuilder peticionLogin(String correo) {

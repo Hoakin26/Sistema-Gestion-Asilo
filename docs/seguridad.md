@@ -350,7 +350,7 @@ Se ejecutan con `./mvnw test` desde `gestion-asilo-backend`, con Docker encendid
 | Cierre de sesión y reingreso | 204, el token viejo 401 y el nuevo 200 |
 | Arranque del contexto de Spring | Levanta con todas sus piezas |
 
-## 14. Autorización por rol (YS-52 y YS-53)
+## 14. Autorización por rol (YS-52, YS-53 y YS-82)
 
 Hasta aquí el sistema solo distinguía entre autenticado y no autenticado: cualquiera de los siete roles con un token válido podía listar, crear, editar y desactivar usuarios. HU-31 cierra eso.
 
@@ -395,16 +395,26 @@ Al aplicar la restricción, tres pruebas de YS-51 empezaron a fallar con 403. No
 
 `AutorizacionTest` comprueba lo contrario y también el contrapeso: que cerrar sesión le siga sirviendo a un rol sin acceso a usuarios. Sin esa comprobación, restringir de más pasaría inadvertido y dejaría a seis de los siete roles sin poder salir del sistema.
 
+### El barrido de los siete roles (YS-82)
+
+Comprobar dos roles no alcanzaba. `AutorizacionTest` recorre ahora los siete con `@EnumSource(RolNombre.class)`, y la expectativa se deriva del propio enum —solo `ADMINISTRADOR_ASILO` entra—, de modo que **un rol nuevo entra solo a la prueba y nace esperando que se le niegue el acceso**. Si la expectativa estuviera en una lista aparte, un rol nuevo quedaría sin cubrir y el descuido no daría ningún síntoma.
+
+Es la única red que tiene esta historia: como el nombre del rol viaja como texto dentro de la anotación, renombrar un valor de `RolNombre` no rompe la compilación y podría dejar la restricción sin efecto en silencio.
+
+El barrido tiene tres partes, y las dos últimas son el contrapeso: además de comprobar que seis roles reciben 403 en la administración de usuarios, comprueba que los siete pueden cerrar sesión y cambiar su propia contraseña. Restringir de más es tan defecto como restringir de menos, y sin esas dos comprobaciones dejaría a seis roles sin poder salir del sistema sin que nada lo advirtiera.
+
+Los usuarios de prueba se rehacen en cada llamada y no una vez al inicio, porque hay pruebas que cambian la contraseña y otras que cierran la sesión: compartiéndolos, el resultado dependería del orden en que JUnit las ejecute.
+
 ### Verificación realizada
 
 | Prueba | Resultado |
 |---|---|
-| Enfermería con token válido pide la lista de usuarios | 403 |
+| Los siete roles piden la lista de usuarios | 200 solo ADMINISTRADOR_ASILO; 403 los otros seis |
+| Los siete roles cierran sesión | 204 los siete |
+| Los siete roles cambian su propia contraseña | 200 los siete |
 | La misma ruta sin token | 401, no 403 |
-| Administrador del Asilo pide la lista de usuarios | 200 |
 | Enfermería intenta crear un usuario | 403 |
-| Enfermería cierra sesión | 204 |
-| Suite completa del backend | 15 pruebas, todas pasan |
+| Suite completa del backend | 35 pruebas, todas pasan |
 
 ## 15. Registro de accesos denegados (YS-54)
 
@@ -452,8 +462,7 @@ No nombra el rol que haría falta, y hay una prueba que lo verifica. Decirlo le 
 
 De HU-31 ([YS-39](https://joaquingsuy93.atlassian.net/browse/YS-39)):
 
-- **[YS-81](https://joaquingsuy93.atlassian.net/browse/YS-81):** mostrar en el frontend solo los módulos del rol. Hoy los siete roles ven el menú del Administrador del Asilo, así que seis de ellos ven puertas que el backend ya les cerró.
-- **[YS-82](https://joaquingsuy93.atlassian.net/browse/YS-82):** barrer los siete roles en las pruebas. Hoy se comprueban dos.
+- **[YS-81](https://joaquingsuy93.atlassian.net/browse/YS-81):** mostrar en el frontend solo los módulos del rol. Hoy los siete roles ven el menú del Administrador del Asilo, así que seis de ellos ven puertas que el backend ya les cerró. Es lo único que falta para cerrar HU-31.
 
 De HU-32 ([YS-72](https://joaquingsuy93.atlassian.net/browse/YS-72)):
 
