@@ -350,7 +350,7 @@ Se ejecutan con `./mvnw test` desde `gestion-asilo-backend`, con Docker encendid
 | Cierre de sesión y reingreso | 204, el token viejo 401 y el nuevo 200 |
 | Arranque del contexto de Spring | Levanta con todas sus piezas |
 
-## 14. Autorización por rol (YS-52, YS-53 y YS-82)
+## 14. Autorización por rol (YS-52, YS-53, YS-81 y YS-82)
 
 Hasta aquí el sistema solo distinguía entre autenticado y no autenticado: cualquiera de los siete roles con un token válido podía listar, crear, editar y desactivar usuarios. HU-31 cierra eso.
 
@@ -405,6 +405,22 @@ El barrido tiene tres partes, y las dos últimas son el contrapeso: además de c
 
 Los usuarios de prueba se rehacen en cada llamada y no una vez al inicio, porque hay pruebas que cambian la contraseña y otras que cierran la sesión: compartiéndolos, el resultado dependería del orden en que JUnit las ejecute.
 
+### El menú por rol en el frontend (YS-81)
+
+El backend ya negaba, pero los siete roles seguían viendo el menú del Administrador del Asilo: seis de ellos tenían a la vista puertas que el sistema ya les había cerrado.
+
+**Lo que no le corresponde al rol no aparece; lo que le corresponde pero aún no está construido sigue en gris.** Son dos mensajes distintos y conviene que no se confundan: el gris dice "llega en una fase posterior" y la ausencia dice "no es de su rol". Un médico no tiene por qué enterarse de que existe un módulo de donaciones.
+
+La matriz vive en `constants/modulos.js`, como un catálogo de módulos más un mapa de rol a módulos. Un catálogo y un mapa en vez de siete listas completas: agregar un módulo o cambiarle el ícono es un solo cambio y no siete que se desincronizan.
+
+**El guardia de las rutas lee esa misma matriz.** Es la parte que importa: ocultar una opción no protege nada si la URL escrita a mano abre igual. `puedeEntrar(rol, ruta)` se resuelve con los mismos datos que arman el menú, así que lo que se muestra y lo que se deja entrar no pueden discrepar. Sigue sin ser la protección real —esa es el backend (YS-53), que responde 403 aunque este guardia se equivoque—, pero evita que el usuario llegue a una pantalla que no le va a responder.
+
+Un rol que este archivo no contemple recibe solo el Dashboard, nunca el menú completo: si algún día llega uno nuevo, el error debe ser de menos y no de más.
+
+Quien escribe a mano una dirección que no le toca ve una pantalla que se lo explica, dentro del esqueleto de la aplicación y con su menú al lado, en vez de una redirección callada que lo dejaría creyendo que el enlace falló. El mensaje no nombra el rol necesario, igual que la respuesta del backend.
+
+**Hizo falta un Dashboard.** Al restringir por rol, seis de los siete se quedaban sin ningún lugar donde aterrizar: el login y la ruta comodín llevaban a `/usuarios`, que ahora es de un solo rol. `/dashboard` es la única ruta que los siete tienen en común según la matriz del diseño, así que es la pantalla inicial de todos. Por ahora no muestra indicadores, porque los datos que resumiría todavía no existen; muestra los módulos construidos del rol, o un aviso de qué sí puede hacer mientras tanto.
+
 ### Verificación realizada
 
 | Prueba | Resultado |
@@ -415,6 +431,8 @@ Los usuarios de prueba se rehacen en cada llamada y no una vez al inicio, porque
 | La misma ruta sin token | 401, no 403 |
 | Enfermería intenta crear un usuario | 403 |
 | Suite completa del backend | 35 pruebas, todas pasan |
+| El menú de cada uno de los siete roles coincide con la matriz del diseño | Verificado sobre `modulosDeRol` |
+| Un rol desconocido | Solo Dashboard, sin acceso a `/usuarios` |
 
 ## 15. Registro de accesos denegados (YS-54)
 
@@ -460,10 +478,6 @@ No nombra el rol que haría falta, y hay una prueba que lo verifica. Decirlo le 
 
 ## 16. Qué falta
 
-De HU-31 ([YS-39](https://joaquingsuy93.atlassian.net/browse/YS-39)):
-
-- **[YS-81](https://joaquingsuy93.atlassian.net/browse/YS-81):** mostrar en el frontend solo los módulos del rol. Hoy los siete roles ven el menú del Administrador del Asilo, así que seis de ellos ven puertas que el backend ya les cerró. Es lo único que falta para cerrar HU-31.
-
-De HU-32 ([YS-72](https://joaquingsuy93.atlassian.net/browse/YS-72)):
+HU-31 ([YS-39](https://joaquingsuy93.atlassian.net/browse/YS-39)) queda cerrada con YS-81. De HU-32 ([YS-72](https://joaquingsuy93.atlassian.net/browse/YS-72)):
 
 - Forzar el cambio de la contraseña temporal en el primer ingreso, para que el administrador deje de conocerla.
