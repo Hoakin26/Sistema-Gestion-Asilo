@@ -34,7 +34,9 @@ const ITEM = "flex min-h-11 items-center gap-3 rounded-tarjeta px-4 font-medium"
 
 export function Sidebar() {
   return (
-    <aside className="hidden w-72 shrink-0 border-r border-divisor bg-superficie md:block">
+    /* overflow-y-auto: si los módulos no caen en pantallas bajas, se desplaza
+       el menú por dentro y no la página entera (YS-78). */
+    <aside className="hidden w-72 shrink-0 overflow-y-auto border-r border-divisor bg-superficie md:block">
       <div className="border-b border-divisor px-6 py-6">
         <Logotipo />
       </div>

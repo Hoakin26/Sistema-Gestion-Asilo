@@ -37,7 +37,9 @@ export function Navbar({ migas }) {
   }, [abierto]);
 
   return (
-    <header className="flex items-center justify-between gap-4 border-b border-divisor bg-superficie px-6 py-4">
+    /* shrink-0: dentro del esqueleto de altura fija (YS-78), sin esto la barra
+       se comprimiría cuando el contenido de abajo es alto. */
+    <header className="flex shrink-0 items-center justify-between gap-4 border-b border-divisor bg-superficie px-6 py-4">
       <nav aria-label="Ruta de navegación">
         <ol className="flex items-center gap-2 text-texto-secundario">
           {migas.map((miga, indice) => (
