@@ -321,11 +321,39 @@ Sobre una instancia aparte con una base de datos temporal vacía, eliminada al t
 | Ella cambia la temporal por una propia (sección 11) | 200; entra con la suya y la temporal deja de servir |
 | Hash guardado | Prefijo `{bcrypt}$2a$10$` |
 
-## 13. Qué falta
+## 13. Pruebas automatizadas de autenticación (YS-51)
+
+Son las primeras pruebas automatizadas del proyecto. Cubren los tres criterios de la subtarea —login correcto, credenciales inválidas y expiración del token— más los casos sin los cuales esas comprobaciones no significarían gran cosa.
+
+**Contra PostgreSQL de verdad, no una base en memoria.** `PruebaConBaseDeDatos` levanta un contenedor con Testcontainers y le pasa la conexión a Spring. Se eligió así por dos razones: una base en memoria se comporta distinto del motor real, y apuntar a la base de desarrollo obligaría a tenerla encendida y ensuciaría sus datos. El contenedor se arranca una sola vez para toda la ejecución y se destruye al terminar.
+
+El secreto de firma y la contraseña del administrador inicial se fijan en `src/test/resources/application.properties`. Ese archivo sí se versiona: solo firma tokens de una base efímera, y tener valores predecibles es lo que permite que las pruebas se ejecuten en cualquier máquina sin configuración previa.
+
+**La prueba más valiosa es la de los tres mensajes iguales.** Comprueba que contraseña incorrecta, correo inexistente y usuario desactivado devuelvan exactamente el mismo texto (sección 5). Si alguien más adelante hace más específico alguno de esos mensajes creyendo que ayuda al usuario, esta prueba falla y explica por qué: distinguirlos permitiría averiguar qué correos están registrados.
+
+**Los tokens se fabrican, no se esperan.** Para probar la expiración no se espera a que venza uno real: se firma con el mismo secreto y fecha de vencimiento pasada, y se compara contra otro idéntico salvo por ese campo. Así la prueba tarda milisegundos y el rechazo no puede deberse a ninguna otra causa.
+
+Se ejecutan con `./mvnw test` desde `gestion-asilo-backend`, con Docker encendido.
+
+### Verificación realizada
+
+| Prueba | Resultado |
+|---|---|
+| Login correcto | 200 con token, tipo, correo y rol |
+| Correo escrito en mayúsculas | 200 |
+| Contraseña incorrecta, correo inexistente y usuario desactivado | 401, y los tres mensajes idénticos |
+| Login sin credenciales | 400 con el error en cada campo |
+| Token válido / sin token | 200 / 401 |
+| Token vencido, contra uno idéntico sin vencer | 401 / 200 |
+| Token con el rol alterado tras la firma | 401 |
+| Token firmado con otro secreto | 401 |
+| Cierre de sesión y reingreso | 204, el token viejo 401 y el nuevo 200 |
+| Arranque del contexto de Spring | Levanta con todas sus piezas |
+
+## 14. Qué falta
 
 De HU-30 ([YS-38](https://joaquingsuy93.atlassian.net/browse/YS-38)) y HU-31 ([YS-39](https://joaquingsuy93.atlassian.net/browse/YS-39)):
 
-- **YS-51:** pruebas de login exitoso, credenciales inválidas y expiración del token.
 - **YS-52/YS-53:** `@PreAuthorize` por endpoint y protección de los endpoints ya existentes según rol.
 - **YS-54:** registro (log) de intentos de acceso denegado.
 - **HU-32 (YS-72):** forzar el cambio de la contraseña temporal en el primer ingreso, para que el administrador deje de conocerla.
