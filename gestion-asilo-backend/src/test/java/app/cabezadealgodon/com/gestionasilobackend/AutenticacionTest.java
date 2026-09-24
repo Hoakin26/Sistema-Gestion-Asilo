@@ -48,6 +48,13 @@ class AutenticacionTest extends PruebaConBaseDeDatos {
 
     private static final String ACTIVO = "enfermera.pruebas@asilo.gt";
     private static final String INACTIVA = "inactiva.pruebas@asilo.gt";
+    /*
+     * YS-53. La sonda de "token válido" es GET /api/usuarios, que desde HU-31
+     * es exclusivo del Administrador del Asilo. Por eso estas pruebas entran
+     * con un usuario de ese rol: si entraran con el de enfermería medirían la
+     * autorización y no la autenticación, que es lo que les toca comprobar.
+     */
+    private static final String ADMIN = "admin.asilo.pruebas@asilo.gt";
     private static final String PASSWORD = "Prueba1234";
     private static final String MENSAJE_GENERICO = "Credenciales inválidas";
 
@@ -73,8 +80,9 @@ class AutenticacionTest extends PruebaConBaseDeDatos {
      */
     @BeforeEach
     void prepararUsuarios() {
-        guardarUsuario(ACTIVO, true);
-        guardarUsuario(INACTIVA, false);
+        guardarUsuario(ACTIVO, true, RolNombre.ENFERMERIA);
+        guardarUsuario(INACTIVA, false, RolNombre.ENFERMERIA);
+        guardarUsuario(ADMIN, true, RolNombre.ADMINISTRADOR_ASILO);
     }
 
     @Test
@@ -127,7 +135,7 @@ class AutenticacionTest extends PruebaConBaseDeDatos {
     @Test
     @DisplayName("Un token válido abre la API y su ausencia la cierra")
     void tokenValidoYSinToken() throws Exception {
-        mvc.perform(get("/api/usuarios").header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDeLogin()))
+        mvc.perform(get("/api/usuarios").header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(ADMIN)))
                 .andExpect(status().isOk());
 
         mvc.perform(get("/api/usuarios"))
@@ -149,7 +157,7 @@ class AutenticacionTest extends PruebaConBaseDeDatos {
     @Test
     @DisplayName("Un token con el contenido alterado después de firmarlo se rechaza")
     void tokenManipulado() throws Exception {
-        String alterado = conRolAlterado(tokenDeLogin());
+        String alterado = conRolAlterado(tokenDe(ACTIVO));
 
         mvc.perform(peticionConToken(alterado))
                 .andExpect(status().isUnauthorized());
@@ -167,7 +175,7 @@ class AutenticacionTest extends PruebaConBaseDeDatos {
     @Test
     @DisplayName("Al cerrar sesión el token deja de servir y volver a entrar entrega uno nuevo que sí sirve")
     void cierreDeSesion() throws Exception {
-        String token = tokenDeLogin();
+        String token = tokenDe(ADMIN);
 
         mvc.perform(post("/api/auth/logout").header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
                 .andExpect(status().isNoContent());
@@ -175,18 +183,18 @@ class AutenticacionTest extends PruebaConBaseDeDatos {
         mvc.perform(peticionConToken(token))
                 .andExpect(status().isUnauthorized());
 
-        mvc.perform(peticionConToken(tokenDeLogin()))
+        mvc.perform(peticionConToken(tokenDe(ADMIN)))
                 .andExpect(status().isOk());
     }
 
     // ---- apoyo ----
 
-    private void guardarUsuario(String correo, boolean activo) {
+    private void guardarUsuario(String correo, boolean activo, RolNombre rol) {
         Usuario usuario = usuarioRepository.findByCorreo(correo).orElseGet(Usuario::new);
         usuario.setNombreCompleto("Persona de prueba");
         usuario.setCorreo(correo);
         usuario.setPasswordHash(passwordEncoder.encode(PASSWORD));
-        usuario.setRol(rolRepository.findByNombre(RolNombre.ENFERMERIA).orElseThrow());
+        usuario.setRol(rolRepository.findByNombre(rol).orElseThrow());
         usuario.setActivo(activo);
         usuario.setFechaInvalidacionSesiones(null);
         usuarioRepository.save(usuario);
@@ -211,8 +219,8 @@ class AutenticacionTest extends PruebaConBaseDeDatos {
         return JsonPath.read(cuerpo, "$.mensaje");
     }
 
-    private String tokenDeLogin() throws Exception {
-        String cuerpo = mvc.perform(peticionLogin(ACTIVO, PASSWORD))
+    private String tokenDe(String correo) throws Exception {
+        String cuerpo = mvc.perform(peticionLogin(correo, PASSWORD))
                 .andExpect(status().isOk())
                 .andReturn()
                 .getResponse()
@@ -224,8 +232,8 @@ class AutenticacionTest extends PruebaConBaseDeDatos {
         SecretKey clave = Keys.hmacShaKeyFor(secretoUsado.getBytes(StandardCharsets.UTF_8));
         Date ahora = new Date();
         return Jwts.builder()
-                .subject(ACTIVO)
-                .claim("rol", RolNombre.ENFERMERIA.name())
+                .subject(ADMIN)
+                .claim("rol", RolNombre.ADMINISTRADOR_ASILO.name())
                 .claim(JwtService.EMISION, ahora.getTime())
                 .issuedAt(ahora)
                 .expiration(new Date(ahora.getTime() + milisegundosHastaVencer))

@@ -19,8 +19,10 @@ export function LoginPage() {
   const [ayudaVisible, setAyudaVisible] = useState(false);
 
   // La dejó anotada RutaPrivada al expulsarlo; si entró al login por su cuenta,
-  // no hay ninguna y va a la pantalla inicial.
-  const destino = ubicacion.state?.desde ?? "/usuarios";
+  // no hay ninguna y va a la pantalla inicial. Desde YS-81 esa pantalla es el
+  // dashboard y no la lista de usuarios, que es de un solo rol: los otros seis
+  // aterrizarían en "no tiene permiso" apenas iniciada la sesión.
+  const destino = ubicacion.state?.desde ?? "/dashboard";
 
   if (autenticado) {
     return <Navigate to={destino} replace />;

@@ -350,10 +350,134 @@ Se ejecutan con `./mvnw test` desde `gestion-asilo-backend`, con Docker encendid
 | Cierre de sesión y reingreso | 204, el token viejo 401 y el nuevo 200 |
 | Arranque del contexto de Spring | Levanta con todas sus piezas |
 
-## 14. Qué falta
+## 14. Autorización por rol (YS-52, YS-53, YS-81 y YS-82)
 
-De HU-30 ([YS-38](https://joaquingsuy93.atlassian.net/browse/YS-38)) y HU-31 ([YS-39](https://joaquingsuy93.atlassian.net/browse/YS-39)):
+Hasta aquí el sistema solo distinguía entre autenticado y no autenticado: cualquiera de los siete roles con un token válido podía listar, crear, editar y desactivar usuarios. HU-31 cierra eso.
 
-- **YS-52/YS-53:** `@PreAuthorize` por endpoint y protección de los endpoints ya existentes según rol.
-- **YS-54:** registro (log) de intentos de acceso denegado.
-- **HU-32 (YS-72):** forzar el cambio de la contraseña temporal en el primer ingreso, para que el administrador deje de conocerla.
+### Quién administra usuarios
+
+El Administrador del Asilo (ACT-04), y nadie más. La matriz de roles del diseño asigna "Usuarios y roles" únicamente a su menú. Conviene decirlo explícitamente porque el nombre del Administrador de la Fundación (ACT-02) invita a suponer lo contrario: ese actor atiende solicitudes de referencia y agenda médica, no cuentas del sistema.
+
+| Rol | Módulos que le corresponden |
+|---|---|
+| Médico General (ACT-01) | Dashboard, Internos, Historial médico, Solicitudes de referencia |
+| Administrador de la Fundación (ACT-02) | Dashboard, Solicitudes entrantes, Agenda y asignación, Médicos y disponibilidad |
+| Médico Especialista (ACT-03) | Dashboard, Mi agenda del día, Visitas médicas, Historial médico, Órdenes de laboratorio, Recetas |
+| **Administrador del Asilo (ACT-04)** | Dashboard, **Usuarios y roles**, Internos (vista administrativa), Cuentas por cobrar, Cuentas por pagar, Donaciones, Gastos, Reportes, Configuración |
+| Enfermería (ACT-05) | Dashboard, Internos, Solicitudes asignadas, Citas |
+| Laboratorio (ACT-06) | Dashboard, Órdenes pendientes, Registro de resultados |
+| Farmacia (ACT-07) | Dashboard, Recetas pendientes, Despacho de medicamentos |
+
+Cambiar la propia contraseña y cerrar sesión son comunes a los siete roles, así que siguen exigiendo solo autenticación.
+
+### Estado actual de los endpoints
+
+| Endpoint | Quién puede |
+|---|---|
+| `POST /api/auth/login` | Cualquiera, sin token |
+| `POST /api/auth/logout` | Cualquier rol autenticado |
+| `PUT /api/auth/password` | Cualquier rol autenticado |
+| `GET`, `POST`, `PUT`, `PATCH` en `/api/usuarios/**` | Solo ADMINISTRADOR_ASILO |
+
+### Por qué la regla va anotada y no en una lista de rutas
+
+`SecurityConfig` mantiene `anyRequest().authenticated()` como piso, y el permiso concreto se declara con `@EnableMethodSecurity` sobre el controlador. La alternativa —enumerar rutas y roles en la configuración— separa la regla del endpoint que protege: al agregar una ruta hay que acordarse de ir a otro archivo, y si no se hace, el endpoint queda abierto sin que nada lo señale.
+
+Por lo mismo la anotación va **en la clase y no en cada método**. Anotando método por método, olvidar uno lo deja accesible a los siete roles, y ese descuido no produce ningún síntoma visible hasta que alguien lo aprovecha. En la clase, un endpoint nuevo nace protegido y hay que quitarle la restricción a propósito para abrirlo.
+
+La regla vive en una anotación propia, `@SoloAdministradorAsilo`, en vez de repetir la expresión `hasRole(...)`. Así el controlador se lee como un permiso y no como una expresión, y el día que cambie quién administra usuarios es un solo archivo el que cambia.
+
+El nombre del rol viaja como texto dentro de la anotación porque Java solo admite constantes ahí: no hay forma de que el compilador lo ate al enum `RolNombre`. Quien lo renombre debe corregir la anotación, y son las pruebas de acceso por rol las que detectan el olvido.
+
+### Qué destaparon las pruebas existentes
+
+Al aplicar la restricción, tres pruebas de YS-51 empezaron a fallar con 403. No era un defecto: usaban `GET /api/usuarios` como sonda de "este token sirve" y entraban con el usuario de enfermería, que desde ahora no tiene nada que hacer ahí. Se corrigieron para que entren con un Administrador del Asilo, porque lo que les toca comprobar es la autenticación y no la autorización. Aflojar la restricción para que pasaran habría desactivado justo lo que esta historia vino a cerrar.
+
+`AutorizacionTest` comprueba lo contrario y también el contrapeso: que cerrar sesión le siga sirviendo a un rol sin acceso a usuarios. Sin esa comprobación, restringir de más pasaría inadvertido y dejaría a seis de los siete roles sin poder salir del sistema.
+
+### El barrido de los siete roles (YS-82)
+
+Comprobar dos roles no alcanzaba. `AutorizacionTest` recorre ahora los siete con `@EnumSource(RolNombre.class)`, y la expectativa se deriva del propio enum —solo `ADMINISTRADOR_ASILO` entra—, de modo que **un rol nuevo entra solo a la prueba y nace esperando que se le niegue el acceso**. Si la expectativa estuviera en una lista aparte, un rol nuevo quedaría sin cubrir y el descuido no daría ningún síntoma.
+
+Es la única red que tiene esta historia: como el nombre del rol viaja como texto dentro de la anotación, renombrar un valor de `RolNombre` no rompe la compilación y podría dejar la restricción sin efecto en silencio.
+
+El barrido tiene tres partes, y las dos últimas son el contrapeso: además de comprobar que seis roles reciben 403 en la administración de usuarios, comprueba que los siete pueden cerrar sesión y cambiar su propia contraseña. Restringir de más es tan defecto como restringir de menos, y sin esas dos comprobaciones dejaría a seis roles sin poder salir del sistema sin que nada lo advirtiera.
+
+Los usuarios de prueba se rehacen en cada llamada y no una vez al inicio, porque hay pruebas que cambian la contraseña y otras que cierran la sesión: compartiéndolos, el resultado dependería del orden en que JUnit las ejecute.
+
+### El menú por rol en el frontend (YS-81)
+
+El backend ya negaba, pero los siete roles seguían viendo el menú del Administrador del Asilo: seis de ellos tenían a la vista puertas que el sistema ya les había cerrado.
+
+**Lo que no le corresponde al rol no aparece; lo que le corresponde pero aún no está construido sigue en gris.** Son dos mensajes distintos y conviene que no se confundan: el gris dice "llega en una fase posterior" y la ausencia dice "no es de su rol". Un médico no tiene por qué enterarse de que existe un módulo de donaciones.
+
+La matriz vive en `constants/modulos.js`, como un catálogo de módulos más un mapa de rol a módulos. Un catálogo y un mapa en vez de siete listas completas: agregar un módulo o cambiarle el ícono es un solo cambio y no siete que se desincronizan.
+
+**El guardia de las rutas lee esa misma matriz.** Es la parte que importa: ocultar una opción no protege nada si la URL escrita a mano abre igual. `puedeEntrar(rol, ruta)` se resuelve con los mismos datos que arman el menú, así que lo que se muestra y lo que se deja entrar no pueden discrepar. Sigue sin ser la protección real —esa es el backend (YS-53), que responde 403 aunque este guardia se equivoque—, pero evita que el usuario llegue a una pantalla que no le va a responder.
+
+Un rol que este archivo no contemple recibe solo el Dashboard, nunca el menú completo: si algún día llega uno nuevo, el error debe ser de menos y no de más.
+
+Quien escribe a mano una dirección que no le toca ve una pantalla que se lo explica, dentro del esqueleto de la aplicación y con su menú al lado, en vez de una redirección callada que lo dejaría creyendo que el enlace falló. El mensaje no nombra el rol necesario, igual que la respuesta del backend.
+
+**Hizo falta un Dashboard.** Al restringir por rol, seis de los siete se quedaban sin ningún lugar donde aterrizar: el login y la ruta comodín llevaban a `/usuarios`, que ahora es de un solo rol. `/dashboard` es la única ruta que los siete tienen en común según la matriz del diseño, así que es la pantalla inicial de todos. Por ahora no muestra indicadores, porque los datos que resumiría todavía no existen; muestra los módulos construidos del rol, o un aviso de qué sí puede hacer mientras tanto.
+
+### Verificación realizada
+
+| Prueba | Resultado |
+|---|---|
+| Los siete roles piden la lista de usuarios | 200 solo ADMINISTRADOR_ASILO; 403 los otros seis |
+| Los siete roles cierran sesión | 204 los siete |
+| Los siete roles cambian su propia contraseña | 200 los siete |
+| La misma ruta sin token | 401, no 403 |
+| Enfermería intenta crear un usuario | 403 |
+| Suite completa del backend | 35 pruebas, todas pasan |
+| El menú de cada uno de los siete roles coincide con la matriz del diseño | Verificado sobre `modulosDeRol` |
+| Un rol desconocido | Solo Dashboard, sin acceso a `/usuarios` |
+
+## 15. Registro de accesos denegados (YS-54)
+
+Antes de esta subtarea, un rol sin permiso recibía un 403 con el cuerpo vacío y nada quedaba anotado. Las dos mitades del problema son la misma: el sistema no le decía nada a nadie, ni al usuario ni a quien administra.
+
+### Qué se anota y qué no
+
+Cada intento denegado deja una línea de nivel WARN con **quién** (el correo del token), **con qué rol**, **qué intentó** (método y ruta) y **desde qué dirección**. Ejemplo real de las pruebas:
+
+```
+WARN  Acceso denegado: enfermera.autorizacion@asilo.gt con [ROLE_ENFERMERIA]
+      intentó GET /api/usuarios desde 127.0.0.1
+```
+
+Es WARN y no ERROR porque el sistema hizo exactamente lo que debía: merece atención si se repite, no figurar entre las fallas del servicio. Un 403 aislado suele ser alguien que se equivocó de enlace; el mismo 403 repetido es otra cosa, y sin registro no hay forma de distinguirlos, porque el usuario rechazado no reporta nada.
+
+**No se anota el token ni el cuerpo de la petición.** Sería lo más cómodo para diagnosticar, y es justamente por eso que conviene decidirlo de antemano: el archivo de log terminaría guardando credenciales y datos de internos sin ninguna de las protecciones que sí tiene la base de datos.
+
+La dirección sale de la conexión y no de la cabecera `X-Forwarded-For`, que el propio cliente puede escribir: quien estuviera probando dónde puede entrar elegiría qué origen queda anotado. Si el sistema llega a quedar detrás de un proxy inverso habrá que leer esa cabecera, pero confiando solo en la que agregue el proxy.
+
+Se registra en el log de la aplicación y no en una tabla de auditoría. Es la lectura literal de la subtarea y no toca el esquema; si más adelante se quiere un historial consultable que sobreviva a los reinicios, es una subtarea aparte con su entidad y su política de purga.
+
+### Por qué hay dos manejadores
+
+`ManejadorAccesoDenegado` atiende las denegaciones de la cadena de filtros y el `@ExceptionHandler` del manejador global atiende las de `@PreAuthorize`. No es redundancia: la anotación sobre un controlador lanza la excepción dentro del DispatcherServlet, donde Spring MVC la resuelve antes de que llegue al filtro, así que hoy el camino activo es el segundo. El primero es la red para el día en que se agregue una regla por ruta en `SecurityConfig`, que si no saldría como un 403 sin cuerpo sin que nada lo advierta.
+
+Los dos producen la misma respuesta y registran por el mismo componente, así que cuál actúe es indistinto para quien recibe el 403.
+
+### El mensaje
+
+> No tiene permiso para realizar esta acción. Si cree que es un error, consúltelo con el Administrador del Asilo.
+
+No nombra el rol que haría falta, y hay una prueba que lo verifica. Decirlo le iría describiendo el mapa de permisos a quien prueba dónde puede entrar, y al usuario legítimo no le sirve de nada: lo que necesita es a quién acudir, no qué rol le falta.
+
+### Verificación realizada
+
+| Prueba | Resultado |
+|---|---|
+| El 403 trae `mensaje` y `ruta` en el formato de error de la API | Pasa |
+| El mensaje no contiene el nombre del rol necesario | Pasa |
+| Cada intento denegado deja su línea WARN con correo, rol, método, ruta y origen | Verificado en la salida de las pruebas |
+| Suite completa del backend | 17 pruebas, todas pasan |
+
+## 16. Qué falta
+
+HU-31 ([YS-39](https://joaquingsuy93.atlassian.net/browse/YS-39)) queda cerrada con YS-81. De HU-32 ([YS-72](https://joaquingsuy93.atlassian.net/browse/YS-72)):
+
+- Forzar el cambio de la contraseña temporal en el primer ingreso, para que el administrador deje de conocerla.
