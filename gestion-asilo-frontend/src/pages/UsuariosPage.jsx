@@ -184,7 +184,7 @@ export function UsuariosPage() {
         {cargando ? (
           <TablaSkeleton />
         ) : usuarios.length === 0 ? (
-          <div className="flex flex-col items-center gap-4 rounded-tarjeta border border-divisor bg-superficie px-6 py-16 text-center shadow-tarjeta">
+          <div className="flex flex-col items-center gap-4 rounded-tarjeta border border-divisor bg-superficie px-4 py-16 text-center shadow-tarjeta sm:px-6">
             <Users aria-hidden="true" size={24} className="text-texto-secundario" />
             <p className="text-texto-secundario">Todavía no hay usuarios registrados.</p>
             <Button onClick={() => abrir(null)}>
@@ -195,7 +195,7 @@ export function UsuariosPage() {
         ) : visibles.length === 0 ? (
           /* Vacío por filtros ≠ vacío por falta de datos: el usuario necesita
              saber cuál de los dos es y cómo salir de él. */
-          <div className="flex flex-col items-center gap-4 rounded-tarjeta border border-divisor bg-superficie px-6 py-16 text-center shadow-tarjeta">
+          <div className="flex flex-col items-center gap-4 rounded-tarjeta border border-divisor bg-superficie px-4 py-16 text-center shadow-tarjeta sm:px-6">
             <Search aria-hidden="true" size={24} className="text-texto-secundario" />
             <p className="text-texto-secundario">
               Ningún usuario coincide con lo que buscó.
@@ -215,23 +215,27 @@ export function UsuariosPage() {
               </p>
             )}
 
+            {/* min-w-2xl y no 3xl: el piso anterior forzaba 768px y obligaba a
+                desplazar la tabla de lado incluso en la laptop de 1024px, donde
+                el menú fijo ya se queda con 288. El manual permite el
+                desplazamiento horizontal, pero no si se puede evitar (YS-80). */}
             <div className="overflow-x-auto rounded-tarjeta border border-divisor bg-superficie shadow-tarjeta">
-              <table className="w-full min-w-3xl border-collapse text-left">
+              <table className="w-full min-w-2xl border-collapse text-left">
                 <caption className="sr-only">
                   Usuarios registrados con su rol y estado
                 </caption>
                 <thead>
                   <tr className="border-b border-divisor bg-fondo">
-                    <th scope="col" className="px-6 py-4 text-auxiliar font-semibold text-texto-secundario uppercase">
+                    <th scope="col" className="px-4 py-4 text-auxiliar font-semibold text-texto-secundario uppercase xl:px-6">
                       Usuario
                     </th>
-                    <th scope="col" className="px-6 py-4 text-auxiliar font-semibold text-texto-secundario uppercase">
+                    <th scope="col" className="px-4 py-4 text-auxiliar font-semibold text-texto-secundario uppercase xl:px-6">
                       Rol
                     </th>
-                    <th scope="col" className="px-6 py-4 text-auxiliar font-semibold text-texto-secundario uppercase">
+                    <th scope="col" className="px-4 py-4 text-auxiliar font-semibold text-texto-secundario uppercase xl:px-6">
                       Estado
                     </th>
-                    <th scope="col" className="px-6 py-4 text-auxiliar font-semibold text-texto-secundario uppercase">
+                    <th scope="col" className="px-4 py-4 text-auxiliar font-semibold text-texto-secundario uppercase xl:px-6">
                       <span className="sr-only">Acciones</span>
                     </th>
                   </tr>
@@ -239,7 +243,7 @@ export function UsuariosPage() {
                 <tbody>
                   {visibles.map((usuario) => (
                     <tr key={usuario.id} className="border-b border-divisor last:border-b-0">
-                      <td className="px-6 py-4">
+                      <td className="px-4 py-4 xl:px-6">
                         <span className="block font-medium text-texto">
                           {usuario.nombreCompleto}
                         </span>
@@ -247,17 +251,17 @@ export function UsuariosPage() {
                           {usuario.correo}
                         </span>
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="px-4 py-4 xl:px-6">
                         {/* Neutro y no azul: el color con significado queda
                             reservado al estado, que es lo que debe resaltar. */}
                         <span className="inline-flex rounded-campo bg-neutral-tenue px-2 py-1 text-auxiliar font-medium text-neutral">
                           {etiquetaDeRol(usuario.rol)}
                         </span>
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="px-4 py-4 xl:px-6">
                         <StatusBadge activo={usuario.activo} />
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="px-4 py-4 xl:px-6">
                         <div className="flex justify-end gap-1">
                           <IconButton
                             etiqueta={`Editar a ${usuario.nombreCompleto}`}

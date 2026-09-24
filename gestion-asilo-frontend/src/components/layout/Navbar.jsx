@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown, LogOut } from "lucide-react";
+import { ChevronDown, LogOut, Menu } from "lucide-react";
 
 import { etiquetaDeRol } from "../../constants/roles";
 import { useAuth } from "../../hooks/useAuth";
+import { IconButton } from "../ui/Button";
 
 function iniciales(nombreCompleto) {
   return nombreCompleto
@@ -13,7 +14,7 @@ function iniciales(nombreCompleto) {
     .join("");
 }
 
-export function Navbar({ migas }) {
+export function Navbar({ migas, menuAbierto, alAbrirMenu }) {
   const { usuario, logout } = useAuth();
   const [abierto, setAbierto] = useState(false);
   const contenedor = useRef(null);
@@ -37,21 +38,51 @@ export function Navbar({ migas }) {
   }, [abierto]);
 
   return (
-    <header className="flex items-center justify-between gap-4 border-b border-divisor bg-superficie px-6 py-4">
-      <nav aria-label="Ruta de navegación">
-        <ol className="flex items-center gap-2 text-texto-secundario">
-          {migas.map((miga, indice) => (
-            <li key={miga} className="flex items-center gap-2">
-              {indice > 0 && <span aria-hidden="true">›</span>}
-              <span className={indice === migas.length - 1 ? "text-texto" : undefined}>
-                {miga}
-              </span>
-            </li>
-          ))}
-        </ol>
-      </nav>
+    /* shrink-0: dentro del esqueleto de altura fija (YS-78), sin esto la barra
+       se comprimiría cuando el contenido de abajo es alto. */
+    <header className="flex shrink-0 items-center justify-between gap-4 border-b border-divisor bg-superficie px-4 py-4 sm:px-6">
+      <div className="flex min-w-0 items-center gap-2">
+        {/* Único acceso al menú por debajo de 1024px, donde el menú fijo no
+            está (YS-79). Arriba de ese ancho sobra y se oculta. */}
+        <IconButton
+          etiqueta="Abrir menú"
+          type="button"
+          onClick={alAbrirMenu}
+          aria-expanded={menuAbierto}
+          aria-controls="cajon-navegacion"
+          className="lg:hidden"
+        >
+          <Menu aria-hidden="true" size={24} />
+        </IconButton>
 
-      <div className="relative" ref={contenedor}>
+        <nav aria-label="Ruta de navegación" className="min-w-0">
+          <ol className="flex items-center gap-2 text-texto-secundario">
+            {migas.map((miga, indice) => {
+              const esUltima = indice === migas.length - 1;
+              return (
+                /* En teléfono solo queda la miga actual: con el botón de menú
+                   al lado, la ruta completa no cabe y empujaría al avatar
+                   fuera de la pantalla. */
+                <li
+                  key={miga}
+                  className={`items-center gap-2 ${esUltima ? "flex" : "hidden sm:flex"}`}
+                >
+                  {indice > 0 && (
+                    <span aria-hidden="true" className="hidden sm:inline">
+                      ›
+                    </span>
+                  )}
+                  <span className={esUltima ? "truncate text-texto" : undefined}>
+                    {miga}
+                  </span>
+                </li>
+              );
+            })}
+          </ol>
+        </nav>
+      </div>
+
+      <div className="relative shrink-0" ref={contenedor}>
         <button
           type="button"
           onClick={() => setAbierto((valor) => !valor)}

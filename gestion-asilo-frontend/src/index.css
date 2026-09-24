@@ -150,6 +150,60 @@
     }
   }
 
+  /*
+   * Cajón de navegación (YS-79): entra y sale por el borde izquierdo, que es
+   * el lado donde vive el menú fijo en pantallas grandes. En porcentaje y no
+   * en píxeles para que el recorrido siga al ancho real del cajón.
+   */
+  .cajon-animado {
+    opacity: 0;
+    transform: translateX(-100%);
+    transition:
+      opacity var(--duracion-modal-salida) var(--ease-salida),
+      transform var(--duracion-modal-salida) var(--ease-salida),
+      overlay var(--duracion-modal-salida) allow-discrete,
+      display var(--duracion-modal-salida) allow-discrete;
+  }
+
+  .cajon-animado[open] {
+    opacity: 1;
+    transform: translateX(0);
+    transition:
+      opacity var(--duracion-modal) var(--ease-salida),
+      transform var(--duracion-modal) var(--ease-salida),
+      overlay var(--duracion-modal) allow-discrete,
+      display var(--duracion-modal) allow-discrete;
+  }
+
+  @starting-style {
+    .cajon-animado[open] {
+      opacity: 0;
+      transform: translateX(-100%);
+    }
+  }
+
+  .cajon-animado::backdrop {
+    background-color: rgb(30 41 59 / 0);
+    transition:
+      background-color var(--duracion-modal-salida) var(--ease-salida),
+      overlay var(--duracion-modal-salida) allow-discrete,
+      display var(--duracion-modal-salida) allow-discrete;
+  }
+
+  .cajon-animado[open]::backdrop {
+    background-color: rgb(30 41 59 / 0.4);
+    transition:
+      background-color var(--duracion-modal) var(--ease-salida),
+      overlay var(--duracion-modal) allow-discrete,
+      display var(--duracion-modal) allow-discrete;
+  }
+
+  @starting-style {
+    .cajon-animado[open]::backdrop {
+      background-color: rgb(30 41 59 / 0);
+    }
+  }
+
   /* Menú desplegable: nace desde su disparador, arriba a la derecha. */
   .menu-animado {
     transform-origin: top right;
@@ -207,6 +261,8 @@
 @media (prefers-reduced-motion: reduce) {
   .modal-animado,
   .modal-animado[open],
+  .cajon-animado,
+  .cajon-animado[open],
   .menu-animado,
   .entrada-error,
   .entrada-aviso {
@@ -215,6 +271,7 @@
 
   @starting-style {
     .modal-animado[open],
+    .cajon-animado[open],
     .menu-animado,
     .entrada-error,
     .entrada-aviso {
