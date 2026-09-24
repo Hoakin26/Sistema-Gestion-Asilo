@@ -288,7 +288,40 @@ Las pruebas del endpoint se hicieron con un usuario creado para la ocasión y de
 | Login con la contraseña generada / con `Admin123*` | 200 / 401 |
 | Cambio de la generada con el endpoint | 200; la generada deja de servir |
 
-## 12. Qué falta
+## 12. Restablecer contraseñas desde administración (YS-71)
+
+**El problema.** El cambio de la sección 11 exige la contraseña actual, así que no sirve para quien la olvidó: esa persona quedaba fuera del sistema sin ninguna vía de regreso, y la pantalla de login prometía una ayuda que el administrador no podía dar.
+
+**El endpoint.** `PUT /api/usuarios/{id}/password` asigna una contraseña temporal a otro usuario. Recibe solo la contraseña nueva, con las reglas de YS-42 (entre 8 y 64 caracteres, guardada con BCrypt), y responde 404 si el id no existe.
+
+**Nadie puede restablecerse a sí mismo.** Este endpoint no pide la contraseña anterior —se usa justamente cuando nadie la sabe—, así que permitirlo sobre la cuenta propia abriría el agujero que la sección 11 cierra: quien encontrara una sesión abierta, como una tableta olvidada en un dormitorio, se apropiaría de la cuenta sin conocer la contraseña. El intento responde 403 indicando la vía correcta, que es el cambio de contraseña propio.
+
+**Por qué 403 y no 400 ni 401.** El frontend trata todo 401 como sesión terminada (YS-70), así que devolverlo aquí expulsaría del sistema a quien solo se equivocó de destinatario. Un 400 sugeriría que los datos enviados están mal, y no lo están. El 403 dice lo que realmente ocurre: la petición es válida y la sesión también, pero esa operación no corresponde sobre ese usuario.
+
+**Sesiones.** Restablecer invalida todas las sesiones del usuario afectado, con el mismo `fechaInvalidacionSesiones` truncado a milisegundos de la sección 11, y no toca las de quien la restablece.
+
+**Pendiente: autorización por rol.** Hoy cualquier usuario autenticado puede llamar a este endpoint, igual que a los demás de `/api/usuarios`; la restricción llega en YS-52/YS-53. Hasta entonces, cualquiera con sesión válida puede restablecer la contraseña de otra persona, incluida la del administrador. Es la misma limitación que ya tenían crear y editar usuarios, pero con contraseñas de por medio conviene decirla con todas las letras: **el sistema no debe usarse con datos reales hasta cerrar HU-31.**
+
+**Lo que queda abierto.** El administrador conoce la contraseña temporal hasta que el usuario la cambie, y nada lo obliga a hacerlo: dos personas comparten una credencial, lo que rompe la trazabilidad de quién hizo cada registro. Para resolverlo se abrió HU-32 (YS-72), que marcará al usuario como obligado a cambiarla en su primer ingreso. El endpoint tampoco tiene pantalla todavía (YS-73), así que por ahora solo se usa desde la API; por eso el texto de «¿Olvidó su contraseña?» del login dejó de mencionar el módulo de usuarios.
+
+### Verificación realizada
+
+Sobre una instancia aparte con una base de datos temporal vacía, eliminada al terminar: así las pruebas no dependieron de la contraseña del administrador real ni dejaron usuarios de prueba en los datos.
+
+| Prueba | Resultado |
+|---|---|
+| Restablecer sin token | 401 |
+| Id inexistente | 404 |
+| Contraseña de 5 caracteres | 400, error en `password` |
+| Restablecer la propia | 403, y la sesión sigue abierta |
+| Restablecer la de otra persona | 200 |
+| Sus dos sesiones abiertas | 401 las dos |
+| Sesión de quien restableció | Intacta (200) |
+| Su contraseña anterior / la temporal | 401 / 200 |
+| Ella cambia la temporal por una propia (sección 11) | 200; entra con la suya y la temporal deja de servir |
+| Hash guardado | Prefijo `{bcrypt}$2a$10$` |
+
+## 13. Qué falta
 
 De HU-30 ([YS-38](https://joaquingsuy93.atlassian.net/browse/YS-38)) y HU-31 ([YS-39](https://joaquingsuy93.atlassian.net/browse/YS-39)):
 
@@ -296,4 +329,5 @@ De HU-30 ([YS-38](https://joaquingsuy93.atlassian.net/browse/YS-38)) y HU-31 ([Y
 - **YS-52/YS-53:** `@PreAuthorize` por endpoint y protección de los endpoints ya existentes según rol.
 - **YS-54:** registro (log) de intentos de acceso denegado.
 - **YS-70:** aviso en el frontend cuando la sesión termina, para que un 401 no lleve al login sin explicación.
-- **YS-71:** restablecer desde administración la contraseña de un usuario que la olvidó. Hoy el login indica acudir al administrador, pero el administrador no tiene cómo hacerlo.
+- **YS-73:** pantalla para restablecer la contraseña de un usuario desde la lista; hoy el endpoint de la sección 12 solo se puede usar desde la API.
+- **HU-32 (YS-72):** forzar el cambio de la contraseña temporal en el primer ingreso, para que el administrador deje de conocerla.

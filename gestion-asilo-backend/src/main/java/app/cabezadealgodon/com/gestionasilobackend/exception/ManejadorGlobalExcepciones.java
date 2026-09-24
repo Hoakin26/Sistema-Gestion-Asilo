@@ -71,6 +71,18 @@ public class ManejadorGlobalExcepciones {
                 .body(ErrorResponse.de(HttpStatus.NOT_FOUND, ex.getMessage(), peticion.getRequestURI()));
     }
 
+    /**
+     * YS-71. 403 y no 401: quien la recibe tiene sesión válida, solo que esa
+     * operación no corresponde. Un 401 haría que el frontend lo diera por
+     * expulsado del sistema.
+     */
+    @ExceptionHandler(OperacionNoPermitidaException.class)
+    public ResponseEntity<ErrorResponse> manejarOperacionNoPermitida(OperacionNoPermitidaException ex,
+            HttpServletRequest peticion) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(ErrorResponse.de(HttpStatus.FORBIDDEN, ex.getMessage(), peticion.getRequestURI()));
+    }
+
     @ExceptionHandler(CorreoDuplicadoException.class)
     public ResponseEntity<ErrorResponse> manejarCorreoDuplicado(CorreoDuplicadoException ex,
             HttpServletRequest peticion) {

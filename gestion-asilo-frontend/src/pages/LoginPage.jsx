@@ -101,12 +101,14 @@ export function LoginPage() {
               ¿Olvidó su contraseña?
             </button>
 
-            {/* No hay recuperación automática de contraseña en el sistema, así
-                que el enlace explica la vía real en vez de no llevar a nada. */}
+            {/* No hay recuperación automática de contraseña, así que el enlace
+                explica la vía real. No menciona el módulo de usuarios porque esa
+                pantalla todavía no existe: el administrador puede restablecerla
+                por la API (YS-71), pero aún no desde el sistema. */}
             {ayudaVisible && (
               <p className="entrada-error rounded-tarjeta bg-info-tenue px-4 py-3 text-auxiliar text-info">
-                Solicite el restablecimiento al Administrador del Asilo: él puede
-                asignarle una contraseña nueva desde el módulo de usuarios.
+                Comuníquese con el Administrador del Asilo para que le asigne una
+                contraseña nueva.
               </p>
             )}
           </div>

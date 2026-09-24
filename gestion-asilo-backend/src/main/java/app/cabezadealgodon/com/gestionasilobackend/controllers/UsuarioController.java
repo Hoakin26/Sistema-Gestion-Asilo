@@ -3,6 +3,7 @@ package app.cabezadealgodon.com.gestionasilobackend.controllers;
 import java.util.List;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -14,9 +15,11 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import app.cabezadealgodon.com.gestionasilobackend.dto.CambioEstadoRequest;
+import app.cabezadealgodon.com.gestionasilobackend.dto.RestablecerPasswordRequest;
 import app.cabezadealgodon.com.gestionasilobackend.dto.UsuarioRequest;
 import app.cabezadealgodon.com.gestionasilobackend.dto.UsuarioResponse;
 import app.cabezadealgodon.com.gestionasilobackend.dto.UsuarioUpdateRequest;
+import app.cabezadealgodon.com.gestionasilobackend.security.UsuarioAutenticado;
 import app.cabezadealgodon.com.gestionasilobackend.services.UsuarioService;
 import jakarta.validation.Valid;
 
@@ -55,5 +58,16 @@ public class UsuarioController {
     @PatchMapping("/{id}/estado")
     public UsuarioResponse cambiarEstado(@PathVariable Long id, @Valid @RequestBody CambioEstadoRequest request) {
         return usuarioService.cambiarEstado(id, request.activo());
+    }
+
+    /**
+     * YS-71. Recibe quién lo pide para impedir que alguien se restablezca su
+     * propia contraseña por esta vía, que no exige la anterior.
+     */
+    @PutMapping("/{id}/password")
+    public UsuarioResponse restablecerPassword(@PathVariable Long id,
+            @AuthenticationPrincipal UsuarioAutenticado solicitante,
+            @Valid @RequestBody RestablecerPasswordRequest request) {
+        return usuarioService.restablecerPassword(id, solicitante.getUsername(), request);
     }
 }
