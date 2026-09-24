@@ -1,7 +1,9 @@
 package app.cabezadealgodon.com.gestionasilobackend;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.nio.charset.StandardCharsets;
@@ -67,6 +69,36 @@ class AutorizacionTest extends PruebaConBaseDeDatos {
     void rolSinPermisoRecibe403() throws Exception {
         mvc.perform(get("/api/usuarios").header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(ENFERMERA)))
                 .andExpect(status().isForbidden());
+    }
+
+    /**
+     * YS-54. Un 403 con el cuerpo vacío deja al frontend sin nada que mostrar y
+     * al usuario ante una pantalla que no reacciona. La respuesta debe traer el
+     * mismo formato de error que el resto de la API.
+     */
+    @Test
+    @DisplayName("El 403 explica qué pasó, con el formato de error de la API")
+    void elRechazoTraeMensajeYRuta() throws Exception {
+        mvc.perform(get("/api/usuarios").header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(ENFERMERA)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.mensaje").isNotEmpty())
+                .andExpect(jsonPath("$.ruta").value("/api/usuarios"));
+    }
+
+    /**
+     * El mensaje no debe nombrar el rol que haría falta: eso le iría
+     * describiendo el mapa de permisos a quien prueba dónde puede entrar.
+     */
+    @Test
+    @DisplayName("El mensaje del 403 no revela qué rol se necesita")
+    void elMensajeNoRevelaElRolNecesario() throws Exception {
+        String cuerpo = mvc.perform(get("/api/usuarios")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(ENFERMERA)))
+                .andReturn()
+                .getResponse()
+                .getContentAsString(StandardCharsets.UTF_8);
+
+        assertThat(cuerpo).doesNotContain(RolNombre.ADMINISTRADOR_ASILO.name());
     }
 
     /**

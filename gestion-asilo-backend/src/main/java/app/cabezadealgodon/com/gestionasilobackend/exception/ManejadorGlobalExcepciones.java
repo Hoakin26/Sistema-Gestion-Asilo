@@ -8,17 +8,25 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import app.cabezadealgodon.com.gestionasilobackend.dto.ErrorResponse;
+import app.cabezadealgodon.com.gestionasilobackend.security.RegistroAccesoDenegado;
 import jakarta.servlet.http.HttpServletRequest;
 
 /** Traduce las excepciones a respuestas HTTP con un cuerpo uniforme. */
 @RestControllerAdvice
 public class ManejadorGlobalExcepciones {
+
+    private final RegistroAccesoDenegado registroAccesoDenegado;
+
+    public ManejadorGlobalExcepciones(RegistroAccesoDenegado registroAccesoDenegado) {
+        this.registroAccesoDenegado = registroAccesoDenegado;
+    }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErrorResponse> manejarValidacion(MethodArgumentNotValidException ex,
@@ -81,6 +89,24 @@ public class ManejadorGlobalExcepciones {
             HttpServletRequest peticion) {
         return ResponseEntity.status(HttpStatus.FORBIDDEN)
                 .body(ErrorResponse.de(HttpStatus.FORBIDDEN, ex.getMessage(), peticion.getRequestURI()));
+    }
+
+    /**
+     * YS-54. El 403 por rol. Es distinto del de arriba: aquel responde a una
+     * regla de negocio sobre un caso puntual, y este a que el rol no tiene nada
+     * que hacer en ese endpoint, así que además queda registrado.
+     *
+     * <p>
+     * Hace falta aquí y no solo en el manejador de la cadena de filtros porque
+     * {@code @PreAuthorize} sobre un controlador lanza la excepción dentro del
+     * DispatcherServlet, y Spring MVC la atiende antes de que llegue al filtro.
+     * Sin este método la petición saldría con un 403 sin cuerpo.
+     */
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ErrorResponse> manejarAccesoDenegado(HttpServletRequest peticion) {
+        registroAccesoDenegado.registrar(peticion);
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ErrorResponse.de(HttpStatus.FORBIDDEN,
+                RegistroAccesoDenegado.MENSAJE, peticion.getRequestURI()));
     }
 
     @ExceptionHandler(CorreoDuplicadoException.class)

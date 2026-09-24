@@ -406,12 +406,54 @@ Al aplicar la restricción, tres pruebas de YS-51 empezaron a fallar con 403. No
 | Enfermería cierra sesión | 204 |
 | Suite completa del backend | 15 pruebas, todas pasan |
 
-## 15. Qué falta
+## 15. Registro de accesos denegados (YS-54)
+
+Antes de esta subtarea, un rol sin permiso recibía un 403 con el cuerpo vacío y nada quedaba anotado. Las dos mitades del problema son la misma: el sistema no le decía nada a nadie, ni al usuario ni a quien administra.
+
+### Qué se anota y qué no
+
+Cada intento denegado deja una línea de nivel WARN con **quién** (el correo del token), **con qué rol**, **qué intentó** (método y ruta) y **desde qué dirección**. Ejemplo real de las pruebas:
+
+```
+WARN  Acceso denegado: enfermera.autorizacion@asilo.gt con [ROLE_ENFERMERIA]
+      intentó GET /api/usuarios desde 127.0.0.1
+```
+
+Es WARN y no ERROR porque el sistema hizo exactamente lo que debía: merece atención si se repite, no figurar entre las fallas del servicio. Un 403 aislado suele ser alguien que se equivocó de enlace; el mismo 403 repetido es otra cosa, y sin registro no hay forma de distinguirlos, porque el usuario rechazado no reporta nada.
+
+**No se anota el token ni el cuerpo de la petición.** Sería lo más cómodo para diagnosticar, y es justamente por eso que conviene decidirlo de antemano: el archivo de log terminaría guardando credenciales y datos de internos sin ninguna de las protecciones que sí tiene la base de datos.
+
+La dirección sale de la conexión y no de la cabecera `X-Forwarded-For`, que el propio cliente puede escribir: quien estuviera probando dónde puede entrar elegiría qué origen queda anotado. Si el sistema llega a quedar detrás de un proxy inverso habrá que leer esa cabecera, pero confiando solo en la que agregue el proxy.
+
+Se registra en el log de la aplicación y no en una tabla de auditoría. Es la lectura literal de la subtarea y no toca el esquema; si más adelante se quiere un historial consultable que sobreviva a los reinicios, es una subtarea aparte con su entidad y su política de purga.
+
+### Por qué hay dos manejadores
+
+`ManejadorAccesoDenegado` atiende las denegaciones de la cadena de filtros y el `@ExceptionHandler` del manejador global atiende las de `@PreAuthorize`. No es redundancia: la anotación sobre un controlador lanza la excepción dentro del DispatcherServlet, donde Spring MVC la resuelve antes de que llegue al filtro, así que hoy el camino activo es el segundo. El primero es la red para el día en que se agregue una regla por ruta en `SecurityConfig`, que si no saldría como un 403 sin cuerpo sin que nada lo advierta.
+
+Los dos producen la misma respuesta y registran por el mismo componente, así que cuál actúe es indistinto para quien recibe el 403.
+
+### El mensaje
+
+> No tiene permiso para realizar esta acción. Si cree que es un error, consúltelo con el Administrador del Asilo.
+
+No nombra el rol que haría falta, y hay una prueba que lo verifica. Decirlo le iría describiendo el mapa de permisos a quien prueba dónde puede entrar, y al usuario legítimo no le sirve de nada: lo que necesita es a quién acudir, no qué rol le falta.
+
+### Verificación realizada
+
+| Prueba | Resultado |
+|---|---|
+| El 403 trae `mensaje` y `ruta` en el formato de error de la API | Pasa |
+| El mensaje no contiene el nombre del rol necesario | Pasa |
+| Cada intento denegado deja su línea WARN con correo, rol, método, ruta y origen | Verificado en la salida de las pruebas |
+| Suite completa del backend | 17 pruebas, todas pasan |
+
+## 16. Qué falta
 
 De HU-31 ([YS-39](https://joaquingsuy93.atlassian.net/browse/YS-39)):
 
-- **YS-54:** registro (log) de intentos de acceso denegado, y respuesta 403 con el mismo formato de error del resto de la API. Hoy un rol no autorizado recibe un 403 sin cuerpo.
-- **Sin subtarea todavía:** ocultar en el frontend las opciones de menú que no corresponden al rol, y probar el acceso con los siete roles. Son criterios de aceptación de HU-31 que ninguna subtarea cubre.
+- **[YS-81](https://joaquingsuy93.atlassian.net/browse/YS-81):** mostrar en el frontend solo los módulos del rol. Hoy los siete roles ven el menú del Administrador del Asilo, así que seis de ellos ven puertas que el backend ya les cerró.
+- **[YS-82](https://joaquingsuy93.atlassian.net/browse/YS-82):** barrer los siete roles en las pruebas. Hoy se comprueban dos.
 
 De HU-32 ([YS-72](https://joaquingsuy93.atlassian.net/browse/YS-72)):
 

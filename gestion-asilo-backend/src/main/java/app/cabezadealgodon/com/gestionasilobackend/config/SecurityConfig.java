@@ -19,6 +19,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import app.cabezadealgodon.com.gestionasilobackend.security.EntryPointNoAutenticado;
 import app.cabezadealgodon.com.gestionasilobackend.security.JwtAuthenticationFilter;
+import app.cabezadealgodon.com.gestionasilobackend.security.ManejadorAccesoDenegado;
 
 /**
  * YS-46 y YS-47: cadena de filtros, CORS y reglas de acceso por ruta.
@@ -38,12 +39,15 @@ public class SecurityConfig {
     private final String origenFrontend;
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final EntryPointNoAutenticado entryPointNoAutenticado;
+    private final ManejadorAccesoDenegado manejadorAccesoDenegado;
 
     public SecurityConfig(@Value("${app.cors.origen-frontend:http://localhost:5173}") String origenFrontend,
-            JwtAuthenticationFilter jwtAuthenticationFilter, EntryPointNoAutenticado entryPointNoAutenticado) {
+            JwtAuthenticationFilter jwtAuthenticationFilter, EntryPointNoAutenticado entryPointNoAutenticado,
+            ManejadorAccesoDenegado manejadorAccesoDenegado) {
         this.origenFrontend = origenFrontend;
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
         this.entryPointNoAutenticado = entryPointNoAutenticado;
+        this.manejadorAccesoDenegado = manejadorAccesoDenegado;
     }
 
     @Bean
@@ -68,7 +72,11 @@ public class SecurityConfig {
                         // solicitante.
                         .requestMatchers("/api/auth/login").permitAll()
                         .anyRequest().authenticated())
-                .exceptionHandling(manejo -> manejo.authenticationEntryPoint(entryPointNoAutenticado))
+                // YS-54. Sin el manejador de acceso denegado, una denegación
+                // que ocurra en la cadena de filtros sale como 403 sin cuerpo.
+                .exceptionHandling(manejo -> manejo
+                        .authenticationEntryPoint(entryPointNoAutenticado)
+                        .accessDeniedHandler(manejadorAccesoDenegado))
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
                 .build();
     }
