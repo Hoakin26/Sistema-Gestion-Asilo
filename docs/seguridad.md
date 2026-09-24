@@ -350,10 +350,69 @@ Se ejecutan con `./mvnw test` desde `gestion-asilo-backend`, con Docker encendid
 | Cierre de sesión y reingreso | 204, el token viejo 401 y el nuevo 200 |
 | Arranque del contexto de Spring | Levanta con todas sus piezas |
 
-## 14. Qué falta
+## 14. Autorización por rol (YS-52 y YS-53)
 
-De HU-30 ([YS-38](https://joaquingsuy93.atlassian.net/browse/YS-38)) y HU-31 ([YS-39](https://joaquingsuy93.atlassian.net/browse/YS-39)):
+Hasta aquí el sistema solo distinguía entre autenticado y no autenticado: cualquiera de los siete roles con un token válido podía listar, crear, editar y desactivar usuarios. HU-31 cierra eso.
 
-- **YS-52/YS-53:** `@PreAuthorize` por endpoint y protección de los endpoints ya existentes según rol.
-- **YS-54:** registro (log) de intentos de acceso denegado.
-- **HU-32 (YS-72):** forzar el cambio de la contraseña temporal en el primer ingreso, para que el administrador deje de conocerla.
+### Quién administra usuarios
+
+El Administrador del Asilo (ACT-04), y nadie más. La matriz de roles del diseño asigna "Usuarios y roles" únicamente a su menú. Conviene decirlo explícitamente porque el nombre del Administrador de la Fundación (ACT-02) invita a suponer lo contrario: ese actor atiende solicitudes de referencia y agenda médica, no cuentas del sistema.
+
+| Rol | Módulos que le corresponden |
+|---|---|
+| Médico General (ACT-01) | Dashboard, Internos, Historial médico, Solicitudes de referencia |
+| Administrador de la Fundación (ACT-02) | Dashboard, Solicitudes entrantes, Agenda y asignación, Médicos y disponibilidad |
+| Médico Especialista (ACT-03) | Dashboard, Mi agenda del día, Visitas médicas, Historial médico, Órdenes de laboratorio, Recetas |
+| **Administrador del Asilo (ACT-04)** | Dashboard, **Usuarios y roles**, Internos (vista administrativa), Cuentas por cobrar, Cuentas por pagar, Donaciones, Gastos, Reportes, Configuración |
+| Enfermería (ACT-05) | Dashboard, Internos, Solicitudes asignadas, Citas |
+| Laboratorio (ACT-06) | Dashboard, Órdenes pendientes, Registro de resultados |
+| Farmacia (ACT-07) | Dashboard, Recetas pendientes, Despacho de medicamentos |
+
+Cambiar la propia contraseña y cerrar sesión son comunes a los siete roles, así que siguen exigiendo solo autenticación.
+
+### Estado actual de los endpoints
+
+| Endpoint | Quién puede |
+|---|---|
+| `POST /api/auth/login` | Cualquiera, sin token |
+| `POST /api/auth/logout` | Cualquier rol autenticado |
+| `PUT /api/auth/password` | Cualquier rol autenticado |
+| `GET`, `POST`, `PUT`, `PATCH` en `/api/usuarios/**` | Solo ADMINISTRADOR_ASILO |
+
+### Por qué la regla va anotada y no en una lista de rutas
+
+`SecurityConfig` mantiene `anyRequest().authenticated()` como piso, y el permiso concreto se declara con `@EnableMethodSecurity` sobre el controlador. La alternativa —enumerar rutas y roles en la configuración— separa la regla del endpoint que protege: al agregar una ruta hay que acordarse de ir a otro archivo, y si no se hace, el endpoint queda abierto sin que nada lo señale.
+
+Por lo mismo la anotación va **en la clase y no en cada método**. Anotando método por método, olvidar uno lo deja accesible a los siete roles, y ese descuido no produce ningún síntoma visible hasta que alguien lo aprovecha. En la clase, un endpoint nuevo nace protegido y hay que quitarle la restricción a propósito para abrirlo.
+
+La regla vive en una anotación propia, `@SoloAdministradorAsilo`, en vez de repetir la expresión `hasRole(...)`. Así el controlador se lee como un permiso y no como una expresión, y el día que cambie quién administra usuarios es un solo archivo el que cambia.
+
+El nombre del rol viaja como texto dentro de la anotación porque Java solo admite constantes ahí: no hay forma de que el compilador lo ate al enum `RolNombre`. Quien lo renombre debe corregir la anotación, y son las pruebas de acceso por rol las que detectan el olvido.
+
+### Qué destaparon las pruebas existentes
+
+Al aplicar la restricción, tres pruebas de YS-51 empezaron a fallar con 403. No era un defecto: usaban `GET /api/usuarios` como sonda de "este token sirve" y entraban con el usuario de enfermería, que desde ahora no tiene nada que hacer ahí. Se corrigieron para que entren con un Administrador del Asilo, porque lo que les toca comprobar es la autenticación y no la autorización. Aflojar la restricción para que pasaran habría desactivado justo lo que esta historia vino a cerrar.
+
+`AutorizacionTest` comprueba lo contrario y también el contrapeso: que cerrar sesión le siga sirviendo a un rol sin acceso a usuarios. Sin esa comprobación, restringir de más pasaría inadvertido y dejaría a seis de los siete roles sin poder salir del sistema.
+
+### Verificación realizada
+
+| Prueba | Resultado |
+|---|---|
+| Enfermería con token válido pide la lista de usuarios | 403 |
+| La misma ruta sin token | 401, no 403 |
+| Administrador del Asilo pide la lista de usuarios | 200 |
+| Enfermería intenta crear un usuario | 403 |
+| Enfermería cierra sesión | 204 |
+| Suite completa del backend | 15 pruebas, todas pasan |
+
+## 15. Qué falta
+
+De HU-31 ([YS-39](https://joaquingsuy93.atlassian.net/browse/YS-39)):
+
+- **YS-54:** registro (log) de intentos de acceso denegado, y respuesta 403 con el mismo formato de error del resto de la API. Hoy un rol no autorizado recibe un 403 sin cuerpo.
+- **Sin subtarea todavía:** ocultar en el frontend las opciones de menú que no corresponden al rol, y probar el acceso con los siete roles. Son criterios de aceptación de HU-31 que ninguna subtarea cubre.
+
+De HU-32 ([YS-72](https://joaquingsuy93.atlassian.net/browse/YS-72)):
+
+- Forzar el cambio de la contraseña temporal en el primer ingreso, para que el administrador deje de conocerla.

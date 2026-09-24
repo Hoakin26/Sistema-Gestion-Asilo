@@ -19,13 +19,29 @@ import app.cabezadealgodon.com.gestionasilobackend.dto.RestablecerPasswordReques
 import app.cabezadealgodon.com.gestionasilobackend.dto.UsuarioRequest;
 import app.cabezadealgodon.com.gestionasilobackend.dto.UsuarioResponse;
 import app.cabezadealgodon.com.gestionasilobackend.dto.UsuarioUpdateRequest;
+import app.cabezadealgodon.com.gestionasilobackend.security.SoloAdministradorAsilo;
 import app.cabezadealgodon.com.gestionasilobackend.security.UsuarioAutenticado;
 import app.cabezadealgodon.com.gestionasilobackend.services.UsuarioService;
 import jakarta.validation.Valid;
 
-/** HU-29 (YS-41). La restricción por rol se agrega en YS-52/YS-53 (HU-31). */
+/**
+ * HU-29 (YS-41).
+ *
+ * <p>
+ * YS-53. La restricción va en la clase y no en cada método a propósito: así un
+ * endpoint nuevo nace protegido. Al revés —anotando método por método— olvidar
+ * uno lo deja abierto a los siete roles, y es un descuido que no produce
+ * ningún síntoma hasta que alguien lo aprovecha.
+ *
+ * <p>
+ * Administrar usuarios es exclusivo del Administrador del Asilo (ACT-04):
+ * "Usuarios y roles" aparece solo en su menú dentro de la matriz de roles del
+ * diseño. El Administrador de la Fundación (ACT-02), pese al nombre, atiende
+ * solicitudes y agenda médica, no cuentas del sistema.
+ */
 @RestController
 @RequestMapping("/api/usuarios")
+@SoloAdministradorAsilo
 public class UsuarioController {
 
     private final UsuarioService usuarioService;
