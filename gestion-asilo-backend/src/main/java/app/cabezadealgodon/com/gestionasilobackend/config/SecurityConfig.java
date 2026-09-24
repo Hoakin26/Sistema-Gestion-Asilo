@@ -8,6 +8,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
@@ -19,9 +20,19 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import app.cabezadealgodon.com.gestionasilobackend.security.EntryPointNoAutenticado;
 import app.cabezadealgodon.com.gestionasilobackend.security.JwtAuthenticationFilter;
 
-/** YS-46 y YS-47: cadena de filtros, CORS y reglas de acceso por ruta. */
+/**
+ * YS-46 y YS-47: cadena de filtros, CORS y reglas de acceso por ruta.
+ *
+ * <p>
+ * YS-52. {@code @EnableMethodSecurity} habilita la autorización por rol
+ * anotada en los controladores. Se eligió eso en lugar de enumerar las rutas
+ * aquí porque la regla queda junto al endpoint que protege: una ruta nueva
+ * nace con su permiso a la vista, mientras que una lista central se olvida de
+ * actualizar y deja el endpoint abierto sin que nada lo señale.
+ */
 @Configuration
 @EnableWebSecurity
+@EnableMethodSecurity
 public class SecurityConfig {
 
     private final String origenFrontend;
