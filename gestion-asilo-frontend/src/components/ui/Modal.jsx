@@ -43,7 +43,10 @@ export function Modal({ abierto, alCerrar, titulo, descripcion, children }) {
       aria-labelledby="titulo-modal"
       className="modal-animado m-auto w-full max-w-xl rounded-modal bg-superficie p-0 text-texto shadow-modal"
     >
-      <div className="flex items-start justify-between gap-4 border-b border-divisor px-6 py-4">
+      {/* Pegado arriba: en teléfono el formulario no cabe entero y el <dialog>
+          se desplaza por dentro, así que sin esto el título se iría de vista y
+          el usuario perdería de referencia qué está haciendo (YS-80). */}
+      <div className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-divisor bg-superficie px-4 py-4 sm:px-6">
         <div>
           <h2 id="titulo-modal" className="text-h3 font-semibold">
             {titulo}

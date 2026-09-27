@@ -61,7 +61,7 @@ function Formulario({ usuario, alCerrar, alExito }) {
 
   if (asignada) {
     return (
-      <div className="flex flex-col gap-6 px-6 py-6">
+      <div className="flex flex-col gap-6 px-4 py-6 sm:px-6">
         <Alert tipo="exito" rol="status">
           {usuario.nombreCompleto} ya puede ingresar con esta contraseña.
         </Alert>
@@ -97,7 +97,7 @@ function Formulario({ usuario, alCerrar, alExito }) {
 
   return (
     <form onSubmit={enviar} noValidate>
-      <div className="flex flex-col gap-6 px-6 py-6">
+      <div className="flex flex-col gap-6 px-4 py-6 sm:px-6">
         {errorGeneral && <Alert>{errorGeneral}</Alert>}
 
         <Alert tipo="info" rol="status">
@@ -140,7 +140,7 @@ function Formulario({ usuario, alCerrar, alExito }) {
         </FormField>
       </div>
 
-      <div className="flex justify-end gap-3 border-t border-divisor px-6 py-4">
+      <div className="sticky bottom-0 flex flex-wrap justify-end gap-3 border-t border-divisor bg-superficie px-4 py-4 sm:px-6">
         <Button type="button" variante="secundario" onClick={alCerrar}>
           Cancelar
         </Button>
