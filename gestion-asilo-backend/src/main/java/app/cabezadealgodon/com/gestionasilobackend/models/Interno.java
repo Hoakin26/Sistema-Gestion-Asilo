@@ -85,7 +85,7 @@ public class Interno {
      * <p>
      * Hoy solo puede completarse actualizando el interno, que también es del
      * Médico General. La vía para que la fije el Administrador del Asilo, que
-     * es a quien le corresponde, llega con el módulo financiero (versión 1.1).
+     * es a quien le corresponde, llega con la cuenta del familiar (YS-132).
      */
     @Column(name = "cuota_mensual", precision = 10, scale = 2)
     private BigDecimal cuotaMensual;
