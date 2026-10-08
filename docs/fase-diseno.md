@@ -62,7 +62,7 @@ Para quien prefiera ver el plan como línea de tiempo, la sección 1.6 presenta 
 
 **Duración de los sprints.** El Sprint 1 duró tres semanas. **Desde el Sprint 2 los sprints duran una semana**, porque solo quedan 19 días hasta la entrega del 16 de octubre. Con sprints de tres semanas habría una única revisión antes de entregar, demasiado tarde para corregir el rumbo.
 
-**Versionado.** Se usa git-flow: `develop` integra las historias terminadas y `main` solo recibe una fusión por sprint, etiquetada con su versión (`v0.1.0` y `v0.1.1` en el Sprint 1, `v0.2.0`, `v0.3.0` y `v1.0.0` en la entrega). Así cada etiqueta de git corresponde a un sprint de Jira.
+**Versionado.** Se usa git-flow: `develop` integra las historias terminadas y `main` solo recibe fusiones etiquetadas. Las etiquetas hasta ahora son `v0.1.0` y `v0.1.1` (Sprint 1) y `v0.1.2` (HU-32, el 08/10); quedan `v0.2.0` al cerrar el Sprint 2 y `v1.0.0` en la entrega. La correspondencia es con el trabajo entregado y no estrictamente con el sprint: `v0.1.1` y `v0.1.2` recogen historias terminadas fuera de la ventana de su sprint, que es lo que de verdad ocurrió.
 
 ### 1.2 Recursos
 
@@ -119,18 +119,19 @@ Los límites del nivel gratuito se verifican al crear la cuenta. Si Oracle no ti
 
 ### 1.3 Dedicación y capacidad
 
-La dedicación comprometida es de **20 horas semanales**, unas 3 horas diarias. Entre el lunes 28 de septiembre y el viernes 16 de octubre eso da **55 horas**:
+La dedicación comprometida es de **20 horas semanales**, unas 3 horas diarias. Entre el jueves 8 y el miércoles 15 de octubre eso da **23 horas**:
 
-| Actividad | Sprint 2 (28/09–04/10) | Sprint 3 (05/10–11/10) | Sprint 4 (12/10–16/10) | Total |
-|---|---:|---:|---:|---:|
-| Desarrollo de historias (backend, frontend y pruebas) | 13 h | 16 h | 6 h | 35 h |
-| Prototipos en Figma | 2 h | 2 h | 1 h | 5 h |
-| Infraestructura y despliegue | 4 h | 1 h | 1 h | 6 h |
-| Manual de usuario y documentación de la Fase de Implementación | — | — | 6 h | 6 h |
-| Ceremonias Scrum | 1 h | 1 h | 1 h | 3 h |
-| **Total** | **20 h** | **20 h** | **15 h** | **55 h** |
+| Actividad | Sprint 2 (08/10–11/10) | Sprint 3 (12/10–15/10) | Total |
+|---|---:|---:|---:|
+| Desarrollo de historias (backend, frontend y pruebas) | 8 h | 7 h | 15 h |
+| Infraestructura y despliegue | 2 h | 1 h | 3 h |
+| Manual de usuario y documentación de la Fase de Implementación | — | 3 h | 3 h |
+| Ceremonias Scrum | 1 h | 1 h | 2 h |
+| **Total** | **11 h** | **12 h** | **23 h** |
 
-El Sprint 4 tiene 15 horas porque dura cinco días, hasta la entrega del viernes 16.
+**Ese es el número que obligó a recortar el alcance.** 26 puntos en 23 horas son 1,1 puntos por hora; el Sprint 1 rindió 15 puntos en unas 66 horas, es decir 0,23. El plan pide cinco veces el rendimiento observado, y eso ya con el alcance reducido: con los 86 puntos originales habría hecho falta multiplicarlo por veinte.
+
+Los prototipos en Figma salen de la tabla: las pantallas que faltan reutilizan los componentes y los patrones ya construidos (tabla, modal, formulario, estado vacío), así que se diseñan directamente en código.
 
 **Registro de horas.** Desde el Sprint 2, cada subtarea registra en Jira el tiempo trabajado. El Sprint 1 no tiene ese registro y por eso su velocidad solo puede medirse en puntos (1.4). Con el registro, la retrospectiva de cada sprint puede comparar las horas reales con las planificadas.
 
@@ -176,16 +177,52 @@ El alcance del producto mínimo viable (MVP) es el definido en el informe de ava
 
 ### 1.5 Plan de sprints
 
+> **Re-planificado el 8 de octubre de 2026.** El plan original se incumplió y el alcance del MVP se redujo. El detalle y el porqué están en 1.5.1; el plan original queda en 1.5.2 para poder comparar.
+
 | Sprint | Fechas | Objetivo del sprint | Historias | Puntos | Otras tareas | Versión |
 |---|---|---|---|---:|---|---|
-| **2** | 28/09 – 04/10 | El médico general registra internos, consulta su historial y los refiere a la fundación, que les asigna cita. El sistema ya corre en el servidor público. | HU-32, HU-01, HU-02, HU-03, HU-05, HU-06 | 26 + HU-32 | Primer despliegue en el servidor; prototipos de referencias y asignación de citas | `v0.2.0` |
-| **3** | 05/10 – 11/10 | El especialista atiende la cita: consulta el historial, diagnostica, receta y ordena exámenes. El laboratorio carga resultados y su costo. | HU-07 a HU-14 | 36 | Prototipos de visita médica, laboratorio y farmacia | `v0.3.0` |
-| **4** | 12/10 – 16/10 | Farmacia despacha y el administrador del asilo consolida la cuenta del familiar con los descuentos de la fundación. | HU-15 a HU-19 | 24 | Prototipo del módulo financiero; manual de usuario; pruebas de regresión; despliegue final | `v1.0.0` (15/10) |
-| 1.1 | Después de la entrega, sin fecha comprometida | Notificación por correo, finanzas complementarias y reportes | HU-04, HU-20 a HU-28 | 42 | Migraciones con Flyway; despliegue automatizado | `v1.1.0` |
+| **2** | 08/10 – 11/10 | El médico general registra el perfil de un interno y consulta su historial médico centralizado. | HU-01, HU-02 | 13 | Despliegue en el servidor público | `v0.2.0` |
+| **3** | 12/10 – 15/10 | Enfermería refiere a un interno a una especialidad y la fundación le asigna especialista, fecha y hora. | HU-03, HU-05, HU-06 | 13 | Manual de usuario; pruebas de regresión; despliegue final | `v1.0.0` (15/10) |
+| 1.1 | Después de la entrega, sin fecha comprometida | Atención médica especializada, laboratorio, farmacia, finanzas, reportes y notificación por correo | HU-04, HU-07 a HU-28 | 102 | Migraciones con Flyway; despliegue automatizado | `v1.1.0` |
 
-**Por qué este orden.** Las historias siguen el recorrido del paciente de los diagramas DS-01 → DS-02 → DS-03. Cada historia consume datos que produce la anterior: no hay visita sin cita, ni resultado sin orden, ni cobro sin costo registrado. Construirlas en ese orden deja, al final de cada sprint, un tramo del flujo que funciona de punta a punta y se puede demostrar. Si el tiempo no alcanza, lo que falta es el final del recorrido, no un hueco en medio.
+**Por qué este orden.** Las historias siguen el recorrido del paciente de los diagramas DS-01 → DS-02 → DS-03. Cada historia consume datos que produce la anterior: no hay visita sin cita, ni resultado sin orden, ni cobro sin costo registrado. Construirlas en ese orden deja, al final de cada sprint, un tramo del flujo que funciona de punta a punta y se puede demostrar. Si el tiempo no alcanza, lo que falta es el final del recorrido, no un hueco en medio. **Ese principio es el que decidió el recorte**: se entrega el tramo inicial completo en vez de seis módulos a medias.
 
-**Por qué desplegar en el Sprint 2 y no en la última semana.** El primer despliegue sube solo lo que ya existe: inicio de sesión y usuarios. Los imprevistos de infraestructura (DNS, certificados, imágenes ARM, memoria del servidor) aparecen así cuando todavía hay dos semanas para resolverlos, no el día de la entrega.
+#### 1.5.1 Por qué se re-planificó
+
+**La aritmética no cerraba.** Al 8 de octubre quedaban **86 puntos del MVP y 7 días** hasta la entrega. La velocidad medida en el Sprint 1 fue de 15 puntos en 23 días, es decir **0,65 puntos por día**; terminar 86 puntos a ese ritmo habría tomado unos cuatro meses. No era un problema de esforzarse más: el plan pedía algo que el calendario no permitía.
+
+**Qué se recortó.** Las épicas 3 a 6 —atención médica especializada, laboratorio, farmacia y gestión financiera, 60 puntos— pasan a la versión 1.1. El MVP entregado el 15/10 queda reducido a:
+
+| | |
+|---|---|
+| Acceso y usuarios (épica 8) | Terminado: HU-29, HU-30, HU-31, HU-32, HU-33 |
+| Gestión de internos e historial (épica 1) | Sprint 2: HU-01, HU-02 |
+| Referencias y asignación de citas (épica 2) | Sprint 3: HU-03, HU-05, HU-06 |
+
+Eso cubre el CU-001 y el CU-002 completos: un interno se registra, se consulta su historial, se le crea una solicitud de referencia y la fundación le asigna cita. Es un recorrido que se puede demostrar de principio a fin, aunque sea más corto que el planificado.
+
+**El plan nuevo también es exigente.** 26 puntos en 8 días son **3,25 puntos por día**, cinco veces la velocidad del Sprint 1. La apuesta se apoya en que lo que falta ya no es cimiento: la autenticación, la autorización por rol, el esqueleto de navegación, el sistema de diseño y la infraestructura de pruebas están construidos y probados, y el Sprint 1 se fue precisamente en eso. Aun así es un pronóstico optimista, no una certeza.
+
+**Qué recortar primero si vuelve a apretar.** En este orden, de menor a mayor daño:
+
+1. El calendario de disponibilidad de HU-06 (`AvailabilityCalendar`), reemplazado por fecha y hora escritas a mano con la validación en el servidor. La alternativa ya estaba contemplada en 3.2.
+2. HU-02 (consulta del historial), que es lectura: sin ella se pierde una pantalla, no una regla de negocio.
+3. HU-05 (bandeja de solicitudes), asignando la cita desde la propia solicitud.
+
+Lo que **no** se recorta en ningún caso es la validación del lado del servidor ni las pruebas automatizadas: son lo que distingue un sistema de una maqueta, y es lo que el Sprint 1 demostró que detecta los errores a tiempo.
+
+#### 1.5.2 Plan original, para comparación
+
+| Sprint | Fechas | Historias | Puntos | Versión |
+|---|---|---|---:|---|
+| 2 | 28/09 – 04/10 | HU-32, HU-01, HU-02, HU-03, HU-05, HU-06 | 26 + HU-32 | `v0.2.0` |
+| 3 | 05/10 – 11/10 | HU-07 a HU-14 | 36 | `v0.3.0` |
+| 4 | 12/10 – 16/10 | HU-15 a HU-19 | 24 | `v1.0.0` (15/10) |
+| 1.1 | Sin fecha | HU-04, HU-20 a HU-28 | 42 | `v1.1.0` |
+
+De ese plan solo se cumplió HU-32, entregada el 08/10 en `v0.1.2`. El despliegue en el servidor público, previsto para el Sprint 2, tampoco se hizo y se arrastra.
+
+**Por qué desplegar cuanto antes y no en la última semana.** El primer despliegue sube solo lo que ya existe: inicio de sesión y usuarios. Los imprevistos de infraestructura (DNS, certificados, imágenes ARM, memoria del servidor) conviene que aparezcan mientras todavía queda margen para resolverlos, no el día de la entrega. Con el calendario actual ese margen ya es de días y no de semanas, lo que convierte al despliegue en el riesgo más alto que queda abierto.
 
 ### 1.6 Cronograma
 
@@ -205,32 +242,25 @@ gantt
 
     section Sprint 1 (terminado)
     Épica 8 - HU-29, HU-30, HU-31, HU-33   :done, s1, 2026-09-04, 23d
+    HU-32 Contraseña temporal obligatoria  :done, s1b, 2026-10-07, 2d
+    Entrega v0.1.2                         :milestone, done, m1, 2026-10-08, 0d
 
     section Sprint 2
-    Planificación y prototipos de referencias y citas :s2p, 2026-09-28, 1d
-    Primer despliegue en el servidor       :crit, s2d, 2026-09-28, 2d
-    HU-32 Contraseña temporal obligatoria  :s2a, 2026-09-29, 1d
-    HU-01 Perfil del interno               :s2b, 2026-09-29, 2d
-    HU-02 Historial médico                 :s2c, 2026-10-01, 2d
-    HU-03 Solicitud de referencia          :s2e, 2026-10-02, 1d
-    HU-05 y HU-06 Bandeja y asignación de cita :s2f, 2026-10-03, 2d
-    Revisión, v0.2.0 y punto de control    :milestone, crit, m2, 2026-10-04, 0d
+    HU-01 Perfil del interno               :s2a, 2026-10-08, 2d
+    HU-02 Historial médico                 :s2b, 2026-10-10, 2d
+    Despliegue en el servidor              :crit, s2d, 2026-10-10, 2d
+    Revisión y v0.2.0                      :milestone, crit, m2, 2026-10-11, 0d
 
     section Sprint 3
-    Prototipos de visita, laboratorio y farmacia :s3p, 2026-10-05, 1d
-    HU-07 Iniciar visita desde la cita     :s3a, 2026-10-05, 1d
-    HU-08 y HU-09 Historial en consulta y diagnóstico :s3b, 2026-10-06, 2d
-    HU-10 y HU-11 Receta y órdenes de laboratorio :s3c, 2026-10-08, 2d
-    HU-12 a HU-14 Laboratorio              :s3d, 2026-10-09, 3d
-    Revisión y v0.3.0                      :milestone, m3, 2026-10-11, 0d
-
-    section Sprint 4
-    Prototipo del módulo financiero        :s4p, 2026-10-12, 1d
-    HU-15 a HU-17 Farmacia                 :s4a, 2026-10-12, 2d
-    HU-18 y HU-19 Cuenta del familiar y descuentos :s4b, 2026-10-13, 2d
-    Manual de usuario y documentación      :s4m, 2026-10-12, 5d
-    Pruebas de regresión y despliegue v1.0.0 :crit, s4d, 2026-10-15, 1d
+    HU-03 Solicitud de referencia          :s3a, 2026-10-12, 1d
+    HU-05 Bandeja de solicitudes           :s3b, 2026-10-13, 1d
+    HU-06 Asignación de cita               :s3c, 2026-10-13, 2d
+    Manual de usuario y documentación      :s3m, 2026-10-12, 4d
+    Pruebas de regresión y despliegue v1.0.0 :crit, s3d, 2026-10-15, 1d
+    Entrega final                          :milestone, crit, m3, 2026-10-15, 0d
 ```
+
+El cronograma refleja el plan re-planificado del 8 de octubre. Las épicas 3 a 6 ya no aparecen porque pasaron a la versión 1.1 (ver 1.5.1).
 
 ### 1.7 Riesgos y plan de contingencia
 
@@ -239,9 +269,10 @@ gantt
 | | Velocidad |
 |---|---:|
 | Observada en el Sprint 1 (15 puntos en 23 días) | ~4.6 puntos por semana |
-| Necesaria para el MVP (86 puntos en 19 días) | ~32 puntos por semana |
+| Necesaria para el MVP original (86 puntos en 19 días) | ~32 puntos por semana |
+| Necesaria para el MVP re-planificado (26 puntos en 8 días) | ~23 puntos por semana |
 
-Es decir, alrededor de **siete veces** lo observado. Hay razones reales para esperar que la velocidad suba:
+El plan original pedía **siete veces** lo observado, y ahí se rompió: al 8 de octubre solo se había cerrado HU-32 de las seis historias del Sprint 2. El plan re-planificado (1.5.1) pide **cinco veces**, que sigue siendo mucho pero ya no es imposible. Hay razones reales para esperar que la velocidad suba:
 
 - **La base ya está hecha.** El Sprint 1 construyó la infraestructura que las historias restantes reutilizan: seguridad y roles, manejo uniforme de errores, esqueleto de navegación, biblioteca de componentes y la base de pruebas con PostgreSQL real.
 - **El Sprint 1 trabajó más de lo que sus puntos muestran.** Absorbió 13 subtareas no planificadas, y dos de sus historias (HU-32 y HU-33) no tenían estimación.
@@ -251,8 +282,8 @@ Aun así, el plan supone una velocidad que todavía no se ha observado. Por eso 
 
 **Puntos de control**
 
-- **Domingo 4 de octubre (revisión del Sprint 2).** Si el sprint cierra menos de 26 puntos, se aplica de inmediato el nivel 1 a las historias que faltan.
-- **Domingo 11 de octubre (revisión del Sprint 3).** Si las Épicas 3 y 4 no están cerradas, se aplica además el nivel 2.
+- **Sábado 11 de octubre (revisión del Sprint 2).** Si HU-01 y HU-02 no están cerradas, se recorta según el orden de 1.5.1: primero el calendario de disponibilidad de HU-06, después HU-02, después HU-05.
+- **Martes 13 de octubre.** Si la referencia (HU-03) no está cerrada, se entrega solo la épica 1 y la épica 2 completa pasa a la versión 1.1. Dos días antes de la entrega es el último momento en que ese recorte todavía deja tiempo para documentar y desplegar.
 
 **Nivel 1 — simplificar sin retirar historias.** Cada historia conserva sus criterios de aceptación, en una versión más liviana:
 
@@ -1253,11 +1284,11 @@ stateDiagram-v2
 | Seguridad transversal | `SecurityConfig`, `ManejadorAccesoDenegado`, `EntryPointNoAutenticado`, `RegistroAccesoDenegado`, `SoloAdministradorAsilo` | HU-31 | Implementado |
 | Excepciones | `ManejadorGlobalExcepciones`, `ErrorResponse` y excepciones de negocio | Transversal | Implementado |
 | Internos e historial | `Interno`, `FichaMedica`, `Familiar`, `InternoService`, `HistorialMedicoService` | HU-01, HU-02 | Sprint 2 |
-| Referencias y citas | `SolicitudReferencia`, `Cita`, `Especialidad`, `MedicoEspecialista`, `HorarioAtencion` y sus servicios | HU-03, HU-05, HU-06 | Sprint 2 |
-| Visitas | `VisitaMedica`, `Receta`, `DetalleReceta`, `VisitaMedicaService` | HU-07 a HU-11 | Sprint 3 |
-| Laboratorio | `OrdenLaboratorio`, `ExamenLaboratorio`, `LaboratorioService` | HU-12 a HU-14 | Sprint 3 |
-| Farmacia | `FarmaciaService` (sobre `Receta`) | HU-15 a HU-17 | Sprint 4 |
-| Finanzas | `CargoServicio`, `PoliticaDescuento`, `CuentaMensual`, `CargoService`, `CalculadoraDescuento`, `CuentaFamiliarService` | HU-18, HU-19 | Sprint 4 |
+| Referencias y citas | `SolicitudReferencia`, `Cita`, `Especialidad`, `MedicoEspecialista`, `HorarioAtencion` y sus servicios | HU-03, HU-05, HU-06 | Sprint 3 |
+| Visitas | `VisitaMedica`, `Receta`, `DetalleReceta`, `VisitaMedicaService` | HU-07 a HU-11 | Versión 1.1 |
+| Laboratorio | `OrdenLaboratorio`, `ExamenLaboratorio`, `LaboratorioService` | HU-12 a HU-14 | Versión 1.1 |
+| Farmacia | `FarmaciaService` (sobre `Receta`) | HU-15 a HU-17 | Versión 1.1 |
+| Finanzas | `CargoServicio`, `PoliticaDescuento`, `CuentaMensual`, `CargoService`, `CalculadoraDescuento`, `CuentaFamiliarService` | HU-18, HU-19 | Versión 1.1 |
 | Notificaciones | `SolicitudCreadaEvent`, `NotificacionService` (Spring Mail, asíncrono) | HU-04 | Versión 1.1 |
 | Donaciones, gastos, cuentas por pagar | `Donacion`, `GastoOperativo`, `PagoFundacion`, `Pago` | HU-20 a HU-23 | Versión 1.1 |
 | Reportes | `ReporteService` y plantillas PDF | HU-24 a HU-28 | Versión 1.1 |
@@ -1724,11 +1755,11 @@ Son la frontera del frontend con la API. Cada función corresponde a un endpoint
 | `authService.js` | `iniciarSesion(correo, password)`, `cerrarSesion()` | Implementado |
 | `usuarioService.js` | `listarUsuarios()`, `crearUsuario(u)`, `actualizarUsuario(id, u)`, `cambiarEstadoUsuario(id, activo)`, `restablecerPasswordUsuario(id, password)` | Implementado |
 | `internoService.js` | `listarInternos(busqueda, pagina)`, `obtenerInterno(id)`, `obtenerFichaMedica(id)`, `registrarInterno(i)`, `actualizarInterno(id, i)`, `obtenerHistorial(id)` | Sprint 2 |
-| `referenciaService.js` | `crearSolicitud(s)`, `listarPendientes()`, `listarAsignadas()`, `consultarDisponibilidad(medicoId, fecha)`, `asignarCita(solicitudId, c)` | Sprint 2 |
-| `visitaService.js` | `miAgenda(fecha)`, `iniciarVisita(citaId)`, `historialDeVisita(id)`, `registrarDiagnostico(id, d)`, `recetar(id, r)`, `ordenarExamenes(id, o)`, `finalizarVisita(id)` | Sprint 3 |
-| `laboratorioService.js` | `listarOrdenes(estado, paciente)`, `iniciarOrden(id)`, `registrarResultado(id, datos, archivo)` | Sprint 3 |
-| `farmaciaService.js` | `listarRecetas(estado, paciente)`, `despacharReceta(id, detalle)` | Sprint 4 |
-| `cuentaService.js` | `listarCuentas(periodo)`, `estadoDeCuenta(internoId, desde, hasta)`, `consolidar(periodo)` | Sprint 4 |
+| `referenciaService.js` | `crearSolicitud(s)`, `listarPendientes()`, `listarAsignadas()`, `consultarDisponibilidad(medicoId, fecha)`, `asignarCita(solicitudId, c)` | Sprint 3 |
+| `visitaService.js` | `miAgenda(fecha)`, `iniciarVisita(citaId)`, `historialDeVisita(id)`, `registrarDiagnostico(id, d)`, `recetar(id, r)`, `ordenarExamenes(id, o)`, `finalizarVisita(id)` | Versión 1.1 |
+| `laboratorioService.js` | `listarOrdenes(estado, paciente)`, `iniciarOrden(id)`, `registrarResultado(id, datos, archivo)` | Versión 1.1 |
+| `farmaciaService.js` | `listarRecetas(estado, paciente)`, `despacharReceta(id, detalle)` | Versión 1.1 |
+| `cuentaService.js` | `listarCuentas(periodo)`, `estadoDeCuenta(internoId, desde, hasta)`, `consolidar(periodo)` | Versión 1.1 |
 
 ### 4.9 Clases de interfaz del backend
 
