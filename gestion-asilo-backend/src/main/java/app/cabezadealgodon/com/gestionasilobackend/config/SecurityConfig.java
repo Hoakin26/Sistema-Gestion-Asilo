@@ -17,6 +17,9 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import tools.jackson.databind.ObjectMapper;
+
+import app.cabezadealgodon.com.gestionasilobackend.security.CambioPasswordObligatorioFilter;
 import app.cabezadealgodon.com.gestionasilobackend.security.EntryPointNoAutenticado;
 import app.cabezadealgodon.com.gestionasilobackend.security.JwtAuthenticationFilter;
 import app.cabezadealgodon.com.gestionasilobackend.security.ManejadorAccesoDenegado;
@@ -40,14 +43,16 @@ public class SecurityConfig {
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final EntryPointNoAutenticado entryPointNoAutenticado;
     private final ManejadorAccesoDenegado manejadorAccesoDenegado;
+    private final ObjectMapper objectMapper;
 
     public SecurityConfig(@Value("${app.cors.origen-frontend:http://localhost:5173}") String origenFrontend,
             JwtAuthenticationFilter jwtAuthenticationFilter, EntryPointNoAutenticado entryPointNoAutenticado,
-            ManejadorAccesoDenegado manejadorAccesoDenegado) {
+            ManejadorAccesoDenegado manejadorAccesoDenegado, ObjectMapper objectMapper) {
         this.origenFrontend = origenFrontend;
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
         this.entryPointNoAutenticado = entryPointNoAutenticado;
         this.manejadorAccesoDenegado = manejadorAccesoDenegado;
+        this.objectMapper = objectMapper;
     }
 
     @Bean
@@ -78,6 +83,18 @@ public class SecurityConfig {
                         .authenticationEntryPoint(entryPointNoAutenticado)
                         .accessDeniedHandler(manejadorAccesoDenegado))
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+                /*
+                 * YS-74. Después del filtro JWT, que es el que deja al usuario
+                 * cargado en el contexto: antes de él no habría a quién
+                 * comprobarle la marca.
+                 *
+                 * Se construye aquí en vez de inyectarse como bean porque
+                 * Spring Boot registra automáticamente todo bean de tipo Filter
+                 * en el contenedor de servlets, y el filtro terminaría
+                 * corriendo fuera de esta cadena —sin usuario autenticado— y
+                 * saltándose la de adentro. Ver el comentario de la clase.
+                 */
+                .addFilterAfter(new CambioPasswordObligatorioFilter(objectMapper), JwtAuthenticationFilter.class)
                 .build();
     }
 

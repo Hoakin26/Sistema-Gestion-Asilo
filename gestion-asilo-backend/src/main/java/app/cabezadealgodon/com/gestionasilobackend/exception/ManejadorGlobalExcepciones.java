@@ -36,7 +36,8 @@ public class ManejadorGlobalExcepciones {
                 .forEach(error -> errores.putIfAbsent(error.getField(), error.getDefaultMessage()));
 
         ErrorResponse cuerpo = new ErrorResponse(LocalDateTime.now(), HttpStatus.BAD_REQUEST.value(),
-                HttpStatus.BAD_REQUEST.getReasonPhrase(), "Hay campos inválidos", peticion.getRequestURI(), errores);
+                HttpStatus.BAD_REQUEST.getReasonPhrase(), "Hay campos inválidos", peticion.getRequestURI(),
+                null, errores);
         return ResponseEntity.badRequest().body(cuerpo);
     }
 
@@ -68,7 +69,7 @@ public class ManejadorGlobalExcepciones {
             HttpServletRequest peticion) {
         ErrorResponse cuerpo = new ErrorResponse(LocalDateTime.now(), HttpStatus.BAD_REQUEST.value(),
                 HttpStatus.BAD_REQUEST.getReasonPhrase(), "Hay campos inválidos", peticion.getRequestURI(),
-                Map.of(ex.getCampo(), ex.getMessage()));
+                null, Map.of(ex.getCampo(), ex.getMessage()));
         return ResponseEntity.badRequest().body(cuerpo);
     }
 

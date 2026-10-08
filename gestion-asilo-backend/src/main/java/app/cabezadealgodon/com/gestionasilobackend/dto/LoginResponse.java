@@ -8,5 +8,13 @@ public record LoginResponse(
         String tipo,
         String correo,
         String nombreCompleto,
-        RolNombre rol) {
+        RolNombre rol,
+
+        /**
+         * YS-74. Avisa que esta sesión no puede usar el sistema hasta cambiar
+         * la contraseña. Viaja en el login para que el frontend lleve al
+         * usuario directo a esa pantalla, en vez de dejarlo descubrirlo
+         * chocando contra un 403 en el primer módulo que abra.
+         */
+        boolean debeCambiarPassword) {
 }

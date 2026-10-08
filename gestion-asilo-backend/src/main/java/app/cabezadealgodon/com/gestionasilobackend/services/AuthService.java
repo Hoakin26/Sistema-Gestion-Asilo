@@ -78,6 +78,15 @@ public class AuthService {
         // redondear, la marca podría pasar al milisegundo siguiente y dejar al
         // token de abajo con fecha anterior a ella, rechazado al usarse.
         usuario.setFechaInvalidacionSesiones(LocalDateTime.now().truncatedTo(ChronoUnit.MILLIS));
+
+        /*
+         * YS-74. El único lugar del sistema que apaga la marca, y puede hacerlo
+         * porque es el único que exige la contraseña anterior: solo su dueño
+         * llega hasta aquí. La comprobación de arriba —que la nueva sea
+         * distinta de la actual, escrita en YS-69 por otro motivo— es la que
+         * impide "cumplir" el cambio dejando puesta la contraseña temporal.
+         */
+        usuario.setDebeCambiarPassword(false);
         usuarioRepository.save(usuario);
 
         return respuestaPara(usuario);
@@ -91,6 +100,6 @@ public class AuthService {
     private LoginResponse respuestaPara(Usuario usuario) {
         String token = jwtService.generarToken(usuario.getCorreo(), usuario.getRol().getNombre().name());
         return new LoginResponse(token, "Bearer", usuario.getCorreo(), usuario.getNombreCompleto(),
-                usuario.getRol().getNombre());
+                usuario.getRol().getNombre(), usuario.isDebeCambiarPassword());
     }
 }

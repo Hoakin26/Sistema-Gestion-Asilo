@@ -59,6 +59,14 @@ public class UsuarioService {
         usuario.setPasswordHash(passwordEncoder.encode(request.password()));
         usuario.setRol(buscarRol(request.rol()));
         usuario.setActivo(true);
+        /*
+         * YS-74. Esta contraseña la escribió el administrador, no su dueño, así
+         * que el usuario queda obligado a cambiarla al entrar. Los criterios de
+         * YS-72 solo nombran el restablecimiento, pero el alta produce el mismo
+         * problema por el camino más transitado: dos personas conociendo la
+         * misma credencial.
+         */
+        usuario.setDebeCambiarPassword(true);
         return mapear(usuarioRepository.save(usuario));
     }
 
@@ -110,6 +118,9 @@ public class UsuarioService {
         // Igual que en YS-69: truncada a milisegundos, porque PostgreSQL guarda
         // microsegundos y al redondear podría pasar al milisegundo siguiente.
         usuario.setFechaInvalidacionSesiones(LocalDateTime.now().truncatedTo(ChronoUnit.MILLIS));
+        // YS-74. El caso que originó HU-32: el administrador queda conociendo
+        // esta contraseña, así que su dueño tiene que reemplazarla al entrar.
+        usuario.setDebeCambiarPassword(true);
         return mapear(usuarioRepository.save(usuario));
     }
 

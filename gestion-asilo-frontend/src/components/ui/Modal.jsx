@@ -6,8 +6,13 @@ import { IconButton } from "./Button";
 /**
  * Usa el <dialog> nativo: aporta gratis el atrapado de foco, el cierre con
  * Escape y el fondo inerte, que a mano suelen quedar incompletos.
+ *
+ * YS-75. `forzado` quita las tres formas de descartarlo —la X, Escape y el clic
+ * en el fondo— para los casos en que el usuario tiene que resolver algo antes
+ * de seguir. Entonces la única salida la pone el contenido: una ventana sin
+ * botón de salir deja al usuario encerrado.
  */
-export function Modal({ abierto, alCerrar, titulo, descripcion, children }) {
+export function Modal({ abierto, alCerrar, titulo, descripcion, forzado = false, children }) {
   const referencia = useRef(null);
   const presionoElFondo = useRef(false);
 
@@ -26,6 +31,11 @@ export function Modal({ abierto, alCerrar, titulo, descripcion, children }) {
     <dialog
       ref={referencia}
       onClose={alCerrar}
+      /* El <dialog> nativo se cierra con Escape por su cuenta; cancelar ese
+         evento es la única forma de impedirlo. */
+      onCancel={(evento) => {
+        if (forzado) evento.preventDefault();
+      }}
       /*
        * El clic solo cierra si empezó Y terminó en el fondo. Sin la primera
        * comprobación, arrastrar desde dentro del formulario y soltar afuera
@@ -36,7 +46,7 @@ export function Modal({ abierto, alCerrar, titulo, descripcion, children }) {
         presionoElFondo.current = evento.target === referencia.current;
       }}
       onClick={(evento) => {
-        if (evento.target === referencia.current && presionoElFondo.current) {
+        if (!forzado && evento.target === referencia.current && presionoElFondo.current) {
           alCerrar();
         }
       }}
@@ -55,9 +65,11 @@ export function Modal({ abierto, alCerrar, titulo, descripcion, children }) {
             <p className="mt-1 text-auxiliar text-texto-secundario">{descripcion}</p>
           )}
         </div>
-        <IconButton etiqueta="Cerrar" type="button" onClick={alCerrar}>
-          <X aria-hidden="true" size={24} />
-        </IconButton>
+        {!forzado && (
+          <IconButton etiqueta="Cerrar" type="button" onClick={alCerrar}>
+            <X aria-hidden="true" size={24} />
+          </IconButton>
+        )}
       </div>
 
       {children}

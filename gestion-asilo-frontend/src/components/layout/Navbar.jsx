@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown, LogOut, Menu } from "lucide-react";
+import { ChevronDown, KeyRound, LogOut, Menu } from "lucide-react";
 
 import { etiquetaDeRol } from "../../constants/roles";
 import { useAuth } from "../../hooks/useAuth";
@@ -14,7 +14,7 @@ function iniciales(nombreCompleto) {
     .join("");
 }
 
-export function Navbar({ migas, menuAbierto, alAbrirMenu }) {
+export function Navbar({ migas, menuAbierto, alAbrirMenu, alCambiarPassword }) {
   const { usuario, logout } = useAuth();
   const [abierto, setAbierto] = useState(false);
   const contenedor = useRef(null);
@@ -110,6 +110,21 @@ export function Navbar({ migas, menuAbierto, alAbrirMenu }) {
             role="menu"
             className="menu-animado absolute right-0 z-10 mt-2 w-56 rounded-tarjeta border border-divisor bg-superficie py-2 shadow-menu"
           >
+            {/* YS-75. Hasta ahora el endpoint de cambio de contraseña existía
+                desde YS-69 pero no había dónde usarlo. */}
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setAbierto(false);
+                alCambiarPassword();
+              }}
+              className="flex min-h-11 w-full items-center gap-3 px-4 text-left text-texto hover:bg-neutral-tenue"
+            >
+              <KeyRound aria-hidden="true" size={20} />
+              Cambiar contraseña
+            </button>
+
             <button
               type="button"
               role="menuitem"

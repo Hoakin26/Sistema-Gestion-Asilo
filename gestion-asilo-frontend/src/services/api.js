@@ -15,9 +15,21 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+/** YS-74. Lo manda el backend en el 403 cuando falta cambiar la contraseña. */
+const CODIGO_CAMBIO_REQUERIDO = "CAMBIO_PASSWORD_REQUERIDO";
+
 /**
  * Un 401 significa que el token expiró, fue invalidado por un cierre de sesión
  * o el usuario fue desactivado. En los tres casos la sesión local ya no sirve.
+ *
+ * El 403 con código es otra cosa: la sesión es válida, pero el usuario sigue
+ * usando una contraseña que le asignó otra persona. Se reconoce por el código
+ * y no por el texto del mensaje, que es una frase en español que cualquiera
+ * puede reescribir sin saber que algo depende de ella.
+ *
+ * Hace falta además del aviso que ya trae el login, porque la marca puede
+ * encenderse a mitad de sesión: ocurre cada vez que un administrador
+ * restablece la contraseña de alguien que está trabajando.
  */
 api.interceptors.response.use(
   (respuesta) => respuesta,
@@ -26,6 +38,9 @@ api.interceptors.response.use(
     if (error.response?.status === 401 && !esLogin) {
       localStorage.removeItem(CLAVE_TOKEN);
       window.dispatchEvent(new Event("asilo:sesion-expirada"));
+    }
+    if (error.response?.data?.codigo === CODIGO_CAMBIO_REQUERIDO) {
+      window.dispatchEvent(new Event("asilo:cambio-password-requerido"));
     }
     return Promise.reject(error);
   },

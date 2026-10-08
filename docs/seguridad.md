@@ -476,8 +476,169 @@ No nombra el rol que haría falta, y hay una prueba que lo verifica. Decirlo le 
 | Cada intento denegado deja su línea WARN con correo, rol, método, ruta y origen | Verificado en la salida de las pruebas |
 | Suite completa del backend | 17 pruebas, todas pasan |
 
-## 16. Qué falta
+## 16. Contraseña temporal obligatoria (YS-74)
 
-HU-31 ([YS-39](https://joaquingsuy93.atlassian.net/browse/YS-39)) queda cerrada con YS-81. De HU-32 ([YS-72](https://joaquingsuy93.atlassian.net/browse/YS-72)):
+Cierra el hueco que YS-71 dejó anotado en la sección 12: el administrador quedaba conociendo la contraseña con la que otra persona usa el sistema, y nada obligaba a cambiarla. Mientras eso siga ocurriendo, el historial no puede responder quién hizo cada registro, que es lo que sostiene la trazabilidad de los datos clínicos y financieros.
 
-- Forzar el cambio de la contraseña temporal en el primer ingreso, para que el administrador deje de conocerla.
+El diseño completo, con las alternativas descartadas, está en `hu-32-contrasena-temporal.md`.
+
+### Los tres caminos que marcan, y el único que desmarca
+
+Una contraseña que su dueño no eligió puede entrar al sistema por tres puertas, y las tres dejan marcado al usuario:
+
+| Camino | Quién fija la contraseña |
+|---|---|
+| `UsuarioService.crear` | El administrador, al dar de alta |
+| `UsuarioService.restablecerPassword` | El administrador, desde la lista de usuarios |
+| `AdminInicialSeeder` | El sistema, al sembrar el primer administrador |
+
+Los criterios de YS-72 solo nombran el segundo. Se incluyeron los otros dos porque producen exactamente el mismo problema, y forzar el cambio tras un restablecimiento pero no tras un alta dejaría el hueco abierto por el camino más transitado. El tercero es además el más expuesto: esa contraseña queda escrita en el log de arranque.
+
+La apaga un solo lugar, `AuthService.cambiarPassword`, y puede hacerlo porque es el único que exige la contraseña anterior: solo su dueño llega hasta ahí. La regla de YS-69 que rechaza una contraseña nueva igual a la actual —escrita entonces por otro motivo— es la que impide "cumplir" el cambio dejando puesta la temporal.
+
+### La columna, y por qué lleva su valor por defecto en la base
+
+`debe_cambiar_password` es `NOT NULL`, y la tabla `usuario` ya tenía filas. Con `ddl-auto=update`, Hibernate emite un `ALTER TABLE ... ADD COLUMN ... NOT NULL` que PostgreSQL rechaza si no se le da un valor por defecto. Por eso el campo declara `columnDefinition = "boolean not null default false"`: las filas existentes se rellenan solas y nacen sin la marca, que es lo correcto, porque ninguna de esas contraseñas la conoce el administrador.
+
+### El bloqueo
+
+Mientras la marca esté puesta, la API responde **403 con `codigo: "CAMBIO_PASSWORD_REQUERIDO"`** a todo salvo el cambio de contraseña —la salida del callejón— y el cierre de sesión. El `codigo` es un campo nuevo y opcional de `ErrorResponse`: existe para que el frontend no tenga que reconocer la situación por el texto del mensaje, que ata su comportamiento a una frase en español que cualquiera puede reescribir sin saber que algo depende de ella.
+
+La regla vive en el backend y no en la pantalla, por lo mismo que en HU-31: si solo la aplicara el frontend, bastaría con escribir otra dirección para seguir trabajando con la credencial que el administrador conoce.
+
+La marca se lee del usuario que el filtro JWT acaba de cargar de la base, no de un claim del token. Así, restablecer la contraseña de alguien que está trabajando surte efecto en su siguiente petición y no cuando expire su token.
+
+### Una trampa de Spring Boot que vale la pena recordar
+
+`CambioPasswordObligatorioFilter` **no** se anota con `@Component`. Spring Boot registra automáticamente todo bean de tipo `Filter` en el contenedor de servlets, de modo que el filtro correría dos veces: una fuera de la cadena de seguridad y otra dentro. Como `OncePerRequestFilter` salta la segunda, la única que se ejecutaría sería la de afuera —donde el usuario todavía no está autenticado— y la comprobación siempre daría "no hay nada que bloquear". El bloqueo quedaría desactivado sin que nada lo advirtiera. Lo construye `SecurityConfig` directamente.
+
+`JwtAuthenticationFilter` sí es `@Component` y está hoy en esa misma situación. Funciona, pero no por diseño; conviene revisarlo aparte.
+
+### Verificación realizada
+
+Contra una instancia desechable con su propia base, para no tocar los datos de desarrollo, más la migración comprobada sobre la base real con siete usuarios existentes.
+
+| Prueba | Resultado |
+|---|---|
+| Migración sobre la tabla real con 7 filas | Columna creada `not null default false`, los 7 en `false`, sin errores |
+| Login del administrador recién sembrado | `debeCambiarPassword: true` |
+| Con la marca puesta, `GET /api/usuarios` | 403 con `codigo: CAMBIO_PASSWORD_REQUERIDO` |
+| La misma ruta sin token | 401, no 403 |
+| Cambiar la temporal por ella misma | 400 |
+| Cambiarla por una propia | 200 y `debeCambiarPassword: false` |
+| `GET /api/usuarios` con el token nuevo | 200 |
+| Usuario dado de alta por el administrador, al entrar | Nace marcado |
+| Cerrar sesión estando bloqueado | 204 |
+| Suite completa del backend | 35 pruebas, todas pasan |
+
+Las pruebas automatizadas de este flujo son [YS-76](https://joaquingsuy93.atlassian.net/browse/YS-76); lo de arriba es verificación manual.
+
+## 17. La ventana de cambio de contraseña (YS-75)
+
+Es la mitad visible de HU-32, y de paso salda una deuda: `PUT /api/auth/password` existía desde YS-69 pero **no tenía ninguna interfaz**. Hasta ahora nadie podía cambiar su contraseña desde la aplicación, y el Dashboard llegó a ofrecer una opción del menú que no existía.
+
+### Por qué es una ventana flotante y no una pantalla
+
+El primer intento fue una pantalla propia en `/cambiar-password`. Se descartó tras probarla: la versión obligatoria era una tarjeta centrada sobre el fondo vacío, **casi idéntica al login**, y el usuario no percibía que hubiera cambiado de sitio. Quedaba la sensación de que el inicio de sesión no había funcionado.
+
+Como ventana flotante sobre la aplicación, el `<dialog>` nativo comunica justo lo necesario: el fondo visible y atenuado dice "está adentro", y el fondo inerte dice "pero hay algo pendiente". Además la pone en el mismo idioma que el resto de los diálogos del sistema —crear, editar, confirmar—, que es donde el usuario ya espera encontrar una tarea acotada.
+
+Con eso desaparecieron la ruta `/cambiar-password` y el archivo de constantes que había hecho falta para exceptuarla del guardia de módulos.
+
+### Una sola ventana para los dos casos
+
+`CambiarPasswordModal` atiende el cambio obligatorio y el voluntario. Son el mismo formulario, contra el mismo endpoint, con las mismas reglas; separarlos garantizaría que con el tiempo uno corrija un detalle que el otro no.
+
+| | Obligatorio | Voluntario |
+|---|---|---|
+| Cómo se abre | Sola, al detectarse la marca | Desde el menú de usuario |
+| Se puede descartar | No: sin X, sin Escape, sin clic en el fondo | Sí |
+| Botones | *Cerrar sesión* y *Cambiar contraseña* | *Descartar* y *Cambiar contraseña* |
+| Fondo | El Dashboard, inerte | La pantalla donde estaba |
+
+El modo forzado lo aporta el `prop` `forzado` de `Modal`, que quita las tres salidas. Entonces la única salida la pone el contenido: **una ventana sin botón de salir deja al usuario encerrado**, y por eso la obligatoria lleva *Cerrar sesión* en lugar de *Descartar*.
+
+El aviso dice el motivo y no solo la orden. "Debe cambiarla" a secas se lee como un trámite; saber que otra persona conoce esa contraseña es lo que hace entender por qué no se puede saltar (RNF-04).
+
+### Los tres guardias de `RutaPrivada`, y por qué en ese orden
+
+1. **¿Hay sesión?** Si no, al login. Si se comprobara el permiso primero, alguien sin sesión vería "no tiene permiso" en lugar de que se le pida iniciarla.
+2. **¿Falta cambiar la contraseña?** Si sí, al Dashboard, que es la única pantalla que no consulta nada al backend; encima se abre la ventana obligatoria. Va antes del permiso porque un usuario marcado que escribiera una dirección ajena a su rol vería "no tiene permiso" en vez de lo que de verdad le toca hacer.
+3. **¿El rol tiene acceso?** Con la matriz de `modulos.js`.
+
+### El destino recordado era de quien salía, no de quien entraba
+
+Un defecto que apareció al probar YS-75 y que venía de YS-70. `RutaPrivada` anotaba la última pantalla para devolver ahí al usuario tras volver a entrar, lo cual sirve cuando la sesión **se cae sola**. Pero también se disparaba al cerrar sesión a propósito, y ese destino quedaba guardado en la ruta del login: **se lo aplicaba al siguiente que entrara, aunque fuera otra persona**. Salir desde "Cambiar contraseña" mandaba ahí al administrador que entraba después, sin que él hubiera pedido nada.
+
+Ahora el destino solo se recuerda cuando la salida no fue voluntaria. `AuthProvider` lo distingue con `salioPorSuCuenta`, del mismo modo que ya distinguía si correspondía explicar el fin de la sesión.
+
+### La marca puede encenderse a mitad de sesión
+
+Ocurre cada vez que un administrador restablece la contraseña de alguien que está trabajando. Para ese caso no alcanza con lo que informa el login: el interceptor de Axios reconoce el `codigo` del 403 y avisa al proveedor de sesión, que enciende la marca y hace que la ventana se abra sola.
+
+Se reconoce por el código y no por el texto del mensaje, que es una frase en español que cualquiera puede reescribir sin saber que algo depende de ella.
+
+### Guardar el token nuevo no es opcional
+
+El backend invalida todos los tokens anteriores al cambiar la contraseña, incluido el que viajó en esa misma petición, y entrega uno nuevo. Si el frontend no lo reemplazara, el usuario quedaría con la sesión caída justo después de cumplir con lo que se le pidió. `AuthProvider` lo guarda en el mismo paso, junto con la marca ya apagada que trae la respuesta.
+
+### Dos cosas que se avisan en lugar de preguntarse
+
+**El cierre de las otras sesiones.** Se evaluó ofrecerlo como casilla opcional y se descartó: es una pregunta cuya respuesta correcta es siempre la misma. Quien cambia su contraseña porque sospecha que alguien más la conoce anula el cambio si deja vivas las otras sesiones; quien la cambia por rutina solo gana no tener que volver a entrar en la tablet. El riesgo es asimétrico, el personal no es experto en tecnología (RNF-04), y en el caso obligatorio habría que ignorar la elección de todos modos. La ventana lo informa como un hecho.
+
+**La confirmación de la contraseña nueva.** Sin segundo campo, igual que en el restablecimiento de YS-73. El campo tiene el ojo para revelar lo escrito, que resuelve el mismo problema sin pedir que se escriba dos veces; y si aun así quedara mal, el administrador puede restablecerla.
+
+### Verificación realizada
+
+| Prueba | Resultado |
+|---|---|
+| `npm run build` | Pasa |
+| `npm run lint` | Solo el aviso preexistente de `UsuariosPage.jsx:73` |
+| Sin referencias huérfanas tras quitar la ruta y su archivo de constantes | Verificado |
+
+**El resultado visual no está verificado automáticamente**: el proyecto no tiene pruebas de interfaz, y la extensión de navegador no pudo abrir pestañas en esta sesión. La comprobación es manual.
+
+## 18. Pruebas del flujo de contraseña temporal (YS-76)
+
+`CambioPasswordObligatorioTest` cubre HU-32 de punta a punta, con tokens reales obtenidos del login y contra PostgreSQL en Testcontainers, igual que el resto.
+
+### Por qué los dos usuarios de la prueba son Administradores del Asilo
+
+Es la decisión que hace que estas pruebas sirvan. El bloqueo se comprueba contra `GET /api/usuarios`, que desde YS-53 está reservado a ese rol. Si el usuario bloqueado fuera de enfermería, **su 403 podría venir del guardia de roles** y la prueba quedaría verde sin haber comprobado una sola línea de HU-32. Siendo administrador, el único 403 posible es el del cambio pendiente — y aun así se verifica el `codigo` del cuerpo.
+
+### La prueba que más importa
+
+El circuito entero en un solo caso: el administrador restablece, el usuario entra, choca contra el bloqueo, cambia la contraseña y vuelve a trabajar con el token nuevo. Comprobar cada pieza por separado dejaría pasar el escenario en que todas funcionan y aun así el usuario queda encerrado, que es el riesgo propio de esta historia.
+
+### Se comprobó que las pruebas fallan cuando deben
+
+Una suite que pasa a la primera no demuestra nada por sí sola: puede estar pasando en vacío. Se comentó a propósito la línea de `AuthService.cambiarPassword` que apaga la marca —el error más caro posible, porque dejaría a **todos** los usuarios encerrados para siempre en la ventana obligatoria— y se volvió a ejecutar:
+
+```
+CambioPasswordObligatorioTest.elCircuitoCompleto:121
+  JSON path "$.debeCambiarPassword" expected:<false> but was:<true>
+```
+
+La línea se restauró y se verificó contra git que el archivo quedara idéntico al commit. Las otras seis pruebas siguieron pasando, lo cual es correcto: en ellas la marca ya estaba apagada de antemano, así que quitar esa línea no cambia nada. La única que podía detectarlo es la que la enciende primero.
+
+### Verificación realizada
+
+| Caso | Resultado |
+|---|---|
+| Restablecer deja marcado al usuario y el login lo informa | Pasa |
+| Con la marca puesta, un endpoint de su propio rol responde 403 con `codigo` | Pasa |
+| Cerrar sesión sigue disponible estando bloqueado | Pasa |
+| Circuito completo: restablecer, entrar, chocar, cambiar, trabajar | Pasa |
+| Repetir la contraseña temporal no cumple el cambio y la marca sigue puesta | Pasa |
+| Cambiar la contraseña por decisión propia no deja marca | Pasa |
+| El alta de usuario también deja marcado | Pasa |
+| Suite completa del backend | 42 pruebas, todas pasan |
+
+Con esto **HU-32 queda cerrada**.
+
+## 19. Qué falta
+
+Nada pendiente de HU-30, HU-31 ni HU-32. Lo que queda abierto, sin historia asignada todavía:
+
+- **Caducidad de la contraseña temporal.** Una temporal que nadie cambia en tres meses sigue siendo una credencial compartida.
+- **Pruebas de interfaz.** El frontend no tiene ninguna automatización; todo lo visual se comprueba a mano.
