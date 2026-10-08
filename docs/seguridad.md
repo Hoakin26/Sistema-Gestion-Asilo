@@ -533,9 +533,73 @@ Contra una instancia desechable con su propia base, para no tocar los datos de d
 
 Las pruebas automatizadas de este flujo son [YS-76](https://joaquingsuy93.atlassian.net/browse/YS-76); lo de arriba es verificación manual.
 
-## 17. Qué falta
+## 17. La ventana de cambio de contraseña (YS-75)
+
+Es la mitad visible de HU-32, y de paso salda una deuda: `PUT /api/auth/password` existía desde YS-69 pero **no tenía ninguna interfaz**. Hasta ahora nadie podía cambiar su contraseña desde la aplicación, y el Dashboard llegó a ofrecer una opción del menú que no existía.
+
+### Por qué es una ventana flotante y no una pantalla
+
+El primer intento fue una pantalla propia en `/cambiar-password`. Se descartó tras probarla: la versión obligatoria era una tarjeta centrada sobre el fondo vacío, **casi idéntica al login**, y el usuario no percibía que hubiera cambiado de sitio. Quedaba la sensación de que el inicio de sesión no había funcionado.
+
+Como ventana flotante sobre la aplicación, el `<dialog>` nativo comunica justo lo necesario: el fondo visible y atenuado dice "está adentro", y el fondo inerte dice "pero hay algo pendiente". Además la pone en el mismo idioma que el resto de los diálogos del sistema —crear, editar, confirmar—, que es donde el usuario ya espera encontrar una tarea acotada.
+
+Con eso desaparecieron la ruta `/cambiar-password` y el archivo de constantes que había hecho falta para exceptuarla del guardia de módulos.
+
+### Una sola ventana para los dos casos
+
+`CambiarPasswordModal` atiende el cambio obligatorio y el voluntario. Son el mismo formulario, contra el mismo endpoint, con las mismas reglas; separarlos garantizaría que con el tiempo uno corrija un detalle que el otro no.
+
+| | Obligatorio | Voluntario |
+|---|---|---|
+| Cómo se abre | Sola, al detectarse la marca | Desde el menú de usuario |
+| Se puede descartar | No: sin X, sin Escape, sin clic en el fondo | Sí |
+| Botones | *Cerrar sesión* y *Cambiar contraseña* | *Descartar* y *Cambiar contraseña* |
+| Fondo | El Dashboard, inerte | La pantalla donde estaba |
+
+El modo forzado lo aporta el `prop` `forzado` de `Modal`, que quita las tres salidas. Entonces la única salida la pone el contenido: **una ventana sin botón de salir deja al usuario encerrado**, y por eso la obligatoria lleva *Cerrar sesión* en lugar de *Descartar*.
+
+El aviso dice el motivo y no solo la orden. "Debe cambiarla" a secas se lee como un trámite; saber que otra persona conoce esa contraseña es lo que hace entender por qué no se puede saltar (RNF-04).
+
+### Los tres guardias de `RutaPrivada`, y por qué en ese orden
+
+1. **¿Hay sesión?** Si no, al login. Si se comprobara el permiso primero, alguien sin sesión vería "no tiene permiso" en lugar de que se le pida iniciarla.
+2. **¿Falta cambiar la contraseña?** Si sí, al Dashboard, que es la única pantalla que no consulta nada al backend; encima se abre la ventana obligatoria. Va antes del permiso porque un usuario marcado que escribiera una dirección ajena a su rol vería "no tiene permiso" en vez de lo que de verdad le toca hacer.
+3. **¿El rol tiene acceso?** Con la matriz de `modulos.js`.
+
+### El destino recordado era de quien salía, no de quien entraba
+
+Un defecto que apareció al probar YS-75 y que venía de YS-70. `RutaPrivada` anotaba la última pantalla para devolver ahí al usuario tras volver a entrar, lo cual sirve cuando la sesión **se cae sola**. Pero también se disparaba al cerrar sesión a propósito, y ese destino quedaba guardado en la ruta del login: **se lo aplicaba al siguiente que entrara, aunque fuera otra persona**. Salir desde "Cambiar contraseña" mandaba ahí al administrador que entraba después, sin que él hubiera pedido nada.
+
+Ahora el destino solo se recuerda cuando la salida no fue voluntaria. `AuthProvider` lo distingue con `salioPorSuCuenta`, del mismo modo que ya distinguía si correspondía explicar el fin de la sesión.
+
+### La marca puede encenderse a mitad de sesión
+
+Ocurre cada vez que un administrador restablece la contraseña de alguien que está trabajando. Para ese caso no alcanza con lo que informa el login: el interceptor de Axios reconoce el `codigo` del 403 y avisa al proveedor de sesión, que enciende la marca y hace que la ventana se abra sola.
+
+Se reconoce por el código y no por el texto del mensaje, que es una frase en español que cualquiera puede reescribir sin saber que algo depende de ella.
+
+### Guardar el token nuevo no es opcional
+
+El backend invalida todos los tokens anteriores al cambiar la contraseña, incluido el que viajó en esa misma petición, y entrega uno nuevo. Si el frontend no lo reemplazara, el usuario quedaría con la sesión caída justo después de cumplir con lo que se le pidió. `AuthProvider` lo guarda en el mismo paso, junto con la marca ya apagada que trae la respuesta.
+
+### Dos cosas que se avisan en lugar de preguntarse
+
+**El cierre de las otras sesiones.** Se evaluó ofrecerlo como casilla opcional y se descartó: es una pregunta cuya respuesta correcta es siempre la misma. Quien cambia su contraseña porque sospecha que alguien más la conoce anula el cambio si deja vivas las otras sesiones; quien la cambia por rutina solo gana no tener que volver a entrar en la tablet. El riesgo es asimétrico, el personal no es experto en tecnología (RNF-04), y en el caso obligatorio habría que ignorar la elección de todos modos. La ventana lo informa como un hecho.
+
+**La confirmación de la contraseña nueva.** Sin segundo campo, igual que en el restablecimiento de YS-73. El campo tiene el ojo para revelar lo escrito, que resuelve el mismo problema sin pedir que se escriba dos veces; y si aun así quedara mal, el administrador puede restablecerla.
+
+### Verificación realizada
+
+| Prueba | Resultado |
+|---|---|
+| `npm run build` | Pasa |
+| `npm run lint` | Solo el aviso preexistente de `UsuariosPage.jsx:73` |
+| Sin referencias huérfanas tras quitar la ruta y su archivo de constantes | Verificado |
+
+**El resultado visual no está verificado automáticamente**: el proyecto no tiene pruebas de interfaz, y la extensión de navegador no pudo abrir pestañas en esta sesión. La comprobación es manual.
+
+## 18. Qué falta
 
 De HU-32 ([YS-72](https://joaquingsuy93.atlassian.net/browse/YS-72)):
 
-- **[YS-75](https://joaquingsuy93.atlassian.net/browse/YS-75):** la pantalla de cambio obligatorio. Hasta que exista, un usuario marcado solo puede cambiar su contraseña llamando a la API directamente. La misma pantalla resuelve además una deuda de YS-69: cambiar la contraseña propia no tiene hoy ninguna interfaz.
-- **[YS-76](https://joaquingsuy93.atlassian.net/browse/YS-76):** las pruebas automatizadas del flujo.
+- **[YS-76](https://joaquingsuy93.atlassian.net/browse/YS-76):** las pruebas automatizadas del flujo, que es lo único que queda para cerrar la historia.

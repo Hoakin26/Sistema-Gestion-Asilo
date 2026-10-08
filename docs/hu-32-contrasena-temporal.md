@@ -2,7 +2,7 @@
 
 Documento de diseño previo a la implementación. Recoge el estado del código al 8 de octubre de 2026, la solución acordada y las decisiones tomadas. No describe código ya escrito: a esta fecha HU-32 no tiene ninguna línea implementada.
 
-Contrastado contra las subtareas [YS-74](https://joaquingsuy93.atlassian.net/browse/YS-74), [YS-75](https://joaquingsuy93.atlassian.net/browse/YS-75) y [YS-76](https://joaquingsuy93.atlassian.net/browse/YS-76) de Jira.
+Contrastado contra las subtareas [YS-74](https://joaquingsuy93.atlassian.net/browse/YS-74), [YS-75](https://joaquingsuy93.atlassian.net/browse/YS-75) y [YS-76](https://joaquingsuy93.atlassian.net/browse/YS-76) de Jira. **Lo que finalmente se construyó está en `seguridad.md`, secciones 16 y 17**; difiere de este documento en la interfaz, que acabó siendo una ventana flotante y no una pantalla propia.
 
 ## 1. Qué problema cierra
 
