@@ -598,8 +598,47 @@ El backend invalida todos los tokens anteriores al cambiar la contraseña, inclu
 
 **El resultado visual no está verificado automáticamente**: el proyecto no tiene pruebas de interfaz, y la extensión de navegador no pudo abrir pestañas en esta sesión. La comprobación es manual.
 
-## 18. Qué falta
+## 18. Pruebas del flujo de contraseña temporal (YS-76)
 
-De HU-32 ([YS-72](https://joaquingsuy93.atlassian.net/browse/YS-72)):
+`CambioPasswordObligatorioTest` cubre HU-32 de punta a punta, con tokens reales obtenidos del login y contra PostgreSQL en Testcontainers, igual que el resto.
 
-- **[YS-76](https://joaquingsuy93.atlassian.net/browse/YS-76):** las pruebas automatizadas del flujo, que es lo único que queda para cerrar la historia.
+### Por qué los dos usuarios de la prueba son Administradores del Asilo
+
+Es la decisión que hace que estas pruebas sirvan. El bloqueo se comprueba contra `GET /api/usuarios`, que desde YS-53 está reservado a ese rol. Si el usuario bloqueado fuera de enfermería, **su 403 podría venir del guardia de roles** y la prueba quedaría verde sin haber comprobado una sola línea de HU-32. Siendo administrador, el único 403 posible es el del cambio pendiente — y aun así se verifica el `codigo` del cuerpo.
+
+### La prueba que más importa
+
+El circuito entero en un solo caso: el administrador restablece, el usuario entra, choca contra el bloqueo, cambia la contraseña y vuelve a trabajar con el token nuevo. Comprobar cada pieza por separado dejaría pasar el escenario en que todas funcionan y aun así el usuario queda encerrado, que es el riesgo propio de esta historia.
+
+### Se comprobó que las pruebas fallan cuando deben
+
+Una suite que pasa a la primera no demuestra nada por sí sola: puede estar pasando en vacío. Se comentó a propósito la línea de `AuthService.cambiarPassword` que apaga la marca —el error más caro posible, porque dejaría a **todos** los usuarios encerrados para siempre en la ventana obligatoria— y se volvió a ejecutar:
+
+```
+CambioPasswordObligatorioTest.elCircuitoCompleto:121
+  JSON path "$.debeCambiarPassword" expected:<false> but was:<true>
+```
+
+La línea se restauró y se verificó contra git que el archivo quedara idéntico al commit. Las otras seis pruebas siguieron pasando, lo cual es correcto: en ellas la marca ya estaba apagada de antemano, así que quitar esa línea no cambia nada. La única que podía detectarlo es la que la enciende primero.
+
+### Verificación realizada
+
+| Caso | Resultado |
+|---|---|
+| Restablecer deja marcado al usuario y el login lo informa | Pasa |
+| Con la marca puesta, un endpoint de su propio rol responde 403 con `codigo` | Pasa |
+| Cerrar sesión sigue disponible estando bloqueado | Pasa |
+| Circuito completo: restablecer, entrar, chocar, cambiar, trabajar | Pasa |
+| Repetir la contraseña temporal no cumple el cambio y la marca sigue puesta | Pasa |
+| Cambiar la contraseña por decisión propia no deja marca | Pasa |
+| El alta de usuario también deja marcado | Pasa |
+| Suite completa del backend | 42 pruebas, todas pasan |
+
+Con esto **HU-32 queda cerrada**.
+
+## 19. Qué falta
+
+Nada pendiente de HU-30, HU-31 ni HU-32. Lo que queda abierto, sin historia asignada todavía:
+
+- **Caducidad de la contraseña temporal.** Una temporal que nadie cambia en tres meses sigue siendo una credencial compartida.
+- **Pruebas de interfaz.** El frontend no tiene ninguna automatización; todo lo visual se comprueba a mano.
