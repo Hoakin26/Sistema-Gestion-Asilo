@@ -74,8 +74,20 @@ public class Interno {
      * Cuota base que se le cobra al familiar cada mes. Es `BigDecimal` y no
      * `double`: con punto flotante los centavos se pierden al sumar, y esto
      * termina en el estado de cuenta de una familia.
+     *
+     * <p>
+     * YS-59. Opcional al registrar. Quien da de alta al interno es el Médico
+     * General (HU-01), y la cuota es un dato financiero que no es de su
+     * competencia (RNF-02): exigirla lo obligaría a conocer algo que no le
+     * corresponde o a inventar un valor provisorio para poder registrar al
+     * paciente.
+     *
+     * <p>
+     * Hoy solo puede completarse actualizando el interno, que también es del
+     * Médico General. La vía para que la fije el Administrador del Asilo, que
+     * es a quien le corresponde, llega con el módulo financiero (versión 1.1).
      */
-    @Column(name = "cuota_mensual", nullable = false, precision = 10, scale = 2)
+    @Column(name = "cuota_mensual", precision = 10, scale = 2)
     private BigDecimal cuotaMensual;
 
     /**
