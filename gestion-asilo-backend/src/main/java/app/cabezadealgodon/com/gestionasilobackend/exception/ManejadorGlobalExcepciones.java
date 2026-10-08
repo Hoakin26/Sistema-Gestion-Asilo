@@ -110,9 +110,14 @@ public class ManejadorGlobalExcepciones {
                 RegistroAccesoDenegado.MENSAJE, peticion.getRequestURI()));
     }
 
-    @ExceptionHandler(CorreoDuplicadoException.class)
-    public ResponseEntity<ErrorResponse> manejarCorreoDuplicado(CorreoDuplicadoException ex,
-            HttpServletRequest peticion) {
+    /**
+     * Identificadores que ya pertenecen a otro registro: el correo de un
+     * usuario y, desde YS-58, el DPI de un interno. Comparten manejador porque
+     * comparten significado —lo que se intenta crear ya existe— y el 409 es la
+     * misma respuesta para ambos.
+     */
+    @ExceptionHandler({ CorreoDuplicadoException.class, DpiDuplicadoException.class })
+    public ResponseEntity<ErrorResponse> manejarDuplicado(RuntimeException ex, HttpServletRequest peticion) {
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(ErrorResponse.de(HttpStatus.CONFLICT, ex.getMessage(), peticion.getRequestURI()));
     }
