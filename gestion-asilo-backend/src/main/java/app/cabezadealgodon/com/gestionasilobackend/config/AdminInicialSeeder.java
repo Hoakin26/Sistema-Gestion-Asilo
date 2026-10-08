@@ -70,6 +70,17 @@ public class AdminInicialSeeder implements CommandLineRunner {
         admin.setPasswordHash(passwordEncoder.encode(inicial));
         admin.setRol(rol);
         admin.setActivo(true);
+        /*
+         * YS-74. Es el caso más expuesto de los tres: esta contraseña queda
+         * escrita en el log de arranque, o en el archivo de configuración si se
+         * fijó a mano. Cualquiera con acceso a esos archivos la conoce, y se
+         * trata nada menos que de la cuenta de administrador.
+         *
+         * Si alguien despliega, no la cambia y pierde el log, se recupera
+         * borrando el usuario y volviendo a sembrar con
+         * app.admin-inicial.password.
+         */
+        admin.setDebeCambiarPassword(true);
         usuarioRepository.save(admin);
 
         if (generada) {

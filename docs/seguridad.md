@@ -476,8 +476,66 @@ No nombra el rol que haría falta, y hay una prueba que lo verifica. Decirlo le 
 | Cada intento denegado deja su línea WARN con correo, rol, método, ruta y origen | Verificado en la salida de las pruebas |
 | Suite completa del backend | 17 pruebas, todas pasan |
 
-## 16. Qué falta
+## 16. Contraseña temporal obligatoria (YS-74)
 
-HU-31 ([YS-39](https://joaquingsuy93.atlassian.net/browse/YS-39)) queda cerrada con YS-81. De HU-32 ([YS-72](https://joaquingsuy93.atlassian.net/browse/YS-72)):
+Cierra el hueco que YS-71 dejó anotado en la sección 12: el administrador quedaba conociendo la contraseña con la que otra persona usa el sistema, y nada obligaba a cambiarla. Mientras eso siga ocurriendo, el historial no puede responder quién hizo cada registro, que es lo que sostiene la trazabilidad de los datos clínicos y financieros.
 
-- Forzar el cambio de la contraseña temporal en el primer ingreso, para que el administrador deje de conocerla.
+El diseño completo, con las alternativas descartadas, está en `hu-32-contrasena-temporal.md`.
+
+### Los tres caminos que marcan, y el único que desmarca
+
+Una contraseña que su dueño no eligió puede entrar al sistema por tres puertas, y las tres dejan marcado al usuario:
+
+| Camino | Quién fija la contraseña |
+|---|---|
+| `UsuarioService.crear` | El administrador, al dar de alta |
+| `UsuarioService.restablecerPassword` | El administrador, desde la lista de usuarios |
+| `AdminInicialSeeder` | El sistema, al sembrar el primer administrador |
+
+Los criterios de YS-72 solo nombran el segundo. Se incluyeron los otros dos porque producen exactamente el mismo problema, y forzar el cambio tras un restablecimiento pero no tras un alta dejaría el hueco abierto por el camino más transitado. El tercero es además el más expuesto: esa contraseña queda escrita en el log de arranque.
+
+La apaga un solo lugar, `AuthService.cambiarPassword`, y puede hacerlo porque es el único que exige la contraseña anterior: solo su dueño llega hasta ahí. La regla de YS-69 que rechaza una contraseña nueva igual a la actual —escrita entonces por otro motivo— es la que impide "cumplir" el cambio dejando puesta la temporal.
+
+### La columna, y por qué lleva su valor por defecto en la base
+
+`debe_cambiar_password` es `NOT NULL`, y la tabla `usuario` ya tenía filas. Con `ddl-auto=update`, Hibernate emite un `ALTER TABLE ... ADD COLUMN ... NOT NULL` que PostgreSQL rechaza si no se le da un valor por defecto. Por eso el campo declara `columnDefinition = "boolean not null default false"`: las filas existentes se rellenan solas y nacen sin la marca, que es lo correcto, porque ninguna de esas contraseñas la conoce el administrador.
+
+### El bloqueo
+
+Mientras la marca esté puesta, la API responde **403 con `codigo: "CAMBIO_PASSWORD_REQUERIDO"`** a todo salvo el cambio de contraseña —la salida del callejón— y el cierre de sesión. El `codigo` es un campo nuevo y opcional de `ErrorResponse`: existe para que el frontend no tenga que reconocer la situación por el texto del mensaje, que ata su comportamiento a una frase en español que cualquiera puede reescribir sin saber que algo depende de ella.
+
+La regla vive en el backend y no en la pantalla, por lo mismo que en HU-31: si solo la aplicara el frontend, bastaría con escribir otra dirección para seguir trabajando con la credencial que el administrador conoce.
+
+La marca se lee del usuario que el filtro JWT acaba de cargar de la base, no de un claim del token. Así, restablecer la contraseña de alguien que está trabajando surte efecto en su siguiente petición y no cuando expire su token.
+
+### Una trampa de Spring Boot que vale la pena recordar
+
+`CambioPasswordObligatorioFilter` **no** se anota con `@Component`. Spring Boot registra automáticamente todo bean de tipo `Filter` en el contenedor de servlets, de modo que el filtro correría dos veces: una fuera de la cadena de seguridad y otra dentro. Como `OncePerRequestFilter` salta la segunda, la única que se ejecutaría sería la de afuera —donde el usuario todavía no está autenticado— y la comprobación siempre daría "no hay nada que bloquear". El bloqueo quedaría desactivado sin que nada lo advirtiera. Lo construye `SecurityConfig` directamente.
+
+`JwtAuthenticationFilter` sí es `@Component` y está hoy en esa misma situación. Funciona, pero no por diseño; conviene revisarlo aparte.
+
+### Verificación realizada
+
+Contra una instancia desechable con su propia base, para no tocar los datos de desarrollo, más la migración comprobada sobre la base real con siete usuarios existentes.
+
+| Prueba | Resultado |
+|---|---|
+| Migración sobre la tabla real con 7 filas | Columna creada `not null default false`, los 7 en `false`, sin errores |
+| Login del administrador recién sembrado | `debeCambiarPassword: true` |
+| Con la marca puesta, `GET /api/usuarios` | 403 con `codigo: CAMBIO_PASSWORD_REQUERIDO` |
+| La misma ruta sin token | 401, no 403 |
+| Cambiar la temporal por ella misma | 400 |
+| Cambiarla por una propia | 200 y `debeCambiarPassword: false` |
+| `GET /api/usuarios` con el token nuevo | 200 |
+| Usuario dado de alta por el administrador, al entrar | Nace marcado |
+| Cerrar sesión estando bloqueado | 204 |
+| Suite completa del backend | 35 pruebas, todas pasan |
+
+Las pruebas automatizadas de este flujo son [YS-76](https://joaquingsuy93.atlassian.net/browse/YS-76); lo de arriba es verificación manual.
+
+## 17. Qué falta
+
+De HU-32 ([YS-72](https://joaquingsuy93.atlassian.net/browse/YS-72)):
+
+- **[YS-75](https://joaquingsuy93.atlassian.net/browse/YS-75):** la pantalla de cambio obligatorio. Hasta que exista, un usuario marcado solo puede cambiar su contraseña llamando a la API directamente. La misma pantalla resuelve además una deuda de YS-69: cambiar la contraseña propia no tiene hoy ninguna interfaz.
+- **[YS-76](https://joaquingsuy93.atlassian.net/browse/YS-76):** las pruebas automatizadas del flujo.

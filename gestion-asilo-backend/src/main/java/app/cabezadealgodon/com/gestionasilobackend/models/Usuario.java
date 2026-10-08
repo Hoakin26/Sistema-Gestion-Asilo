@@ -60,6 +60,23 @@ public class Usuario {
     @Column(name = "fecha_invalidacion_sesiones")
     private LocalDateTime fechaInvalidacionSesiones;
 
+    /**
+     * YS-74. Verdadero mientras el usuario siga usando una contraseña que
+     * eligió otra persona: la del alta, la de un restablecimiento o la que el
+     * sistema generó al sembrar el primer administrador. Solo la apaga el
+     * cambio de contraseña propio, que exige la anterior y por lo tanto solo
+     * puede hacerlo su dueño.
+     *
+     * El valor por defecto va en la definición de la columna y no solo en Java:
+     * la tabla ya tiene filas, y un ALTER TABLE que agregue una columna NOT
+     * NULL sin valor por defecto lo rechaza PostgreSQL. Con esto las filas
+     * existentes se rellenan solas y nacen sin la marca, que es lo correcto:
+     * ninguna de esas contraseñas la conoce el administrador.
+     */
+    @Column(name = "debe_cambiar_password", nullable = false,
+            columnDefinition = "boolean not null default false")
+    private boolean debeCambiarPassword = false;
+
     @CreationTimestamp
     @Column(name = "fecha_creacion", nullable = false, updatable = false)
     private LocalDateTime fechaCreacion;
