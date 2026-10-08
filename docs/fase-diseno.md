@@ -182,7 +182,7 @@ El alcance del producto mínimo viable (MVP) es el definido en el informe de ava
 | Sprint | Fechas | Objetivo del sprint | Historias | Puntos | Otras tareas | Versión |
 |---|---|---|---|---:|---|---|
 | **2** | 08/10 – 11/10 | El médico general registra el perfil de un interno y consulta su historial médico centralizado. | HU-01, HU-02 | 13 | Despliegue en el servidor público | `v0.2.0` |
-| **3** | 12/10 – 15/10 | Enfermería refiere a un interno a una especialidad y la fundación le asigna especialista, fecha y hora. | HU-03, HU-05, HU-06 | 13 | Manual de usuario; pruebas de regresión; despliegue final | `v1.0.0` (15/10) |
+| **3** | 12/10 – 15/10 | El médico general refiere a un interno a una especialidad, con un enfermero acompañante, y la fundación le asigna especialista, fecha y hora. | HU-03, HU-05, HU-06 | 13 | Manual de usuario; pruebas de regresión; despliegue final | `v1.0.0` (15/10) |
 | 1.1 | Después de la entrega, sin fecha comprometida | Atención médica especializada, laboratorio, farmacia, finanzas, reportes y notificación por correo | HU-04, HU-07 a HU-28 | 102 | Migraciones con Flyway; despliegue automatizado | `v1.1.0` |
 
 **Por qué este orden.** Las historias siguen el recorrido del paciente de los diagramas DS-01 → DS-02 → DS-03. Cada historia consume datos que produce la anterior: no hay visita sin cita, ni resultado sin orden, ni cobro sin costo registrado. Construirlas en ese orden deja, al final de cada sprint, un tramo del flujo que funciona de punta a punta y se puede demostrar. Si el tiempo no alcanza, lo que falta es el final del recorrido, no un hueco en medio. **Ese principio es el que decidió el recorte**: se entrega el tramo inicial completo en vez de seis módulos a medias.
