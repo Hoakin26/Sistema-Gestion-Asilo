@@ -138,6 +138,40 @@ class SolicitudListadoTest extends PruebaConBaseDeDatos {
                 .isNotEmpty();
     }
 
+    /**
+     * YS-166. Se busca como se escribe en la tableta: el número tal cual, el
+     * nombre en minúsculas y la especialidad sin tildes.
+     */
+    @Test
+    @DisplayName("La búsqueda encuentra por número, por interno y por especialidad sin tildes")
+    void laBusquedaEncuentra() throws Exception {
+        Long id = crearSolicitud();
+        String numero = solicitudRepository.findById(id).orElseThrow().getNumero();
+
+        for (String termino : List.of(numero, "interno de la BANDEJA", "cardiologia")) {
+            assertThat(idsBuscando(termino)).as("buscando «%s»", termino).contains(id.intValue());
+        }
+        assertThat(idsBuscando("zzz-no-existe")).isEmpty();
+    }
+
+    @Test
+    @DisplayName("Ordenar los internos por un campo que no existe también es un 400")
+    void ordenInvalidoEnInternos() throws Exception {
+        mvc.perform(get("/api/internos").param("sort", "campoInventado")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(RolNombre.MEDICO_GENERAL)))
+                .andExpect(status().isBadRequest());
+    }
+
+    /* Con .param y no pegado a la URL: así los espacios viajan como espacios. */
+    private List<Integer> idsBuscando(String termino) throws Exception {
+        String respuesta = mvc.perform(get("/api/solicitudes-referencia")
+                .param("busqueda", termino).param("size", TODAS)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(RolNombre.ADMINISTRADOR_FUNDACION)))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
+        return JsonPath.read(respuesta, "$.content[*].id");
+    }
+
     @ParameterizedTest(name = "{0}")
     @EnumSource(value = RolNombre.class, names = { "MEDICO_GENERAL", "ADMINISTRADOR_FUNDACION" },
             mode = EnumSource.Mode.EXCLUDE)

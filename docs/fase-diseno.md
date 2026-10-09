@@ -1889,12 +1889,16 @@ classDiagram
 | GET | `/api/solicitudes-referencia/{id}/notificaciones` | MG, AF | — | `List<NotificacionResponse>` (sin el correo ni el error) | HU-04 |
 | POST | `/api/solicitudes-referencia/{id}/notificaciones/reintentar` | MG, AF | — | `List<NotificacionResponse>` | HU-04 |
 | POST | `/api/solicitudes-referencia` | MG | `SolicitudReferenciaRequest` | `SolicitudReferenciaResponse` (201) | HU-03 |
-| GET | `/api/solicitudes-referencia?estado=&page=&sort=` | AF, MG | — | `Page<SolicitudReferenciaResponse>`; sin `estado`, todas; por defecto, de la más antigua a la más reciente | HU-05 |
+| GET | `/api/solicitudes-referencia?estado=&busqueda=&page=&sort=` | AF, MG | — | `Page<SolicitudReferenciaResponse>`; sin `estado`, todas; `busqueda` por número, interno o especialidad, sin importar tildes (YS-166); `sort` solo por `fechaCreacion` o `numero`, cualquier otro campo es 400. Sin `sort`, de la más antigua a la más reciente; la pantalla pide las más recientes primero | HU-05 |
 | GET | `/api/solicitudes-referencia/asignadas` | ENF | — | `List<SolicitudReferenciaResponse>` | HU-03 |
 | PATCH | `/api/solicitudes-referencia/{id}/cancelar` | MG, AF | — | `SolicitudReferenciaResponse` | DE-01 |
-| GET | `/api/medicos?especialidad=` | AF | — | `List<MedicoResponse>` | HU-06 |
-| GET | `/api/medicos/{id}/disponibilidad?fecha=` | AF | — | `List<FranjaHorariaResponse>` | HU-06 |
-| POST | `/api/solicitudes-referencia/{id}/cita` | AF | `AsignacionCitaRequest` | `CitaResponse` (201) | HU-06 |
+| GET | `/api/especialistas?especialidadId=` | AF | — | `List<EspecialistaResponse>`; sin especialidad, todos; con ella, solo los activos que la atienden | HU-06 |
+| GET | `/api/especialistas/usuarios-disponibles` | AF | — | `List<ResumenPersona>`: cuentas activas de Médico Especialista sin perfil | HU-06 |
+| POST | `/api/especialistas` | AF | `EspecialistaRequest` (cuenta, especialidad, duración de la cita, horario por día) | `EspecialistaResponse` (201); 409 si la cuenta ya tiene perfil | HU-06 |
+| PUT | `/api/especialistas/{id}` | AF | `EspecialistaRequest` (más `activo`) | `EspecialistaResponse` | HU-06 |
+| GET | `/api/especialistas/{id}/disponibilidad?fecha=` | AF | — | `List<LocalTime>`: las horas libres de ese día, ya sin las pasadas ni las ocupadas | HU-06 |
+| POST | `/api/solicitudes-referencia/{id}/cita` | AF | `AsignacionCitaRequest` (especialista, fecha y hora) | `CitaResponse` (201); 400 si la hora no es una franja del horario o ya pasó; 409 si está ocupada o la solicitud ya no está pendiente | HU-06 |
+| GET | `/api/solicitudes-referencia/{id}/cita` | MG, AF | — | `CitaResponse`; 404 si todavía no tiene | HU-06 |
 | GET | `/api/citas/mi-agenda?fecha=` | ME | — | `List<CitaResponse>` | HU-07 |
 | GET | `/api/citas?desde=&hasta=` | ENF, MG | — | `List<CitaResponse>` | HU-06 |
 | POST | `/api/citas/{id}/visita` | ME (el asignado) | — | `VisitaMedicaResponse` (201) | HU-07 |

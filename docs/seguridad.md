@@ -720,7 +720,39 @@ El aviso se registra en la misma transacción que la solicitud, y se envía desp
 
 Ninguna en el código ni en el repositorio. Por defecto el backend apunta a Mailpit en `localhost:1025`, que no pide credenciales ni reenvía nada. Para un servidor real se definen `spring.mail.*` en `application.properties` (no versionado) o como variables de entorno; `application-example.properties` muestra cómo.
 
-## 22. Qué falta
+## 22. Especialistas y asignación de cita (HU-06)
+
+### Quién usa cada endpoint
+
+| Endpoint | Anotación | Roles |
+|---|---|---|
+| `/api/especialistas/**` (listar, cuentas disponibles, registrar, editar, disponibilidad) | `@SoloAdministradorFundacion`, en la clase | Administrador de la Fundación |
+| `POST /api/solicitudes-referencia/{id}/cita` | `@SoloAdministradorFundacion` | Administrador de la Fundación |
+| `GET /api/solicitudes-referencia/{id}/cita` | `@MedicoGeneralOFundacion` | Médico General, Administrador de la Fundación |
+
+`EspecialistaTest` y `CitaTest` barren los seis roles restantes contra el listado y el registro de especialistas y contra la asignación: todos reciben 403. El resto de `/api/especialistas` queda cubierto por la misma anotación de la clase. La pantalla muestra "Asignar cita" solo a la Fundación (`asignaCitas` en `roles.js`), pero eso es comodidad; la autoridad es el backend.
+
+### El servidor valida lo que la pantalla ya filtró
+
+La pantalla solo ofrece como botones las horas libres que le dio el servidor, pero el servidor no confía en eso: la cita tiene que ser futura, caer exactamente en una franja del horario del especialista, con un especialista activo y de la misma especialidad que la solicitud. Las horas que se ofrecen y las que se aceptan salen de la misma clase (`Agenda`), así que la pantalla no puede ofrecer una hora que la asignación después rechace.
+
+### Dos asignaciones a la misma hora no quedan las dos
+
+Asignar bloquea la fila del especialista (`PESSIMISTIC_WRITE`) hasta terminar la transacción: dos asignaciones para el mismo especialista se hacen una tras otra, y la segunda ya ve la cita de la primera y recibe 409. Debajo quedan dos restricciones únicas: una cita por solicitud y una por especialista y hora. `CitaTest` lanza dos asignaciones simultáneas a la misma hora y comprueba que una recibe 201 y la otra 409.
+
+### El correo de la cita no lleva datos clínicos
+
+El segundo aviso al familiar lleva el especialista, la especialidad, la fecha, la hora y el estado. Como el primero, no lleva el motivo de la referencia (RNF-03), y todo lo que viene de la base pasa por `HtmlUtils.htmlEscape`.
+
+### Un orden arbitrario ya no rompe la bandeja
+
+`sort` viene de la URL. Con las consultas `@Query` de la búsqueda (YS-166), un campo inexistente llegaba a Hibernate y respondía 500. Ahora cada listado acepta solo una lista blanca de campos (`OrdenNoPermitidoException`): la bandeja, `fechaCreacion` y `numero`; los internos, `nombreCompleto`, `fechaIngreso` y `dpi`. Cualquier otro campo es 400.
+
+### Las restricciones de los enum siguen al código
+
+Hibernate crea, para cada columna enum, una restricción CHECK con los valores de ese momento, y con `ddl-auto=update` no la vuelve a tocar. Al agregar `CITA_ASIGNADA`, la base de desarrollo siguió aceptando solo `SOLICITUD_CREADA`, y asignar una cita respondía 500 al registrar el aviso. Las pruebas no lo veían porque crean el esquema desde cero. `RestriccionesDeEnum` rehace esas restricciones al arrancar, con los valores que el enum tiene hoy; `RestriccionesDeEnumTest` recrea la restricción vieja y comprueba que queda al día.
+
+## 23. Qué falta
 
 Nada pendiente de HU-30, HU-31 ni HU-32. Lo que queda abierto, sin historia asignada todavía:
 

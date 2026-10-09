@@ -44,7 +44,6 @@ export function SolicitudesReferenciaPage() {
 
       <div className="mt-6">
         <BandejaSolicitudes
-          orden="desc"
           version={version}
           mensajeVacio="Todavía no se ha referido a ningún interno. Use «Nueva solicitud» para crear la primera."
         />

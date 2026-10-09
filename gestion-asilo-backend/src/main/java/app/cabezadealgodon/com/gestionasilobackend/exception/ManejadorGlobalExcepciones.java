@@ -12,6 +12,7 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
@@ -63,6 +64,18 @@ public class ManejadorGlobalExcepciones {
     }
 
     /**
+     * YS-167. Falta un parámetro obligatorio de la URL, como la fecha al
+     * consultar las horas libres. Sin esto Spring respondía con su propio
+     * cuerpo de error.
+     */
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<ErrorResponse> manejarParametroFaltante(MissingServletRequestParameterException ex,
+            HttpServletRequest peticion) {
+        return ResponseEntity.badRequest().body(ErrorResponse.de(HttpStatus.BAD_REQUEST,
+                "Falta el parámetro '" + ex.getParameterName() + "'", peticion.getRequestURI()));
+    }
+
+    /**
      * YS-87. Un {@code sort} por un campo que no existe. Spring Data lo
      * lanza al armar la consulta y, sin esto, salía como un 500: un error del
      * servidor por algo que escribió mal el cliente.
@@ -72,6 +85,14 @@ public class ManejadorGlobalExcepciones {
             HttpServletRequest peticion) {
         return ResponseEntity.badRequest().body(ErrorResponse.de(HttpStatus.BAD_REQUEST,
                 "No se puede ordenar por '" + ex.getPropertyName() + "'", peticion.getRequestURI()));
+    }
+
+    /** YS-166. Lo mismo, para las listas que validan el orden por su cuenta. */
+    @ExceptionHandler(OrdenNoPermitidoException.class)
+    public ResponseEntity<ErrorResponse> manejarOrdenNoPermitido(OrdenNoPermitidoException ex,
+            HttpServletRequest peticion) {
+        return ResponseEntity.badRequest()
+                .body(ErrorResponse.de(HttpStatus.BAD_REQUEST, ex.getMessage(), peticion.getRequestURI()));
     }
 
     /**
@@ -144,9 +165,10 @@ public class ManejadorGlobalExcepciones {
      * Identificadores que ya pertenecen a otro registro: el correo de un
      * usuario y, desde YS-58, el DPI de un interno. Comparten manejador porque
      * comparten significado —lo que se intenta crear ya existe— y el 409 es la
-     * misma respuesta para ambos.
+     * misma respuesta para ambos. Desde HU-06, también cualquier
+     * {@link ConflictoException}: un especialista duplicado o una hora ocupada.
      */
-    @ExceptionHandler({ CorreoDuplicadoException.class, DpiDuplicadoException.class })
+    @ExceptionHandler({ CorreoDuplicadoException.class, DpiDuplicadoException.class, ConflictoException.class })
     public ResponseEntity<ErrorResponse> manejarDuplicado(RuntimeException ex, HttpServletRequest peticion) {
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(ErrorResponse.de(HttpStatus.CONFLICT, ex.getMessage(), peticion.getRequestURI()));

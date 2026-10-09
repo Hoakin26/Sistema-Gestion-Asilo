@@ -34,3 +34,8 @@ export function editaInternos(rol) {
 export function creaReferencias(rol) {
   return rol === "MEDICO_GENERAL";
 }
+
+/** HU-06. Solo la Fundación asigna citas (RF-05, @SoloAdministradorFundacion). */
+export function asignaCitas(rol) {
+  return rol === "ADMINISTRADOR_FUNDACION";
+}

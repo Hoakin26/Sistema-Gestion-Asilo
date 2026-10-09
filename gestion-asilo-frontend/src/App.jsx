@@ -6,6 +6,7 @@ import { DashboardPage } from "./pages/DashboardPage";
 import { InternoPerfilPage } from "./pages/InternoPerfilPage";
 import { InternosPage } from "./pages/InternosPage";
 import { LoginPage } from "./pages/LoginPage";
+import { MedicosDisponibilidadPage } from "./pages/MedicosDisponibilidadPage";
 import { SinPermisoPage } from "./pages/SinPermisoPage";
 import { SolicitudesEntrantesPage } from "./pages/SolicitudesEntrantesPage";
 import { SolicitudesReferenciaPage } from "./pages/SolicitudesReferenciaPage";
@@ -109,6 +110,14 @@ function App() {
         element={
           <RutaPrivada>
             <SolicitudesEntrantesPage />
+          </RutaPrivada>
+        }
+      />
+      <Route
+        path="/medicos-disponibilidad"
+        element={
+          <RutaPrivada>
+            <MedicosDisponibilidadPage />
           </RutaPrivada>
         }
       />
