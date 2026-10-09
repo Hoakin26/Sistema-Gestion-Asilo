@@ -118,6 +118,12 @@ public class SolicitudReferenciaService {
                         solicitud.getEspecialidad().getNombre()),
                 new ResumenPersona(medicoGeneral.getId(), medicoGeneral.getNombreCompleto()),
                 new ResumenPersona(enfermero.getId(), enfermero.getNombreCompleto()),
-                solicitud.getFechaCreacion());
+                solicitud.getFechaCreacion(),
+                // YS-94. Solo dice si habrá aviso; el aviso lo maneja el listener.
+                tieneCorreo(interno.getFamiliarResponsable().getCorreo()));
+    }
+
+    private static boolean tieneCorreo(String correo) {
+        return correo != null && !correo.isBlank();
     }
 }

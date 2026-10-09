@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { CircleCheck, X } from "lucide-react";
+import { CircleCheck, Mail, X } from "lucide-react";
 
 import { useConfirmarDescarte } from "../../hooks/useConfirmarDescarte";
 import { erroresPorCampo, mensajeDeError } from "../../services/api";
@@ -341,9 +341,25 @@ function SolicitudCreada({ solicitud, alCerrar }) {
         </div>
       </dl>
 
-      <p className="px-4 pb-6 text-texto-secundario sm:px-6">
-        La fundación la recibirá en su bandeja para asignarle especialista, fecha y hora.
-      </p>
+      <div className="flex flex-col gap-4 px-4 pb-6 sm:px-6">
+        <p className="text-texto-secundario">
+          La fundación la recibirá en su bandeja para asignarle especialista, fecha y hora.
+        </p>
+
+        {/* YS-94. El médico tiene que saberlo ahora: sin correo registrado,
+            nadie le avisa a la familia salvo él. */}
+        {solicitud.familiarConCorreo ? (
+          <p className="flex items-start gap-2 text-texto-secundario">
+            <Mail aria-hidden="true" size={20} className="shrink-0" />
+            El familiar responsable recibirá un aviso por correo.
+          </p>
+        ) : (
+          <Alert tipo="info" rol="status">
+            El familiar responsable no tiene correo registrado, así que no recibirá aviso. Avísele
+            por otro medio, o agregue su correo en los datos del interno.
+          </Alert>
+        )}
+      </div>
 
       <div className="sticky bottom-0 flex justify-end border-t border-divisor bg-superficie px-4 py-4 sm:px-6">
         <Button type="button" onClick={cerrar}>
