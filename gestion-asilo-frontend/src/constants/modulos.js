@@ -34,7 +34,7 @@ const CATALOGO = {
   dashboard: { etiqueta: "Dashboard", Icono: LayoutDashboard, ruta: "/dashboard" },
   usuarios: { etiqueta: "Usuarios y roles", Icono: Users, ruta: "/usuarios" },
 
-  internos: { etiqueta: "Internos", Icono: UserRound, ruta: null },
+  internos: { etiqueta: "Internos", Icono: UserRound, ruta: "/internos" },
   historialMedico: { etiqueta: "Historial médico", Icono: ClipboardList, ruta: null },
   solicitudesReferencia: {
     etiqueta: "Solicitudes de referencia",
@@ -72,11 +72,15 @@ const CATALOGO = {
    * Etiqueta distinta de "Internos" a propósito (RNF-03): esta vista nunca
    * muestra psicopatologías, diagnósticos ni medicamentos, solo datos
    * personales, familiar responsable y estado de cuenta.
+   *
+   * YS-61. Misma ruta que la vista clínica: la pantalla decide qué mostrar
+   * según el rol, y el backend decide qué devolver. Dos rutas distintas
+   * habrían duplicado la pantalla sin agregar ninguna protección.
    */
   internosAdministrativo: {
     etiqueta: "Internos (vista administrativa)",
     Icono: UserRound,
-    ruta: null,
+    ruta: "/internos",
   },
   cuentasPorCobrar: { etiqueta: "Cuentas por cobrar", Icono: Receipt, ruta: null },
   cuentasPorPagar: { etiqueta: "Cuentas por pagar", Icono: Wallet, ruta: null },
@@ -136,7 +140,13 @@ export function modulosDeRol(rol) {
  *
  * Esto no reemplaza al backend, que es la autoridad (YS-53). Solo evita que el
  * usuario llegue a una pantalla que no le va a responder.
+ *
+ * YS-61. Una ruta hija hereda el permiso del módulo: quien entra a
+ * "/internos" entra también a "/internos/15". Se compara con la barra para que
+ * un módulo "/internos" no abra por accidente un "/internosX".
  */
 export function puedeEntrar(rol, ruta) {
-  return modulosDeRol(rol).some((modulo) => modulo.ruta === ruta);
+  return modulosDeRol(rol).some(
+    (modulo) => modulo.ruta && (ruta === modulo.ruta || ruta.startsWith(`${modulo.ruta}/`)),
+  );
 }

@@ -182,7 +182,7 @@ export function UsuariosPage() {
 
       <div className="mt-6">
         {cargando ? (
-          <TablaSkeleton />
+          <TablaSkeleton etiqueta="Cargando usuarios…" />
         ) : usuarios.length === 0 ? (
           <div className="flex flex-col items-center gap-4 rounded-tarjeta border border-divisor bg-superficie px-4 py-16 text-center shadow-tarjeta sm:px-6">
             <Users aria-hidden="true" size={24} className="text-texto-secundario" />

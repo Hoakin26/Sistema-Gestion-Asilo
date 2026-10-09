@@ -10,7 +10,7 @@ La entrega se evalúa contra los 21 RF, y los 21 están en el plan de la entrega
 
 | RF | Requerimiento | Historias | Subtareas | Estado |
 |---|---|---|---|---|
-| RF-01 | Gestión de perfil del interno | HU-01 | YS-57 a YS-62 | **Sprint 2, 08–09/10.** Backend terminado (YS-57, YS-58, YS-59); faltan las pantallas y sus pruebas (YS-60 a YS-62) |
+| RF-01 | Gestión de perfil del interno | HU-01 | YS-57 a YS-62 | **Implementado** (08/10): alta, edición y consulta del expediente, ficha médica con psicopatologías y medicamentos, validación en pantalla y en servidor. Vista administrativa sin datos clínicos para el Administrador del Asilo |
 | RF-02 | Historial médico centralizado | HU-02 | YS-63 a YS-67 | Sprint 2, 11/10, después de la visita médica — ver hallazgo 2 |
 | RF-03 | Solicitudes de referencia médica | HU-03 | YS-83 a YS-86 | Sprint 2, 09–10/10 |
 | RF-04 | Notificación por correo al familiar | HU-04 | YS-94 a YS-97 | Sprint 2, 09–10/10 |
@@ -32,7 +32,7 @@ La entrega se evalúa contra los 21 RF, y los 21 están en el plan de la entrega
 | RF-20 | Reportes financieros consolidados | HU-27 | YS-160 a YS-162 | Sprint 3, 14/10 |
 | RF-21 | Reportes médicos específicos | HU-28 | YS-163 a YS-165 | Sprint 3, 14/10 |
 
-**Cobertura planificada para la entrega del 16/10: 21 de 21.** Implementado al 8/10: el backend del RF-01. Si el tiempo aprieta, lo que se ajusta es el nivel de detalle de cada historia (`fase-diseno.md`, 1.7, Nivel 1), nunca la lista de requerimientos.
+**Cobertura planificada para la entrega del 16/10: 21 de 21.** Implementado al 8/10: el RF-01. Si el tiempo aprieta, lo que se ajusta es el nivel de detalle de cada historia (`fase-diseno.md`, 1.7, Nivel 1), nunca la lista de requerimientos.
 
 ## 2. Requerimientos no funcionales
 
