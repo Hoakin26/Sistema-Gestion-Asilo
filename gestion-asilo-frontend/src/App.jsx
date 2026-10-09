@@ -7,6 +7,7 @@ import { InternoPerfilPage } from "./pages/InternoPerfilPage";
 import { InternosPage } from "./pages/InternosPage";
 import { LoginPage } from "./pages/LoginPage";
 import { SinPermisoPage } from "./pages/SinPermisoPage";
+import { SolicitudesEntrantesPage } from "./pages/SolicitudesEntrantesPage";
 import { SolicitudesReferenciaPage } from "./pages/SolicitudesReferenciaPage";
 import { UsuariosPage } from "./pages/UsuariosPage";
 
@@ -100,6 +101,14 @@ function App() {
         element={
           <RutaPrivada>
             <SolicitudesReferenciaPage />
+          </RutaPrivada>
+        }
+      />
+      <Route
+        path="/solicitudes-entrantes"
+        element={
+          <RutaPrivada>
+            <SolicitudesEntrantesPage />
           </RutaPrivada>
         }
       />

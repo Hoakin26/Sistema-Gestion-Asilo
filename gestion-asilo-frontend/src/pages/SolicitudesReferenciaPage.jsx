@@ -1,20 +1,25 @@
 import { useState } from "react";
-import { FileText, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 
+import { BandejaSolicitudes } from "../components/referencias/BandejaSolicitudes";
 import { SolicitudReferenciaFormModal } from "../components/referencias/SolicitudReferenciaFormModal";
 import { Button } from "../components/ui/Button";
 import { AppLayout } from "../layouts/AppLayout";
 
 /**
- * YS-85. El módulo "Solicitudes de referencia" del Médico General.
+ * YS-85 y YS-88. El módulo "Solicitudes de referencia" del Médico General:
+ * crear una solicitud y dar seguimiento a las existentes.
  *
- * Por ahora solo crea: el listado de las solicitudes y su estado llega con
- * HU-05 (YS-87), que agrega el endpoint de consulta que esta página va a usar.
- * Se decidió así el 09/10 para que cada historia quede en su propia rama.
+ * Muestra todas las del asilo, no solo las del médico que entra: si hay más
+ * de un médico general, cualquiera tiene que poder seguir una referencia que
+ * empezó otro. La más reciente va primero, que es la que el médico acaba de
+ * crear o la que más probablemente busca.
  */
 export function SolicitudesReferenciaPage() {
   const [abierta, setAbierta] = useState(false);
   const [aperturas, setAperturas] = useState(0);
+  // Cambia al crear una solicitud, para que la lista la muestre.
+  const [version, setVersion] = useState(0);
 
   const abrir = () => {
     setAperturas((valor) => valor + 1);
@@ -27,7 +32,7 @@ export function SolicitudesReferenciaPage() {
         <div>
           <h1 className="text-h1 font-bold">Solicitudes de referencia</h1>
           <p className="mt-2 text-texto-secundario">
-            Refiera a un interno a una especialidad de la fundación.
+            Refiera a un interno a una especialidad de la fundación y siga su estado.
           </p>
         </div>
 
@@ -37,22 +42,19 @@ export function SolicitudesReferenciaPage() {
         </Button>
       </div>
 
-      <div className="mt-6 flex flex-col items-center gap-4 rounded-tarjeta border border-divisor bg-superficie px-4 py-16 text-center shadow-tarjeta sm:px-6">
-        <FileText aria-hidden="true" size={24} className="text-texto-secundario" />
-        <p className="max-w-md text-texto-secundario">
-          Elija al interno, la especialidad y el enfermero(a) que lo acompañará. La fundación
-          recibirá la solicitud para asignarle especialista, fecha y hora.
-        </p>
-        <Button onClick={abrir}>
-          <Plus aria-hidden="true" size={20} />
-          Nueva solicitud
-        </Button>
+      <div className="mt-6">
+        <BandejaSolicitudes
+          orden="desc"
+          version={version}
+          mensajeVacio="Todavía no se ha referido a ningún interno. Use «Nueva solicitud» para crear la primera."
+        />
       </div>
 
       <SolicitudReferenciaFormModal
         abierto={abierta}
         claveFormulario={aperturas}
         alCerrar={() => setAbierta(false)}
+        alCrear={() => setVersion((valor) => valor + 1)}
       />
     </AppLayout>
   );
