@@ -20,6 +20,10 @@ export const ETIQUETAS_ESTADO = {
   AVISO_ENVIADA: "Enviado",
   AVISO_FALLIDA: "No se pudo enviar",
   AVISO_SIN_CORREO: "Sin correo registrado",
+
+  // YS-98 · Visita médica. Con prefijo, igual que el aviso.
+  VISITA_ACTIVA: "En curso",
+  VISITA_FINALIZADA: "Finalizada",
 };
 
 /** DE-01, en el orden del diagrama: para los filtros de las bandejas. */

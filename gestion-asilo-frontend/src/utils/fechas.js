@@ -69,6 +69,19 @@ export function formatearHora(hora) {
   return FORMATO_HORA.format(new Date(2000, 0, 1, h, m));
 }
 
+/** YS-100. "2026-10-09" más `dias` (negativo para atrás), en el mismo formato. */
+export function sumarDias(iso, dias) {
+  const fecha = aFechaLocal(iso);
+  fecha.setDate(fecha.getDate() + dias);
+  const local = new Date(fecha.getTime() - fecha.getTimezoneOffset() * 60_000);
+  return local.toISOString().slice(0, 10);
+}
+
+/** YS-100. "viernes, 9 de octubre de 2026", para el encabezado de la agenda. */
+export function formatearDia(iso) {
+  return FORMATO_DIA_COMPLETO.format(aFechaLocal(iso));
+}
+
 export function edadEnAnios(iso) {
   const nacimiento = aFechaLocal(iso);
   const hoy = new Date();
