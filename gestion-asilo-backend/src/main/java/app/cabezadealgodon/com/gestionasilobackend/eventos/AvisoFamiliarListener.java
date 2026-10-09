@@ -48,4 +48,20 @@ public class AvisoFamiliarListener {
     public void enviar(SolicitudCreadaEvent evento) {
         notificacionService.enviarPendientes(evento.solicitudId());
     }
+
+    /*
+     * HU-06 (YS-91). El segundo aviso, al asignar la cita, con el mismo
+     * esquema de dos momentos: registrado junto con la cita, enviado después.
+     */
+
+    @TransactionalEventListener(phase = TransactionPhase.BEFORE_COMMIT)
+    public void registrar(CitaAsignadaEvent evento) {
+        notificacionService.registrar(evento.solicitudId(), TipoNotificacion.CITA_ASIGNADA);
+    }
+
+    @Async
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void enviar(CitaAsignadaEvent evento) {
+        notificacionService.enviarPendientes(evento.solicitudId());
+    }
 }

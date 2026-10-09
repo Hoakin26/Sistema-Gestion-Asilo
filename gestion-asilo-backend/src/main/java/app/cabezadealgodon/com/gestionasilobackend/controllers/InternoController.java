@@ -1,5 +1,7 @@
 package app.cabezadealgodon.com.gestionasilobackend.controllers;
 
+import java.util.Set;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
@@ -19,6 +21,7 @@ import app.cabezadealgodon.com.gestionasilobackend.dto.FichaMedicaResponse;
 import app.cabezadealgodon.com.gestionasilobackend.dto.InternoRequest;
 import app.cabezadealgodon.com.gestionasilobackend.dto.InternoResponse;
 import app.cabezadealgodon.com.gestionasilobackend.dto.InternoResumenResponse;
+import app.cabezadealgodon.com.gestionasilobackend.exception.OrdenNoPermitidoException;
 import app.cabezadealgodon.com.gestionasilobackend.security.PersonalClinico;
 import app.cabezadealgodon.com.gestionasilobackend.security.PersonalConAccesoAInternos;
 import app.cabezadealgodon.com.gestionasilobackend.security.SoloMedicoGeneral;
@@ -45,6 +48,13 @@ import jakarta.validation.Valid;
 @RequestMapping("/api/internos")
 public class InternoController {
 
+    /*
+     * YS-166. Los campos por los que se puede ordenar la lista. Desde YS-62 la
+     * búsqueda es una consulta propia, y un orden por un campo inexistente
+     * salía como 500 en vez de 400.
+     */
+    private static final Set<String> ORDENES = Set.of("nombreCompleto", "fechaIngreso", "dpi");
+
     private final InternoService internoService;
 
     public InternoController(InternoService internoService) {
@@ -60,7 +70,7 @@ public class InternoController {
     public Page<InternoResumenResponse> listar(
             @RequestParam(required = false) String busqueda,
             @PageableDefault(size = 20, sort = "nombreCompleto") Pageable paginado) {
-        return internoService.listar(busqueda, paginado);
+        return internoService.listar(busqueda, OrdenNoPermitidoException.validar(paginado, ORDENES));
     }
 
     @GetMapping("/{id}")

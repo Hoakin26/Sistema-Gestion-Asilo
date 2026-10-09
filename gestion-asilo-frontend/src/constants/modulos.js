@@ -51,7 +51,7 @@ const CATALOGO = {
   medicosDisponibilidad: {
     etiqueta: "Médicos y disponibilidad",
     Icono: Stethoscope,
-    ruta: null,
+    ruta: "/medicos-disponibilidad",
   },
 
   miAgenda: { etiqueta: "Mi agenda del día", Icono: CalendarCheck, ruta: null },

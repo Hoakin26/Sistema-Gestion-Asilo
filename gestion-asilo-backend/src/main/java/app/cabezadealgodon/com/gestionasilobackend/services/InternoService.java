@@ -1,8 +1,6 @@
 package app.cabezadealgodon.com.gestionasilobackend.services;
 
-import java.text.Normalizer;
 import java.util.List;
-import java.util.Locale;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -50,24 +48,14 @@ public class InternoService {
 
         // Igual que el nombre guardado tras el translate del repositorio: sin
         // tildes y en minúsculas, para comparar los dos en la misma forma.
-        String nombre = Normalizer.normalize(termino, Normalizer.Form.NFD)
-                .replaceAll("\\p{M}", "")
-                .toLowerCase(Locale.ROOT);
+        String nombre = PatronBusqueda.normalizado(termino);
 
         // La pantalla muestra el DPI como "1234 56789 0101" y así lo van a
         // copiar; en la base está guardado sin espacios.
         String dpi = termino.matches("[\\d\\s]+") ? termino.replaceAll("\\s", "") : termino;
 
-        return internoRepository.buscar(contiene(nombre), contiene(dpi), paginado).map(this::resumir);
-    }
-
-    /**
-     * El patrón LIKE de "contiene". Los comodines que escriba el usuario se
-     * escapan para que cuenten como texto: buscar "%" no debe traer a todos.
-     */
-    private static String contiene(String texto) {
-        String escapado = texto.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
-        return "%" + escapado + "%";
+        return internoRepository.buscar(PatronBusqueda.contiene(nombre), PatronBusqueda.contiene(dpi), paginado)
+                .map(this::resumir);
     }
 
     @Transactional(readOnly = true)

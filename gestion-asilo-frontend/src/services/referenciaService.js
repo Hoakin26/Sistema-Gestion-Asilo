@@ -8,13 +8,14 @@ export async function crearSolicitud(solicitud) {
 
 /**
  * HU-05 (YS-87). Paginado en el servidor. Sin `estado` trae todas; `orden`
- * es "asc" (la que más espera primero, la bandeja de la Fundación) o "desc"
- * (la más reciente primero, el seguimiento del Médico General).
+ * es "desc" (las más recientes primero) o "asc" (las más antiguas primero).
+ * YS-166: `busqueda` filtra por número, interno o especialidad.
  */
-export async function listarSolicitudes({ estado = "", pagina = 0, orden = "asc" } = {}) {
+export async function listarSolicitudes({ estado = "", busqueda = "", pagina = 0, orden = "desc" } = {}) {
   const { data } = await api.get("/solicitudes-referencia", {
     params: {
       estado: estado || undefined,
+      busqueda: busqueda || undefined,
       page: pagina,
       sort: `fechaCreacion,${orden}`,
     },

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ChevronLeft, ChevronRight, Eye, Filter, Inbox } from "lucide-react";
+import { ArrowDownUp, ChevronLeft, ChevronRight, Eye, Filter, Inbox, Search } from "lucide-react";
 
 import { ESTADOS_SOLICITUD, ETIQUETAS_ESTADO } from "../../constants/estados";
 import { mensajeDeError } from "../../services/api";
@@ -7,10 +7,13 @@ import { listarSolicitudes } from "../../services/referenciaService";
 import { formatearFechaHora } from "../../utils/fechas";
 import { Alert } from "../ui/Alert";
 import { Button, IconButton } from "../ui/Button";
-import { Select } from "../ui/Input";
+import { Input, Select } from "../ui/Input";
 import { StatusBadge } from "../ui/StatusBadge";
 import { TablaSkeleton } from "../ui/TablaSkeleton";
 import { SolicitudDetalleModal } from "./SolicitudDetalleModal";
+
+/* Lo bastante para no pedir en cada tecla, poco para que no se sienta lento. */
+const ESPERA_BUSQUEDA_MS = 300;
 
 const ENCABEZADO =
   "px-4 py-4 text-auxiliar font-semibold text-texto-secundario uppercase xl:px-6";
@@ -20,17 +23,24 @@ const ENCABEZADO =
  * paginación y el detalle al seleccionar una (HU-05).
  *
  * La comparten la bandeja de la Fundación y el seguimiento del Médico
- * General: lo que cambia es el filtro con que arranca y el orden.
+ * General: lo que cambia es el filtro con que arranca.
+ *
+ * YS-166. Además se puede buscar por número, interno o especialidad, y elegir
+ * el orden: por defecto las más recientes primero, con la opción de ver las
+ * más antiguas primero (pedido del 09/10).
  *
  * - `estadoInicial`: "" para todas, o una clave de DE-01.
- * - `orden`: "asc" (la que más espera primero) o "desc" (la más reciente primero).
  * - `version`: cambia cuando quien la usa sabe que hay datos nuevos (el médico
  *   acaba de crear una solicitud) y la lista tiene que volver a pedirse.
  * - `mensajeVacio`: qué decir cuando no hay ninguna, que no es lo mismo para
  *   la Fundación que para el médico.
  */
-export function BandejaSolicitudes({ estadoInicial = "", orden = "asc", version = 0, mensajeVacio }) {
+export function BandejaSolicitudes({ estadoInicial = "", version = 0, mensajeVacio }) {
   const [estado, setEstado] = useState(estadoInicial);
+  const [orden, setOrden] = useState("desc");
+  const [busqueda, setBusqueda] = useState("");
+  // Lo que de verdad se consulta: la búsqueda, una vez que dejó de escribir.
+  const [termino, setTermino] = useState("");
   const [pagina, setPagina] = useState(0);
 
   const [resultado, setResultado] = useState(null);
@@ -40,11 +50,23 @@ export function BandejaSolicitudes({ estadoInicial = "", orden = "asc", version 
   const [seleccionada, setSeleccionada] = useState(null);
   const [detalleAbierto, setDetalleAbierto] = useState(false);
   const [aperturas, setAperturas] = useState(0);
+  // HU-06. Sube cuando se asigna una cita desde el detalle: la solicitud
+  // cambió de estado y la lista tiene que reflejarlo.
+  const [recargas, setRecargas] = useState(0);
+
+  useEffect(() => {
+    const espera = setTimeout(() => {
+      setTermino(busqueda.trim());
+      // Una búsqueda nueva empieza siempre en la primera página.
+      setPagina(0);
+    }, ESPERA_BUSQUEDA_MS);
+    return () => clearTimeout(espera);
+  }, [busqueda]);
 
   useEffect(() => {
     // Una respuesta vieja que llega tarde no pisa a la del filtro actual.
     let vigente = true;
-    listarSolicitudes({ estado, pagina, orden })
+    listarSolicitudes({ estado, busqueda: termino, pagina, orden })
       .then((datos) => {
         if (!vigente) return;
         setResultado(datos);
@@ -59,11 +81,23 @@ export function BandejaSolicitudes({ estadoInicial = "", orden = "asc", version 
     return () => {
       vigente = false;
     };
-  }, [estado, pagina, orden, version]);
+  }, [estado, termino, pagina, orden, version, recargas]);
 
   const cambiarEstado = (evento) => {
     setEstado(evento.target.value);
     // Un filtro nuevo empieza siempre en la primera página.
+    setPagina(0);
+  };
+
+  const cambiarOrden = (evento) => {
+    setOrden(evento.target.value);
+    setPagina(0);
+  };
+
+  const quitarFiltros = () => {
+    setEstado("");
+    setBusqueda("");
+    setTermino("");
     setPagina(0);
   };
 
@@ -79,25 +113,60 @@ export function BandejaSolicitudes({ estadoInicial = "", orden = "asc", version 
 
   return (
     <div>
-      <div className="relative w-full sm:w-80">
-        <Filter
-          aria-hidden="true"
-          size={20}
-          className="pointer-events-none absolute top-1/2 left-4 -translate-y-1/2 text-texto-secundario"
-        />
-        <Select
-          value={estado}
-          onChange={cambiarEstado}
-          aria-label="Filtrar solicitudes por estado"
-          className="pl-12"
-        >
-          <option value="">Todos los estados</option>
-          {ESTADOS_SOLICITUD.map((clave) => (
-            <option key={clave} value={clave}>
-              {ETIQUETAS_ESTADO[clave]}
-            </option>
-          ))}
-        </Select>
+      <div className="flex flex-wrap gap-4">
+        <div className="relative min-w-64 flex-1">
+          <Search
+            aria-hidden="true"
+            size={20}
+            className="pointer-events-none absolute top-1/2 left-4 -translate-y-1/2 text-texto-secundario"
+          />
+          <Input
+            type="search"
+            value={busqueda}
+            onChange={(evento) => setBusqueda(evento.target.value)}
+            placeholder="Buscar por número, interno o especialidad…"
+            aria-label="Buscar solicitudes por número, interno o especialidad"
+            className="pl-12"
+          />
+        </div>
+
+        <div className="relative w-full sm:w-64">
+          <Filter
+            aria-hidden="true"
+            size={20}
+            className="pointer-events-none absolute top-1/2 left-4 -translate-y-1/2 text-texto-secundario"
+          />
+          <Select
+            value={estado}
+            onChange={cambiarEstado}
+            aria-label="Filtrar solicitudes por estado"
+            className="pl-12"
+          >
+            <option value="">Todos los estados</option>
+            {ESTADOS_SOLICITUD.map((clave) => (
+              <option key={clave} value={clave}>
+                {ETIQUETAS_ESTADO[clave]}
+              </option>
+            ))}
+          </Select>
+        </div>
+
+        <div className="relative w-full sm:w-64">
+          <ArrowDownUp
+            aria-hidden="true"
+            size={20}
+            className="pointer-events-none absolute top-1/2 left-4 -translate-y-1/2 text-texto-secundario"
+          />
+          <Select
+            value={orden}
+            onChange={cambiarOrden}
+            aria-label="Ordenar solicitudes por fecha"
+            className="pl-12"
+          >
+            <option value="desc">Más recientes primero</option>
+            <option value="asc">Más antiguas primero</option>
+          </Select>
+        </div>
       </div>
 
       {error && (
@@ -113,14 +182,16 @@ export function BandejaSolicitudes({ estadoInicial = "", orden = "asc", version 
           <div className="flex flex-col items-center gap-4 rounded-tarjeta border border-divisor bg-superficie px-4 py-16 text-center shadow-tarjeta sm:px-6">
             <Inbox aria-hidden="true" size={24} className="text-texto-secundario" />
             <p className="max-w-md text-texto-secundario">
-              {estado
-                ? `No hay solicitudes en estado "${ETIQUETAS_ESTADO[estado]}".`
-                : mensajeVacio}
+              {termino
+                ? "Ninguna solicitud coincide con lo que buscó."
+                : estado
+                  ? `No hay solicitudes en estado "${ETIQUETAS_ESTADO[estado]}".`
+                  : mensajeVacio}
             </p>
             {/* Vacío por el filtro ≠ vacío de verdad, como en usuarios. */}
-            {estado && (
-              <Button variante="secundario" onClick={() => cambiarEstado({ target: { value: "" } })}>
-                Ver todos los estados
+            {(estado || termino) && (
+              <Button variante="secundario" onClick={quitarFiltros}>
+                Quitar filtros
               </Button>
             )}
           </div>
@@ -235,6 +306,7 @@ export function BandejaSolicitudes({ estadoInicial = "", orden = "asc", version 
         solicitud={seleccionada}
         claveApertura={aperturas}
         alCerrar={() => setDetalleAbierto(false)}
+        alAsignar={() => setRecargas((valor) => valor + 1)}
       />
     </div>
   );
