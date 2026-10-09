@@ -63,9 +63,13 @@ public class ManejadorGlobalExcepciones {
     /**
      * YS-69. Mismo formato que una validación fallida (errores por campo), para
      * que el frontend lo muestre junto al campo. 400 y no 401: ver la excepción.
+     *
+     * <p>
+     * YS-84. Atiende cualquier {@link CampoInvalidoException}, de la que el
+     * cambio de contraseña es un caso particular.
      */
-    @ExceptionHandler(CambioPasswordInvalidoException.class)
-    public ResponseEntity<ErrorResponse> manejarCambioPassword(CambioPasswordInvalidoException ex,
+    @ExceptionHandler(CampoInvalidoException.class)
+    public ResponseEntity<ErrorResponse> manejarCampoInvalido(CampoInvalidoException ex,
             HttpServletRequest peticion) {
         ErrorResponse cuerpo = new ErrorResponse(LocalDateTime.now(), HttpStatus.BAD_REQUEST.value(),
                 HttpStatus.BAD_REQUEST.getReasonPhrase(), "Hay campos inválidos", peticion.getRequestURI(),
@@ -118,6 +122,17 @@ public class ManejadorGlobalExcepciones {
      */
     @ExceptionHandler({ CorreoDuplicadoException.class, DpiDuplicadoException.class })
     public ResponseEntity<ErrorResponse> manejarDuplicado(RuntimeException ex, HttpServletRequest peticion) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ErrorResponse.de(HttpStatus.CONFLICT, ex.getMessage(), peticion.getRequestURI()));
+    }
+
+    /**
+     * YS-83. Una transición que el diagrama de estados no contempla: por
+     * ejemplo, asignarle cita a una solicitud que ya está cancelada.
+     */
+    @ExceptionHandler(TransicionInvalidaException.class)
+    public ResponseEntity<ErrorResponse> manejarTransicionInvalida(TransicionInvalidaException ex,
+            HttpServletRequest peticion) {
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(ErrorResponse.de(HttpStatus.CONFLICT, ex.getMessage(), peticion.getRequestURI()));
     }

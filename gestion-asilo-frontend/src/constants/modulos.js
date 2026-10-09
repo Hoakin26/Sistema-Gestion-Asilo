@@ -39,7 +39,7 @@ const CATALOGO = {
   solicitudesReferencia: {
     etiqueta: "Solicitudes de referencia",
     Icono: FileText,
-    ruta: null,
+    ruta: "/solicitudes-referencia",
   },
 
   solicitudesEntrantes: { etiqueta: "Solicitudes entrantes", Icono: FileText, ruta: null },

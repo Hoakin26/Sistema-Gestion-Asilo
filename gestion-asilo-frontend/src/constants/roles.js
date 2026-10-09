@@ -29,3 +29,8 @@ export function leeDatosClinicos(rol) {
 export function editaInternos(rol) {
   return rol === "MEDICO_GENERAL";
 }
+
+/** HU-03. Solo el Médico General refiere a especialistas (RF-03). */
+export function creaReferencias(rol) {
+  return rol === "MEDICO_GENERAL";
+}
