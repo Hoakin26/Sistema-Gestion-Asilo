@@ -7,10 +7,13 @@ import { InternoPerfilPage } from "./pages/InternoPerfilPage";
 import { InternosPage } from "./pages/InternosPage";
 import { LoginPage } from "./pages/LoginPage";
 import { MedicosDisponibilidadPage } from "./pages/MedicosDisponibilidadPage";
+import { MiAgendaPage } from "./pages/MiAgendaPage";
 import { SinPermisoPage } from "./pages/SinPermisoPage";
 import { SolicitudesEntrantesPage } from "./pages/SolicitudesEntrantesPage";
 import { SolicitudesReferenciaPage } from "./pages/SolicitudesReferenciaPage";
 import { UsuariosPage } from "./pages/UsuariosPage";
+import { VisitaMedicaPage } from "./pages/VisitaMedicaPage";
+import { VisitasMedicasPage } from "./pages/VisitasMedicasPage";
 
 /**
  * Tres guardias, en este orden: si hay sesión, si falta cambiar la contraseña,
@@ -118,6 +121,30 @@ function App() {
         element={
           <RutaPrivada>
             <MedicosDisponibilidadPage />
+          </RutaPrivada>
+        }
+      />
+      <Route
+        path="/mi-agenda"
+        element={
+          <RutaPrivada>
+            <MiAgendaPage />
+          </RutaPrivada>
+        }
+      />
+      <Route
+        path="/visitas"
+        element={
+          <RutaPrivada>
+            <VisitasMedicasPage />
+          </RutaPrivada>
+        }
+      />
+      <Route
+        path="/visitas/:id"
+        element={
+          <RutaPrivada>
+            <VisitaMedicaPage />
           </RutaPrivada>
         }
       />

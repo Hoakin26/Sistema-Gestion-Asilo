@@ -48,6 +48,11 @@ const ESTADOS = {
   AVISO_ENVIADA: { Icono: CircleCheck, tono: "exito" },
   AVISO_FALLIDA: { Icono: TriangleAlert, tono: "error" },
   AVISO_SIN_CORREO: { Icono: CircleSlash, tono: "neutral" },
+
+  // YS-98 · Visita médica. "En curso" con el tono de En Atención, que es el
+  // estado en que deja a la solicitud.
+  VISITA_ACTIVA: { Icono: Activity, tono: "proceso" },
+  VISITA_FINALIZADA: { Icono: CircleCheck, tono: "exito" },
 };
 
 /**

@@ -30,4 +30,25 @@ public interface CitaRepository extends JpaRepository<Cita, Long> {
             """)
     List<Cita> delEspecialistaEntre(@Param("especialistaId") Long especialistaId,
             @Param("desde") LocalDateTime desde, @Param("hasta") LocalDateTime hasta);
+
+    /**
+     * YS-99. La agenda de un especialista, buscado por su cuenta: las citas
+     * que empiezan en el rango, en orden, con lo que muestra cada fila.
+     */
+    @EntityGraph(attributePaths = { "solicitud", "solicitud.interno", "solicitud.especialidad",
+            "solicitud.enfermeroAcompanante" })
+    @Query("""
+            select c from Cita c
+            where c.especialista.usuario.id = :usuarioId
+              and c.fechaHora >= :desde and c.fechaHora < :hasta
+            order by c.fechaHora
+            """)
+    List<Cita> agendaDe(@Param("usuarioId") Long usuarioId, @Param("desde") LocalDateTime desde,
+            @Param("hasta") LocalDateTime hasta);
+
+    /** YS-99. Una cita con su solicitud y su especialista, para iniciar la visita. */
+    @EntityGraph(attributePaths = { "solicitud", "solicitud.interno", "solicitud.especialidad",
+            "especialista", "especialista.usuario" })
+    @Query("select c from Cita c where c.id = :id")
+    Optional<Cita> conSolicitud(@Param("id") Long id);
 }

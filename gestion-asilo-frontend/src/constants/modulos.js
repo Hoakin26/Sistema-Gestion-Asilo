@@ -54,8 +54,9 @@ const CATALOGO = {
     ruta: "/medicos-disponibilidad",
   },
 
-  miAgenda: { etiqueta: "Mi agenda del día", Icono: CalendarCheck, ruta: null },
-  visitasMedicas: { etiqueta: "Visitas médicas", Icono: HeartPulse, ruta: null },
+  miAgenda: { etiqueta: "Mi agenda del día", Icono: CalendarCheck, ruta: "/mi-agenda" },
+  // YS-100. "/visitas/15" es la pantalla de una visita: entra con este módulo.
+  visitasMedicas: { etiqueta: "Visitas médicas", Icono: HeartPulse, ruta: "/visitas" },
   ordenesLaboratorio: { etiqueta: "Órdenes de laboratorio", Icono: FlaskConical, ruta: null },
   recetas: { etiqueta: "Recetas", Icono: Pill, ruta: null },
 
