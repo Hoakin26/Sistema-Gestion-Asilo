@@ -21,5 +21,18 @@ services:
       # Volumen para que los datos no se borren si apagas el contenedor
       - asilo_db_data:/var/lib/postgresql/data
 
+  # YS-96. Servidor de correo de prueba para el aviso al familiar (RF-04).
+  # Recibe todo lo que envía el sistema y no lo reenvía a nadie: los correos se
+  # ven en http://localhost:8025. Así se demuestra el RF-04 sin cuentas reales
+  # ni credenciales. En producción el backend apunta a un SMTP real por
+  # variables de entorno, sin tocar código.
+  mailpit:
+    image: axllent/mailpit:v1.31.2
+    container_name: mailpit_asilo
+    restart: always
+    ports:
+      - "1025:1025" # SMTP: adonde envía el backend
+      - "8025:8025" # Página web para ver los correos recibidos
+
 volumes:
   asilo_db_data:
