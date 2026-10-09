@@ -89,11 +89,18 @@ public class SolicitudReferencia {
     @Column(name = "fecha_actualizacion", nullable = false)
     private LocalDateTime fechaActualizacion;
 
-    /** Lleva la solicitud a otro estado, si el diagrama DE-01 lo permite. */
+    /**
+     * Lleva la solicitud a otro estado, si el diagrama DE-01 lo permite.
+     *
+     * <p>
+     * HU-06. El mensaje usa la etiqueta y no el nombre del enum: desde la
+     * asignación de cita llega a la pantalla, y la Fundación no tiene por qué
+     * leer "CITA_PROGRAMADA".
+     */
     public void cambiarEstado(EstadoSolicitud nuevo) {
         if (!estado.puedeCambiarA(nuevo)) {
-            throw new TransicionInvalidaException("La solicitud " + numero + " está en " + estado
-                    + " y no puede pasar a " + nuevo);
+            throw new TransicionInvalidaException("La solicitud " + numero + " está en «" + estado.etiqueta()
+                    + "» y no puede pasar a «" + nuevo.etiqueta() + "»");
         }
         estado = nuevo;
     }

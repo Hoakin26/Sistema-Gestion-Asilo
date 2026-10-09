@@ -20,11 +20,13 @@ import org.springframework.web.util.HtmlUtils;
 
 import app.cabezadealgodon.com.gestionasilobackend.dto.NotificacionResponse;
 import app.cabezadealgodon.com.gestionasilobackend.exception.RecursoNoEncontradoException;
+import app.cabezadealgodon.com.gestionasilobackend.models.Cita;
 import app.cabezadealgodon.com.gestionasilobackend.models.EstadoNotificacion;
 import app.cabezadealgodon.com.gestionasilobackend.models.Familiar;
 import app.cabezadealgodon.com.gestionasilobackend.models.NotificacionFamiliar;
 import app.cabezadealgodon.com.gestionasilobackend.models.SolicitudReferencia;
 import app.cabezadealgodon.com.gestionasilobackend.models.TipoNotificacion;
+import app.cabezadealgodon.com.gestionasilobackend.repository.CitaRepository;
 import app.cabezadealgodon.com.gestionasilobackend.repository.NotificacionFamiliarRepository;
 import app.cabezadealgodon.com.gestionasilobackend.repository.SolicitudReferenciaRepository;
 import jakarta.mail.MessagingException;
@@ -50,23 +52,30 @@ public class NotificacionService {
      */
     private static final long MINUTOS_DE_GRACIA = 2;
 
-    private static final DateTimeFormatter FECHA = DateTimeFormatter.ofPattern("d 'de' MMMM 'de' yyyy",
-            Locale.forLanguageTag("es-GT"));
+    private static final Locale ES_GT = Locale.forLanguageTag("es-GT");
+    private static final DateTimeFormatter FECHA = DateTimeFormatter.ofPattern("d 'de' MMMM 'de' yyyy", ES_GT);
+    /** YS-91. "jueves 15 de octubre de 2026": en una cita importa el día de la semana. */
+    private static final DateTimeFormatter FECHA_CON_DIA = DateTimeFormatter
+            .ofPattern("EEEE d 'de' MMMM 'de' yyyy", ES_GT);
+    private static final DateTimeFormatter HORA = DateTimeFormatter.ofPattern("h:mm a", ES_GT);
 
     private final NotificacionFamiliarRepository notificacionRepository;
     private final SolicitudReferenciaRepository solicitudRepository;
+    private final CitaRepository citaRepository;
     private final JavaMailSender correo;
     private final String remitente;
     private final String remitenteNombre;
     private final int maxIntentos;
 
     public NotificacionService(NotificacionFamiliarRepository notificacionRepository,
-            SolicitudReferenciaRepository solicitudRepository, JavaMailSender correo,
+            SolicitudReferenciaRepository solicitudRepository, CitaRepository citaRepository,
+            JavaMailSender correo,
             @Value("${app.correo.remitente:no-responder@cabezadealgodon.test}") String remitente,
             @Value("${app.correo.remitente-nombre:Asilo de Ancianos Cabeza de Algodón}") String remitenteNombre,
             @Value("${app.notificaciones.max-intentos:5}") int maxIntentos) {
         this.notificacionRepository = notificacionRepository;
         this.solicitudRepository = solicitudRepository;
+        this.citaRepository = citaRepository;
         this.correo = correo;
         this.remitente = remitente;
         this.remitenteNombre = remitenteNombre;
@@ -175,52 +184,85 @@ public class NotificacionService {
 
     private MimeMessage armarMensaje(NotificacionFamiliar notificacion, Familiar familiar, String direccion)
             throws MessagingException, UnsupportedEncodingException {
-        SolicitudReferencia solicitud = notificacion.getSolicitud();
+        Contenido contenido = switch (notificacion.getTipo()) {
+            case SOLICITUD_CREADA -> solicitudCreada(notificacion.getSolicitud());
+            case CITA_ASIGNADA -> citaAsignada(notificacion.getSolicitud());
+        };
+
         MimeMessage mensaje = correo.createMimeMessage();
         // multipart: texto plano y HTML juntos, para que cada programa de correo
         // muestre el que sepa mostrar.
         MimeMessageHelper ayudante = new MimeMessageHelper(mensaje, true, "UTF-8");
         ayudante.setFrom(remitente, remitenteNombre);
         ayudante.setTo(direccion);
-        ayudante.setSubject("Solicitud de referencia " + solicitud.getNumero() + ": "
-                + solicitud.getInterno().getNombreCompleto());
-        ayudante.setText(textoSolicitudCreada(solicitud, familiar), htmlSolicitudCreada(solicitud, familiar));
+        ayudante.setSubject(contenido.asunto());
+        ayudante.setText(texto(contenido, familiar), html(contenido, familiar));
         return mensaje;
     }
 
     /*
-     * Qué dice el correo y, sobre todo, qué no. Lleva lo que HU-04 pide —la
-     * referencia, la especialidad y el estado— y deja fuera el motivo de la
-     * referencia: es un dato clínico (RNF-03), y el correo es un canal que el
-     * asilo no controla una vez enviado. Quien quiera el detalle lo pide en el
-     * asilo.
+     * Qué dice cada correo y, sobre todo, qué no. Llevan lo que piden HU-04 y
+     * el RF-04 —la referencia, la especialidad, el estado y, al asignar la
+     * cita, el especialista con la fecha y la hora— y dejan fuera el motivo de
+     * la referencia: es un dato clínico (RNF-03), y el correo es un canal que
+     * el asilo no controla una vez enviado. Quien quiera el detalle lo pide en
+     * el asilo.
      */
 
-    private String textoSolicitudCreada(SolicitudReferencia solicitud, Familiar familiar) {
+    /** Lo que cambia entre un aviso y otro; el saludo, el formato y la firma son comunes. */
+    private record Contenido(String asunto, String introduccion, List<String[]> filas, String cierre) {
+    }
+
+    private Contenido solicitudCreada(SolicitudReferencia solicitud) {
+        return new Contenido(
+                "Solicitud de referencia " + solicitud.getNumero() + ": " + solicitud.getInterno().getNombreCompleto(),
+                "Le informamos que el Médico General del asilo refirió a %s a la especialidad de %s, para ser atendido(a) por un especialista de la fundación."
+                        .formatted(solicitud.getInterno().getNombreCompleto(), solicitud.getEspecialidad().getNombre()),
+                List.of(
+                        new String[] { "Número de solicitud", solicitud.getNumero() },
+                        new String[] { "Especialidad", solicitud.getEspecialidad().getNombre() },
+                        new String[] { "Estado", solicitud.getEstado().etiqueta() },
+                        new String[] { "Fecha de la solicitud", solicitud.getFechaCreacion().format(FECHA) }),
+                "La fundación asignará el especialista, la fecha y la hora de la cita. Le avisaremos por este medio cuando la cita esté programada.");
+    }
+
+    /** YS-91. El segundo aviso del RF-04: con quién y cuándo. */
+    private Contenido citaAsignada(SolicitudReferencia solicitud) {
+        Cita cita = citaRepository.findBySolicitudId(solicitud.getId())
+                .orElseThrow(() -> new IllegalStateException(
+                        "La solicitud " + solicitud.getNumero() + " no tiene cita que avisar"));
+        String especialista = cita.getEspecialista().getUsuario().getNombreCompleto();
+        return new Contenido(
+                "Cita programada " + solicitud.getNumero() + ": " + solicitud.getInterno().getNombreCompleto(),
+                "Le informamos que la fundación programó la cita de %s con un especialista de %s."
+                        .formatted(solicitud.getInterno().getNombreCompleto(), solicitud.getEspecialidad().getNombre()),
+                List.of(
+                        new String[] { "Número de solicitud", solicitud.getNumero() },
+                        new String[] { "Especialista", especialista },
+                        new String[] { "Especialidad", solicitud.getEspecialidad().getNombre() },
+                        new String[] { "Fecha", cita.getFechaHora().format(FECHA_CON_DIA) },
+                        new String[] { "Hora", cita.getFechaHora().format(HORA) },
+                        new String[] { "Estado", solicitud.getEstado().etiqueta() }),
+                "El interno irá a la cita acompañado por personal de enfermería del asilo.");
+    }
+
+    private String texto(Contenido contenido, Familiar familiar) {
+        StringBuilder filas = new StringBuilder();
+        for (String[] fila : contenido.filas()) {
+            filas.append(fila[0]).append(": ").append(fila[1]).append('\n');
+        }
         return """
                 Estimado(a) %s:
 
-                Le informamos que el Médico General del %s refirió a %s a la especialidad de %s, para ser atendido(a) por un especialista de la fundación.
+                %s
 
-                Número de solicitud: %s
-                Especialidad: %s
-                Estado: %s
-                Fecha de la solicitud: %s
-
-                La fundación asignará el especialista, la fecha y la hora de la cita. Le avisaremos por este medio cuando la cita esté programada.
+                %s
+                %s
 
                 Este es un mensaje automático; por favor no lo responda. Si tiene preguntas, comuníquese directamente con el asilo.
 
                 %s
-                """.formatted(
-                familiar.getNombreCompleto(),
-                remitenteNombre,
-                solicitud.getInterno().getNombreCompleto(),
-                solicitud.getEspecialidad().getNombre(),
-                solicitud.getNumero(),
-                solicitud.getEspecialidad().getNombre(),
-                solicitud.getEstado().etiqueta(),
-                solicitud.getFechaCreacion().format(FECHA),
+                """.formatted(familiar.getNombreCompleto(), contenido.introduccion(), filas, contenido.cierre(),
                 remitenteNombre);
     }
 
@@ -229,15 +271,14 @@ public class NotificacionService {
      * Todo lo que viene de la base pasa por {@code htmlEscape}: un nombre con
      * "&lt;" no puede romper ni inyectar nada en el correo.
      */
-    private String htmlSolicitudCreada(SolicitudReferencia solicitud, Familiar familiar) {
-        String fila = """
-                <tr><td style="padding:4px 16px 4px 0;color:#64748B">%s</td>\
-                <td style="padding:4px 0;color:#1E293B;font-weight:600">%s</td></tr>
-                """;
-        String filas = fila.formatted("Número de solicitud", e(solicitud.getNumero()))
-                + fila.formatted("Especialidad", e(solicitud.getEspecialidad().getNombre()))
-                + fila.formatted("Estado", e(solicitud.getEstado().etiqueta()))
-                + fila.formatted("Fecha de la solicitud", e(solicitud.getFechaCreacion().format(FECHA)));
+    private String html(Contenido contenido, Familiar familiar) {
+        StringBuilder filas = new StringBuilder();
+        for (String[] fila : contenido.filas()) {
+            filas.append("""
+                    <tr><td style="padding:4px 16px 4px 0;color:#64748B">%s</td>\
+                    <td style="padding:4px 0;color:#1E293B;font-weight:600">%s</td></tr>
+                    """.formatted(e(fila[0]), e(fila[1])));
+        }
 
         return """
                 <!DOCTYPE html>
@@ -246,9 +287,9 @@ public class NotificacionService {
                   <div style="max-width:560px;margin:0 auto;background:#FFFFFF;border:1px solid #E2E8F0;border-radius:8px;padding:24px">
                     <p style="margin:0 0 16px;color:#2563EB;font-weight:700">%s</p>
                     <p style="margin:0 0 16px">Estimado(a) %s:</p>
-                    <p style="margin:0 0 16px">Le informamos que el Médico General del asilo refirió a <strong>%s</strong> a la especialidad de <strong>%s</strong>, para ser atendido(a) por un especialista de la fundación.</p>
+                    <p style="margin:0 0 16px">%s</p>
                     <table style="border-collapse:collapse;margin:0 0 16px">%s</table>
-                    <p style="margin:0 0 16px">La fundación asignará el especialista, la fecha y la hora de la cita. Le avisaremos por este medio cuando la cita esté programada.</p>
+                    <p style="margin:0 0 16px">%s</p>
                     <p style="margin:0;color:#64748B;font-size:14px">Este es un mensaje automático; por favor no lo responda. Si tiene preguntas, comuníquese directamente con el asilo.</p>
                   </div>
                 </body>
@@ -256,9 +297,9 @@ public class NotificacionService {
                 """.formatted(
                 e(remitenteNombre),
                 e(familiar.getNombreCompleto()),
-                e(solicitud.getInterno().getNombreCompleto()),
-                e(solicitud.getEspecialidad().getNombre()),
-                filas);
+                e(contenido.introduccion()),
+                filas,
+                e(contenido.cierre()));
     }
 
     private static String e(String texto) {
