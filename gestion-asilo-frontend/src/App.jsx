@@ -7,6 +7,7 @@ import { InternoPerfilPage } from "./pages/InternoPerfilPage";
 import { InternosPage } from "./pages/InternosPage";
 import { LoginPage } from "./pages/LoginPage";
 import { SinPermisoPage } from "./pages/SinPermisoPage";
+import { SolicitudesReferenciaPage } from "./pages/SolicitudesReferenciaPage";
 import { UsuariosPage } from "./pages/UsuariosPage";
 
 /**
@@ -91,6 +92,14 @@ function App() {
         element={
           <RutaPrivada>
             <InternoPerfilPage />
+          </RutaPrivada>
+        }
+      />
+      <Route
+        path="/solicitudes-referencia"
+        element={
+          <RutaPrivada>
+            <SolicitudesReferenciaPage />
           </RutaPrivada>
         }
       />

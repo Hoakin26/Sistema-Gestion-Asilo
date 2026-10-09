@@ -1,14 +1,15 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { ArrowLeft, ClipboardList, Pencil, TriangleAlert, UserRound } from "lucide-react";
+import { ArrowLeft, ClipboardList, Pencil, Stethoscope, TriangleAlert, UserRound } from "lucide-react";
 
 import { FichaMedicaFormModal } from "../components/internos/FichaMedicaFormModal";
 import { InternoFormModal } from "../components/internos/InternoFormModal";
+import { SolicitudReferenciaFormModal } from "../components/referencias/SolicitudReferenciaFormModal";
 import { Alert } from "../components/ui/Alert";
 import { Button } from "../components/ui/Button";
 import { StatusBadge } from "../components/ui/StatusBadge";
 import { Barra } from "../components/ui/TablaSkeleton";
-import { editaInternos, leeDatosClinicos } from "../constants/roles";
+import { creaReferencias, editaInternos, leeDatosClinicos } from "../constants/roles";
 import { useAuth } from "../hooks/useAuth";
 import { useToast } from "../hooks/useToast";
 import { AppLayout } from "../layouts/AppLayout";
@@ -186,6 +187,7 @@ export function InternoPerfilPage() {
   const { mostrar } = useToast();
   const puedeEditar = editaInternos(usuario?.rol);
   const veFicha = leeDatosClinicos(usuario?.rol);
+  const puedeReferir = creaReferencias(usuario?.rol);
 
   const [interno, setInterno] = useState(null);
   const [ficha, setFicha] = useState(null);
@@ -198,6 +200,8 @@ export function InternoPerfilPage() {
   // Cambian en cada apertura para que el formulario se remonte limpio.
   const [aperturasEdicion, setAperturasEdicion] = useState(0);
   const [aperturasFicha, setAperturasFicha] = useState(0);
+  const [referenciaAbierta, setReferenciaAbierta] = useState(false);
+  const [aperturasReferencia, setAperturasReferencia] = useState(0);
 
   useEffect(() => {
     let vigente = true;
@@ -241,6 +245,11 @@ export function InternoPerfilPage() {
     setFichaAbierta(true);
   };
 
+  const abrirReferencia = () => {
+    setAperturasReferencia((valor) => valor + 1);
+    setReferenciaAbierta(true);
+  };
+
   const familiar = interno?.familiarResponsable;
 
   return (
@@ -275,12 +284,23 @@ export function InternoPerfilPage() {
                 </div>
               </div>
 
-              {puedeEditar && (
-                <Button variante="secundario" onClick={abrirEdicion}>
-                  <Pencil aria-hidden="true" size={20} />
-                  Editar datos
-                </Button>
-              )}
+              <div className="flex flex-wrap gap-3">
+                {puedeEditar && (
+                  <Button variante="secundario" onClick={abrirEdicion}>
+                    <Pencil aria-hidden="true" size={20} />
+                    Editar datos
+                  </Button>
+                )}
+                {/* YS-85. Desde aquí ya se sabe a quién se refiere: la ventana
+                    llega con el interno elegido. Uno inactivo no se ofrece,
+                    porque el backend rechazaría la solicitud. */}
+                {puedeReferir && interno.activo && (
+                  <Button onClick={abrirReferencia}>
+                    <Stethoscope aria-hidden="true" size={20} />
+                    Referir a especialidad
+                  </Button>
+                )}
+              </div>
             </div>
 
             <div className="mt-6 grid gap-6 lg:grid-cols-2">
@@ -366,6 +386,15 @@ export function InternoPerfilPage() {
             setInterno(guardado);
             mostrar(`Se guardaron los cambios de ${guardado.nombreCompleto}.`);
           }}
+        />
+      )}
+
+      {puedeReferir && interno && (
+        <SolicitudReferenciaFormModal
+          abierto={referenciaAbierta}
+          internoInicial={interno}
+          claveFormulario={aperturasReferencia}
+          alCerrar={() => setReferenciaAbierta(false)}
         />
       )}
 
