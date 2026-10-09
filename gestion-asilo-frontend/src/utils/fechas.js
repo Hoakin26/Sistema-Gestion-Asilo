@@ -45,6 +45,30 @@ export function formatearFechaHora(iso) {
   return iso ? FORMATO_FECHA_HORA.format(new Date(iso)) : "";
 }
 
+const FORMATO_DIA_COMPLETO = new Intl.DateTimeFormat("es-GT", {
+  weekday: "long",
+  day: "numeric",
+  month: "long",
+  year: "numeric",
+});
+
+const FORMATO_HORA = new Intl.DateTimeFormat("es-GT", { hour: "numeric", minute: "2-digit" });
+
+/**
+ * YS-92. "jueves, 15 de octubre de 2026 a las 8:30 a. m.": en una cita el
+ * día de la semana importa, porque es lo primero que se cruza con la agenda.
+ */
+export function formatearCita(isoFechaHora) {
+  const fecha = new Date(isoFechaHora);
+  return `${FORMATO_DIA_COMPLETO.format(fecha)} a las ${FORMATO_HORA.format(fecha)}`;
+}
+
+/** "8:30 a. m." a partir de "08:30:00". */
+export function formatearHora(hora) {
+  const [h, m] = hora.split(":").map(Number);
+  return FORMATO_HORA.format(new Date(2000, 0, 1, h, m));
+}
+
 export function edadEnAnios(iso) {
   const nacimiento = aFechaLocal(iso);
   const hoy = new Date();
