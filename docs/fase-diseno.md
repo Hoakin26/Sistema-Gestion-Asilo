@@ -1885,6 +1885,8 @@ classDiagram
 | PUT | `/api/internos/{id}/ficha-medica` | MG | `FichaMedicaRequest` | `FichaMedicaResponse` | HU-01 |
 | GET | `/api/internos/{id}/historial` | MG | — | `HistorialMedicoResponse` | HU-02 |
 | GET | `/api/especialidades` | MG, AF | — | `List<EspecialidadResponse>` | HU-03 |
+| GET | `/api/especialidades/tarifas` | AF | — | `List<EspecialidadTarifaResponse>` (con la tarifa de consulta, vacía si no tiene) | HU-07 |
+| PUT | `/api/especialidades/{id}/tarifa` | AF | `TarifaRequest` | `EspecialidadTarifaResponse` | HU-07 |
 | GET | `/api/enfermeros` | MG | — | `List<ResumenPersona>` (id y nombre, sin correo) | HU-03 |
 | GET | `/api/solicitudes-referencia/{id}/notificaciones` | MG, AF | — | `List<NotificacionResponse>` (sin el correo ni el error) | HU-04 |
 | POST | `/api/solicitudes-referencia/{id}/notificaciones/reintentar` | MG, AF | — | `List<NotificacionResponse>` | HU-04 |
@@ -1899,9 +1901,11 @@ classDiagram
 | GET | `/api/especialistas/{id}/disponibilidad?fecha=` | AF | — | `List<LocalTime>`: las horas libres de ese día, ya sin las pasadas ni las ocupadas | HU-06 |
 | POST | `/api/solicitudes-referencia/{id}/cita` | AF | `AsignacionCitaRequest` (especialista, fecha y hora) | `CitaResponse` (201); 400 si la hora no es una franja del horario o ya pasó; 409 si está ocupada o la solicitud ya no está pendiente | HU-06 |
 | GET | `/api/solicitudes-referencia/{id}/cita` | MG, AF | — | `CitaResponse`; 404 si todavía no tiene | HU-06 |
-| GET | `/api/citas/mi-agenda?fecha=` | ME | — | `List<CitaResponse>` | HU-07 |
+| GET | `/api/citas/mi-agenda?fecha=` | ME | — | `List<CitaAgendaResponse>` (paciente, hora, motivo, acompañante y la visita si ya se inició); sin fecha, hoy; 404 si la cuenta no tiene perfil de especialista | HU-07 |
 | GET | `/api/citas?desde=&hasta=` | ENF, MG | — | `List<CitaResponse>` | HU-06 |
-| POST | `/api/citas/{id}/visita` | ME (el asignado) | — | `VisitaMedicaResponse` (201) | HU-07 |
+| POST | `/api/citas/{id}/visita` | ME (el asignado) | — | `VisitaMedicaResponse` (201); 403 si la cita es de otro especialista; 409 si ya se inició, si la solicitud no está en `CITA_PROGRAMADA` o si todavía no es el día de la cita | HU-07 |
+| GET | `/api/visitas?estado=` | ME | — | `List<VisitaMedicaResponse>`: las del especialista, la más reciente primero | HU-07 |
+| GET | `/api/visitas/{id}` | ME (el de la visita) | — | `VisitaMedicaResponse` | HU-07 |
 | GET | `/api/visitas/{id}/historial` | ME (visita activa propia) | — | `HistorialMedicoResponse` | HU-08 |
 | PUT | `/api/visitas/{id}/diagnostico` | ME | `DiagnosticoRequest` | `VisitaMedicaResponse` | HU-09 |
 | POST | `/api/visitas/{id}/receta` | ME | `RecetaRequest` | `RecetaResponse` | HU-10 |
@@ -1997,4 +2001,4 @@ Al diseñar los componentes contra los criterios de aceptación aparecieron tres
 
    El diseño usa los nombres de los diagramas de estados, porque son los que ya definió el análisis y los que usa el Manual de Diseño Visual. Se propone ajustar el texto de las dos historias.
 2. **El registro del pago del familiar no tiene historia.** Los pasos 5 a 7 de CU-006 (el familiar paga, el administrador registra el pago y los servicios quedan "Completamente Cancelados") no aparecen en ninguna de las historias HU-18 a HU-23. Sin ellos, la cuenta mensual nunca sale de "Pendiente de Pago". Se resolvió sin una historia nueva: el registro de pagos es la subtarea YS-133 de HU-18, y de ella leen HU-21 (servicios pendientes de cancelar) y los reportes de cobros (HU-26 y HU-27).
-3. **La tarifa de consulta no tiene dueño.** HU-14 y HU-17 definen quién registra el costo del laboratorio y de la farmacia, pero ninguna historia dice de dónde sale el costo de la consulta, que HU-18 necesita sumar. El diseño lo resuelve con una tarifa por especialidad (`Especialidad.tarifaConsulta`), administrada por la fundación. Se propone agregarlo como criterio de aceptación de HU-06 o de HU-07.
+3. **La tarifa de consulta no tiene dueño.** HU-14 y HU-17 definen quién registra el costo del laboratorio y de la farmacia, pero ninguna historia dice de dónde sale el costo de la consulta, que HU-18 necesita sumar. El diseño lo resuelve con una tarifa por especialidad (`Especialidad.tarifaConsulta`), administrada por la fundación. **Resuelto el 09/10 en HU-07** con la subtarea YS-169: la Fundación define la tarifa en "Médicos y disponibilidad" y cada visita la copia al iniciarse (`VisitaMedica.costoConsulta`), así que un cambio de tarifa no altera las visitas ya dadas.

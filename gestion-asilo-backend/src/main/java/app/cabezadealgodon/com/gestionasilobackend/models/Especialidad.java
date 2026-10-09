@@ -1,5 +1,7 @@
 package app.cabezadealgodon.com.gestionasilobackend.models;
 
+import java.math.BigDecimal;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -18,9 +20,8 @@ import lombok.Setter;
  * <p>
  * Es una entidad y no una enumeración, a diferencia de los roles: el catálogo
  * es de la fundación, no del sistema, y va a cambiar cuando cambien los
- * especialistas con que trabaja. El diseño prevé además asociarle la tarifa de
- * consulta (hallazgo 3 de la sección 5 del diseño), que llega con la visita
- * médica.
+ * especialistas con que trabaja. Desde HU-07 lleva además la tarifa de
+ * consulta (hallazgo 3 de la sección 5 del diseño).
  */
 @Entity
 @Table(name = "especialidad")
@@ -43,4 +44,14 @@ public class Especialidad {
      */
     @Column(nullable = false)
     private boolean activa = true;
+
+    /**
+     * YS-169. Lo que cuesta una consulta de esta especialidad, en quetzales.
+     * La fija la Fundación y la copia cada visita al iniciarse. Vacía
+     * mientras nadie la haya definido: la visita se inicia igual, porque el
+     * especialista no puede resolverlo, y la pantalla de la Fundación señala
+     * las que faltan.
+     */
+    @Column(name = "tarifa_consulta", precision = 10, scale = 2)
+    private BigDecimal tarifaConsulta;
 }

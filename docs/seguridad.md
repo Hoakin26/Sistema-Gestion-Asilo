@@ -752,7 +752,30 @@ El segundo aviso al familiar lleva el especialista, la especialidad, la fecha, l
 
 Hibernate crea, para cada columna enum, una restricción CHECK con los valores de ese momento, y con `ddl-auto=update` no la vuelve a tocar. Al agregar `CITA_ASIGNADA`, la base de desarrollo siguió aceptando solo `SOLICITUD_CREADA`, y asignar una cita respondía 500 al registrar el aviso. Las pruebas no lo veían porque crean el esquema desde cero. `RestriccionesDeEnum` rehace esas restricciones al arrancar, con los valores que el enum tiene hoy; `RestriccionesDeEnumTest` recrea la restricción vieja y comprueba que queda al día.
 
-## 23. Qué falta
+## 23. La visita médica (HU-07)
+
+### Quién usa cada endpoint
+
+| Endpoint | Anotación | Roles |
+|---|---|---|
+| `GET /api/citas/mi-agenda`, `POST /api/citas/{id}/visita`, `GET /api/visitas`, `GET /api/visitas/{id}` | `@SoloMedicoEspecialista`, en la clase | Médico Especialista |
+| `GET /api/especialidades/tarifas`, `PUT /api/especialidades/{id}/tarifa` | `@SoloAdministradorFundacion` | Administrador de la Fundación |
+
+La visita es un dato clínico (RNF-03). `VisitaMedicaTest` barre los seis roles restantes, el Administrador del Asilo entre ellos, contra los cuatro endpoints de la visita: todos reciben 403. Contra los de la tarifa barre los seis que no son la Fundación.
+
+### El rol no basta: la cita tiene que ser de quien la pide
+
+Todos los especialistas tienen el mismo rol, así que `@SoloMedicoEspecialista` no distingue a uno de otro. El servicio compara la cuenta del token con la del especialista de la cita: solo quien la tiene asignada inicia la visita, y solo él abre después su detalle. Otro especialista recibe 403 con un mensaje que lo dice (`OperacionNoPermitidaException`), y la solicitud no cambia. La agenda y la lista de visitas se arman a partir de la cuenta del token, nunca de un id que llegue en la petición.
+
+### Una cita, una visita
+
+El servicio rechaza con 409 una cita cuya visita ya se inició, y debajo queda la restricción única de `visita_medica.cita_id` para dos inicios simultáneos. La visita se guarda con `saveAndFlush`, para que ese choque salga dentro de la petición y no al confirmar la transacción.
+
+### Lo que el especialista no ve
+
+`VisitaMedicaResponse` no lleva el costo de la consulta, que es un dato de la cuenta del familiar y de la fundación, no de quien atiende. La tarifa tiene su propio DTO (`EspecialidadTarifaResponse`) y no se agregó a `EspecialidadResponse`, porque esa también la recibe el Médico General al referir.
+
+## 24. Qué falta
 
 Nada pendiente de HU-30, HU-31 ni HU-32. Lo que queda abierto, sin historia asignada todavía:
 
