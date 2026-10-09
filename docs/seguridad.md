@@ -671,7 +671,35 @@ A la inversa, la cuota mensual es un dato financiero: el formulario del Médico 
 | Con la cuenta de enfermería: la ficha se ve, sin botones de edición | Comprobado a mano |
 | Suite completa del backend | 89 pruebas, todas pasan |
 
-## 20. Qué falta
+## 20. La solicitud de referencia (HU-03)
+
+### El médico sale del token, no del formulario
+
+`SolicitudReferenciaRequest` no tiene campo para el médico que refiere: `SolicitudReferenciaService` lo toma del usuario autenticado. Si viniera en el cuerpo, cualquier Médico General podría crear solicitudes a nombre de otro, y el registro de quién refirió a quién dejaría de valer.
+
+### Cada dato elegido se comprueba contra la base
+
+El DTO valida el formato; el servicio valida el sentido. El interno tiene que existir y estar activo, la especialidad tiene que estar activa y el acompañante tiene que ser un usuario activo **de Enfermería** (RF-03). Si algo no cumple, la respuesta es 400 con el error bajo el nombre de su campo (`CampoInvalidoException`), igual que una validación de formato, para que la pantalla lo pinte junto a él.
+
+### La lista de acompañantes no expone más de lo necesario
+
+El Médico General necesita elegir a un enfermero(a), no administrar usuarios. Por eso `GET /api/enfermeros` es un endpoint propio que devuelve solo id y nombre (`ResumenPersona`), y no un filtro de `/api/usuarios`, que es del Administrador del Asilo y trae correos, roles y estados. El mismo criterio sigue la solicitud: nombra al interno, al médico y al enfermero solo por id y nombre.
+
+### Quién usa cada endpoint
+
+| Endpoint | Anotación | Roles |
+|---|---|---|
+| `POST /api/solicitudes-referencia` | `@SoloMedicoGeneral` | Médico General |
+| `GET /api/especialidades` | `@MedicoGeneralOFundacion` | Médico General, Administrador de la Fundación |
+| `GET /api/enfermeros` | `@SoloMedicoGeneral` | Médico General |
+
+`SolicitudReferenciaTest` barre los seis roles restantes contra la creación y los cinco restantes contra las especialidades: todos reciben 403.
+
+### El correlativo no se repite ni con solicitudes simultáneas
+
+El número (`REF-2026-0001`, reiniciado cada año) sale de una fila por año en `contador_solicitud`, que el servicio bloquea con `select … for update` antes de leerla. Calcular "el máximo más uno" habría dejado que dos solicitudes simultáneas leyeran el mismo máximo. Se comprobó que la prueba lo detecta: sin el bloqueo, de cinco solicitudes creadas a la vez una choca contra la restricción única del número y responde 409.
+
+## 21. Qué falta
 
 Nada pendiente de HU-30, HU-31 ni HU-32. Lo que queda abierto, sin historia asignada todavía:
 
