@@ -5,6 +5,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.core.PropertyReferenceException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -13,6 +14,7 @@ import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import app.cabezadealgodon.com.gestionasilobackend.dto.ErrorResponse;
 import app.cabezadealgodon.com.gestionasilobackend.security.RegistroAccesoDenegado;
@@ -46,6 +48,30 @@ public class ManejadorGlobalExcepciones {
         return ResponseEntity.badRequest().body(ErrorResponse.de(HttpStatus.BAD_REQUEST,
                 "El cuerpo de la petición no es válido: revise el formato JSON y los valores enviados",
                 peticion.getRequestURI()));
+    }
+
+    /**
+     * YS-87. Un parámetro de la URL que no se puede convertir, como
+     * {@code ?estado=INVENTADO}. Sin esto Spring respondía 400 con su propio
+     * cuerpo, distinto del de toda la API.
+     */
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ErrorResponse> manejarParametroInvalido(MethodArgumentTypeMismatchException ex,
+            HttpServletRequest peticion) {
+        return ResponseEntity.badRequest().body(ErrorResponse.de(HttpStatus.BAD_REQUEST,
+                "El valor de '" + ex.getName() + "' no es válido", peticion.getRequestURI()));
+    }
+
+    /**
+     * YS-87. Un {@code sort} por un campo que no existe. Spring Data lo
+     * lanza al armar la consulta y, sin esto, salía como un 500: un error del
+     * servidor por algo que escribió mal el cliente.
+     */
+    @ExceptionHandler(PropertyReferenceException.class)
+    public ResponseEntity<ErrorResponse> manejarOrdenInvalido(PropertyReferenceException ex,
+            HttpServletRequest peticion) {
+        return ResponseEntity.badRequest().body(ErrorResponse.de(HttpStatus.BAD_REQUEST,
+                "No se puede ordenar por '" + ex.getPropertyName() + "'", peticion.getRequestURI()));
     }
 
     /**

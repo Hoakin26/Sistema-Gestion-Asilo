@@ -2,6 +2,9 @@ package app.cabezadealgodon.com.gestionasilobackend.services;
 
 import java.time.Year;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -14,6 +17,7 @@ import app.cabezadealgodon.com.gestionasilobackend.eventos.SolicitudCreadaEvent;
 import app.cabezadealgodon.com.gestionasilobackend.exception.CampoInvalidoException;
 import app.cabezadealgodon.com.gestionasilobackend.models.ContadorSolicitud;
 import app.cabezadealgodon.com.gestionasilobackend.models.Especialidad;
+import app.cabezadealgodon.com.gestionasilobackend.models.EstadoSolicitud;
 import app.cabezadealgodon.com.gestionasilobackend.models.Interno;
 import app.cabezadealgodon.com.gestionasilobackend.models.RolNombre;
 import app.cabezadealgodon.com.gestionasilobackend.models.SolicitudReferencia;
@@ -88,7 +92,25 @@ public class SolicitudReferenciaService {
 
         eventos.publishEvent(new SolicitudCreadaEvent(solicitud.getId()));
 
-        return mapear(solicitud, medicoGeneral);
+        return mapear(solicitud);
+    }
+
+    /**
+     * YS-87. Las solicitudes, opcionalmente de un solo estado. Es la bandeja de
+     * la Fundación, que pide las PENDIENTE_ASIGNACION (RF-05), y el
+     * seguimiento del Médico General, que pide todas.
+     *
+     * <p>
+     * El orden lo pone quien consulta: la Fundación las quiere de la más
+     * antigua a la más reciente, porque la que más espera es la más urgente;
+     * el médico, al revés, para ver primero las que acaba de crear.
+     */
+    @Transactional(readOnly = true)
+    public Page<SolicitudReferenciaResponse> listar(EstadoSolicitud estado, Pageable paginado) {
+        Page<SolicitudReferencia> pagina = estado == null
+                ? solicitudRepository.findAll(paginado)
+                : solicitudRepository.findByEstado(estado, paginado);
+        return pagina.map(this::mapear);
     }
 
     /**
@@ -105,8 +127,9 @@ public class SolicitudReferenciaService {
         return "REF-%d-%04d".formatted(anio, contador.getUltimo());
     }
 
-    private SolicitudReferenciaResponse mapear(SolicitudReferencia solicitud, Usuario medicoGeneral) {
+    private SolicitudReferenciaResponse mapear(SolicitudReferencia solicitud) {
         Interno interno = solicitud.getInterno();
+        Usuario medicoGeneral = solicitud.getMedicoGeneral();
         Usuario enfermero = solicitud.getEnfermeroAcompanante();
         return new SolicitudReferenciaResponse(
                 solicitud.getId(),
