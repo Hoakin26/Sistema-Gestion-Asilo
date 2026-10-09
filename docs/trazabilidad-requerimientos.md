@@ -15,13 +15,13 @@ La entrega se evalúa contra los 21 RF, y los 21 están en el plan de la entrega
 | RF-03 | Solicitudes de referencia médica | HU-03 | YS-83 a YS-86 | **Implementado** (09/10): el Médico General crea la solicitud con número correlativo, especialidad y enfermero(a) acompañante, desde su módulo o desde el perfil del interno. El listado llega con HU-05 |
 | RF-04 | Notificación por correo al familiar | HU-04, HU-06 | YS-94 a YS-97, YS-91 | **Implementado** (09/10): el aviso al crear la solicitud, con su estado y especialidad (HU-04), y el aviso al asignar la cita, con el especialista, la fecha y la hora (HU-06, YS-91). Los dos salen en segundo plano después de confirmar, con reintento automático y manual |
 | RF-05 | Módulo de asignación | HU-05, HU-06 | YS-87 a YS-93, YS-166 a YS-168 | **Implementado** (09/10): la Fundación visualiza las solicitudes en su bandeja, con búsqueda y orden por fecha (HU-05, YS-166); registra a los especialistas con su horario de atención (YS-167, YS-168), y desde el detalle de cada solicitud asigna especialista, fecha y una de las horas libres, con lo que la solicitud pasa a "Cita Programada" (HU-06) |
-| RF-06 | Gestión de visita médica | HU-07, HU-09 | YS-98 a YS-101, YS-105 a YS-107 | Sprint 2, 10–11/10 |
+| RF-06 | Gestión de visita médica | HU-07, HU-09 | YS-98 a YS-101, YS-169, YS-105 a YS-107 | **Implementado en parte** (09/10): el especialista ve su agenda del día con el motivo de cada referencia e inicia la visita desde la cita programada; la visita registra la fecha y la solicitud pasa a "En Atención" (HU-07). Falta registrar el diagnóstico y las observaciones y cerrar la visita (HU-09) |
 | RF-07 | Consulta de historial por especialista | HU-08 | YS-102 a YS-104 | Sprint 2, 10–11/10. El permiso ya existe: el especialista puede leer la ficha médica (`@PersonalClinico`, YS-58) |
 | RF-08 | Asignación de exámenes de laboratorio | HU-11, HU-14 | YS-111 a YS-113, YS-120 a YS-122 | Sprint 3, 12/10 |
 | RF-09 | Gestión de resultados de laboratorio | HU-12, HU-13 | YS-114 a YS-119 | Sprint 3, 12/10 |
 | RF-10 | Receta y dosis de medicamentos | HU-10 | YS-108 a YS-110 | Sprint 2, 10–11/10 |
 | RF-11 | Despacho de farmacia | HU-15, HU-16, HU-17 | YS-123 a YS-131 | Sprint 3, 12–13/10 |
-| RF-12 | Control de cuentas de familiares | HU-18, HU-19 | YS-132 a YS-138 | Sprint 3, 12–13/10 |
+| RF-12 | Control de cuentas de familiares | HU-18, HU-19 | YS-132 a YS-138 | Sprint 3, 12–13/10. El costo de la cita ya existe: cada visita guarda la tarifa de consulta de su especialidad (YS-169, HU-07) |
 | RF-13 | Control de cuentas por pagar | HU-20 | YS-139 a YS-141 | Sprint 3, 13/10 |
 | RF-14 | Gestión de citas pendientes | HU-21 | YS-142 a YS-144 | Sprint 3, 13/10 |
 | RF-15 | Registro de donaciones | HU-22 | YS-145 a YS-147 | Sprint 3, 13/10 |
