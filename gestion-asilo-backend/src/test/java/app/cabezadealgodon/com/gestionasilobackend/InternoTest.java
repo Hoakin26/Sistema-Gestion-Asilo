@@ -132,14 +132,14 @@ class InternoTest extends PruebaConBaseDeDatos {
     void laBusquedaEncuentraPorNombreYPorDpi() {
         internoRepository.save(nuevoInterno("5678901234567"));
 
+        // YS-62. El repositorio recibe los patrones LIKE ya armados por el
+        // servicio, en minúsculas y sin tildes.
         assertThat(internoRepository
-                .findByNombreCompletoContainingIgnoreCaseOrDpiContaining(
-                        "rosa elena", "---", org.springframework.data.domain.Pageable.unpaged()))
+                .buscar("%rosa elena%", "%---%", org.springframework.data.domain.Pageable.unpaged()))
                 .isNotEmpty();
 
         assertThat(internoRepository
-                .findByNombreCompletoContainingIgnoreCaseOrDpiContaining(
-                        "---", "5678901234567", org.springframework.data.domain.Pageable.unpaged()))
+                .buscar("%---%", "%5678901234567%", org.springframework.data.domain.Pageable.unpaged()))
                 .isNotEmpty();
     }
 

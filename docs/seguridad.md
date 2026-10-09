@@ -636,7 +636,42 @@ La línea se restauró y se verificó contra git que el archivo quedara idéntic
 
 Con esto **HU-32 queda cerrada**.
 
-## 19. Qué falta
+## 19. El expediente del interno y el RNF-03 (HU-01)
+
+El Administrador del Asilo entra al expediente del interno —datos personales y familiar responsable— pero jamás a sus datos clínicos. Es la única restricción del sistema que protege información de salud de una persona, y por eso se aplica en tres capas que no dependen unas de otras.
+
+### Capa 1: la entidad no tiene camino hacia lo clínico (YS-57)
+
+`Interno` no tiene un campo `fichaMedica`: la relación la posee `FichaMedica`, que apunta al interno. Para leer un dato clínico hay que pedirlo explícitamente al `FichaMedicaRepository`. Así no existe un campo que alguien pueda olvidar excluir de un DTO, y `InternoResponse`, que también reciben el Administrador del Asilo y enfermería, no puede contener nada clínico por descuido.
+
+### Capa 2: cada endpoint declara quién lo usa (YS-58)
+
+| Endpoint | Anotación | Roles |
+|---|---|---|
+| `GET /api/internos`, `GET /api/internos/{id}` | `@PersonalConAccesoAInternos` | Médico General, Médico Especialista, Enfermería, Administrador del Asilo |
+| `GET /api/internos/{id}/ficha-medica` | `@PersonalClinico` | Médico General, Médico Especialista, Enfermería |
+| `POST`, `PUT /api/internos/{id}`, `PUT /api/internos/{id}/ficha-medica` | `@SoloMedicoGeneral` | Médico General |
+
+El controlador no lleva una anotación de clase a propósito: una sola regla para todo serviría de más a unos endpoints o de menos a otros.
+
+### Capa 3: la pantalla ni siquiera pide la ficha (YS-61)
+
+Para el Administrador del Asilo, el perfil del interno no llama a `/ficha-medica` y no monta la sección: no se le oculta, simplemente no existe para él, igual que los módulos que no son de su rol (sección 14). La lista de roles clínicos del frontend (`leeDatosClinicos` en `constants/roles.js`) es copia de la de `@PersonalClinico`; si alguna vez discreparan, la autoridad sigue siendo el backend, que respondería 403.
+
+A la inversa, la cuota mensual es un dato financiero: el formulario del Médico General no la muestra (RNF-02) y el perfil solo la enseña al Administrador del Asilo. Como el `PUT` del expediente reemplaza todos los campos, al editar el formulario reenvía la cuota guardada para no borrarla; la vía propia del Administrador del Asilo para fijarla llega con YS-132.
+
+### Verificación realizada
+
+| Caso | Resultado |
+|---|---|
+| El Administrador del Asilo recibe 403 al pedir la ficha (`InternoApiTest`) | Pasa |
+| Ninguno de los seis roles distintos del Médico General registra, edita ni escribe la ficha: 18 combinaciones (`InternoRecorridoTest`) | Pasa |
+| Editar el expediente no toca la ficha médica | Pasa |
+| En el navegador, con la cuenta del Administrador del Asilo: el perfil no muestra la ficha y en la red solo aparece `GET /api/internos/{id}`, nunca `/ficha-medica` | Comprobado a mano |
+| Con la cuenta de enfermería: la ficha se ve, sin botones de edición | Comprobado a mano |
+| Suite completa del backend | 89 pruebas, todas pasan |
+
+## 20. Qué falta
 
 Nada pendiente de HU-30, HU-31 ni HU-32. Lo que queda abierto, sin historia asignada todavía:
 
