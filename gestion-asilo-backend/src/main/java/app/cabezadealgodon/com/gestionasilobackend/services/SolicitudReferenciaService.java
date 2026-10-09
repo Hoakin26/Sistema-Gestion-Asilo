@@ -106,10 +106,12 @@ public class SolicitudReferenciaService {
      * el médico, al revés, para ver primero las que acaba de crear.
      */
     @Transactional(readOnly = true)
-    public Page<SolicitudReferenciaResponse> listar(EstadoSolicitud estado, Pageable paginado) {
+    public Page<SolicitudReferenciaResponse> listar(EstadoSolicitud estado, String busqueda, Pageable paginado) {
+        // YS-166. Por número, interno o especialidad, sin tildes ni mayúsculas.
+        String patron = PatronBusqueda.contiene(PatronBusqueda.normalizado(busqueda));
         Page<SolicitudReferencia> pagina = estado == null
-                ? solicitudRepository.findAll(paginado)
-                : solicitudRepository.findByEstado(estado, paginado);
+                ? solicitudRepository.buscar(patron, paginado)
+                : solicitudRepository.buscarPorEstado(estado, patron, paginado);
         return pagina.map(this::mapear);
     }
 

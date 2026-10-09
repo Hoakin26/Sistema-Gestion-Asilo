@@ -74,6 +74,14 @@ public class ManejadorGlobalExcepciones {
                 "No se puede ordenar por '" + ex.getPropertyName() + "'", peticion.getRequestURI()));
     }
 
+    /** YS-166. Lo mismo, para las listas que validan el orden por su cuenta. */
+    @ExceptionHandler(OrdenNoPermitidoException.class)
+    public ResponseEntity<ErrorResponse> manejarOrdenNoPermitido(OrdenNoPermitidoException ex,
+            HttpServletRequest peticion) {
+        return ResponseEntity.badRequest()
+                .body(ErrorResponse.de(HttpStatus.BAD_REQUEST, ex.getMessage(), peticion.getRequestURI()));
+    }
+
     /**
      * Mismo mensaje para contraseña incorrecta, correo inexistente y cuenta
      * desactivada. Distinguirlos le diría a un atacante qué correos están
