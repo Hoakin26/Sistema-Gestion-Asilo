@@ -692,6 +692,7 @@ El Médico General necesita elegir a un enfermero(a), no administrar usuarios. P
 | `POST /api/solicitudes-referencia` | `@SoloMedicoGeneral` | Médico General |
 | `GET /api/especialidades` | `@MedicoGeneralOFundacion` | Médico General, Administrador de la Fundación |
 | `GET /api/enfermeros` | `@SoloMedicoGeneral` | Médico General |
+| `GET /api/solicitudes-referencia` (HU-05) | `@MedicoGeneralOFundacion` | Médico General, Administrador de la Fundación |
 
 `SolicitudReferenciaTest` barre los seis roles restantes contra la creación y los cinco restantes contra las especialidades: todos reciben 403.
 

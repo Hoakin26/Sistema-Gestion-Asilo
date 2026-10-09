@@ -14,7 +14,7 @@ La entrega se evalúa contra los 21 RF, y los 21 están en el plan de la entrega
 | RF-02 | Historial médico centralizado | HU-02 | YS-63 a YS-67 | Sprint 2, 11/10, después de la visita médica — ver hallazgo 2 |
 | RF-03 | Solicitudes de referencia médica | HU-03 | YS-83 a YS-86 | **Implementado** (09/10): el Médico General crea la solicitud con número correlativo, especialidad y enfermero(a) acompañante, desde su módulo o desde el perfil del interno. El listado llega con HU-05 |
 | RF-04 | Notificación por correo al familiar | HU-04 | YS-94 a YS-97 | **Implementado en parte** (09/10): el aviso al crear la solicitud, con su estado y especialidad, envío asíncrono y reintento automático y manual. El aviso con el especialista asignado sale con HU-06 (YS-91), porque antes de la cita no hay especialista |
-| RF-05 | Módulo de asignación | HU-05, HU-06 | YS-87 a YS-93 | Sprint 2, 09–10/10 |
+| RF-05 | Módulo de asignación | HU-05, HU-06 | YS-87 a YS-93 | **Implementado en parte** (09/10): la Fundación visualiza las solicitudes en su bandeja y abre el detalle de cada una (HU-05). Falta asignar fecha, horario y especialista (HU-06) |
 | RF-06 | Gestión de visita médica | HU-07, HU-09 | YS-98 a YS-101, YS-105 a YS-107 | Sprint 2, 10–11/10 |
 | RF-07 | Consulta de historial por especialista | HU-08 | YS-102 a YS-104 | Sprint 2, 10–11/10. El permiso ya existe: el especialista puede leer la ficha médica (`@PersonalClinico`, YS-58) |
 | RF-08 | Asignación de exámenes de laboratorio | HU-11, HU-14 | YS-111 a YS-113, YS-120 a YS-122 | Sprint 3, 12/10 |
@@ -32,7 +32,7 @@ La entrega se evalúa contra los 21 RF, y los 21 están en el plan de la entrega
 | RF-20 | Reportes financieros consolidados | HU-27 | YS-160 a YS-162 | Sprint 3, 14/10 |
 | RF-21 | Reportes médicos específicos | HU-28 | YS-163 a YS-165 | Sprint 3, 14/10 |
 
-**Cobertura planificada para la entrega del 16/10: 21 de 21.** Implementados al 9/10: RF-01, RF-03 y la primera mitad del RF-04. Si el tiempo aprieta, lo que se ajusta es el nivel de detalle de cada historia (`fase-diseno.md`, 1.7, Nivel 1), nunca la lista de requerimientos.
+**Cobertura planificada para la entrega del 16/10: 21 de 21.** Implementados al 9/10: RF-01 y RF-03; en parte, RF-04 y RF-05. Si el tiempo aprieta, lo que se ajusta es el nivel de detalle de cada historia (`fase-diseno.md`, 1.7, Nivel 1), nunca la lista de requerimientos.
 
 ## 2. Requerimientos no funcionales
 

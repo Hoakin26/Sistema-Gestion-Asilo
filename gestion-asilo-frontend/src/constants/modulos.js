@@ -42,7 +42,11 @@ const CATALOGO = {
     ruta: "/solicitudes-referencia",
   },
 
-  solicitudesEntrantes: { etiqueta: "Solicitudes entrantes", Icono: FileText, ruta: null },
+  solicitudesEntrantes: {
+    etiqueta: "Solicitudes entrantes",
+    Icono: FileText,
+    ruta: "/solicitudes-entrantes",
+  },
   agendaAsignacion: { etiqueta: "Agenda y asignación", Icono: CalendarClock, ruta: null },
   medicosDisponibilidad: {
     etiqueta: "Médicos y disponibilidad",

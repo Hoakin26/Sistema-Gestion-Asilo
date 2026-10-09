@@ -28,6 +28,23 @@ export function formatearFecha(iso) {
   return iso ? FORMATO_LARGO.format(aFechaLocal(iso)) : "";
 }
 
+const FORMATO_FECHA_HORA = new Intl.DateTimeFormat("es-GT", {
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+});
+
+/**
+ * "9 oct 2026, 07:49". Para los LocalDateTime del backend ("2026-10-09T07:49:01"),
+ * que llegan sin zona: `new Date` lee ese formato como hora local, que es
+ * justo lo que son, a diferencia de las fechas solas de arriba.
+ */
+export function formatearFechaHora(iso) {
+  return iso ? FORMATO_FECHA_HORA.format(new Date(iso)) : "";
+}
+
 export function edadEnAnios(iso) {
   const nacimiento = aFechaLocal(iso);
   const hoy = new Date();
