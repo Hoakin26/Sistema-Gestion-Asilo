@@ -1889,7 +1889,7 @@ classDiagram
 | GET | `/api/solicitudes-referencia/{id}/notificaciones` | MG, AF | — | `List<NotificacionResponse>` (sin el correo ni el error) | HU-04 |
 | POST | `/api/solicitudes-referencia/{id}/notificaciones/reintentar` | MG, AF | — | `List<NotificacionResponse>` | HU-04 |
 | POST | `/api/solicitudes-referencia` | MG | `SolicitudReferenciaRequest` | `SolicitudReferenciaResponse` (201) | HU-03 |
-| GET | `/api/solicitudes-referencia?estado=` | AF, MG | — | `List<SolicitudReferenciaResponse>` | HU-05 |
+| GET | `/api/solicitudes-referencia?estado=&page=&sort=` | AF, MG | — | `Page<SolicitudReferenciaResponse>`; sin `estado`, todas; por defecto, de la más antigua a la más reciente | HU-05 |
 | GET | `/api/solicitudes-referencia/asignadas` | ENF | — | `List<SolicitudReferenciaResponse>` | HU-03 |
 | PATCH | `/api/solicitudes-referencia/{id}/cancelar` | MG, AF | — | `SolicitudReferenciaResponse` | DE-01 |
 | GET | `/api/medicos?especialidad=` | AF | — | `List<MedicoResponse>` | HU-06 |
