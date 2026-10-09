@@ -699,7 +699,27 @@ El Médico General necesita elegir a un enfermero(a), no administrar usuarios. P
 
 El número (`REF-2026-0001`, reiniciado cada año) sale de una fila por año en `contador_solicitud`, que el servicio bloquea con `select … for update` antes de leerla. Calcular "el máximo más uno" habría dejado que dos solicitudes simultáneas leyeran el mismo máximo. Se comprobó que la prueba lo detecta: sin el bloqueo, de cinco solicitudes creadas a la vez una choca contra la restricción única del número y responde 409.
 
-## 21. Qué falta
+## 21. El aviso por correo al familiar (HU-04)
+
+### Lo que dice el correo, y lo que no
+
+El aviso lleva lo que pide HU-04 —el número de la solicitud, la especialidad, el estado y la fecha— y **no lleva el motivo de la referencia**. El motivo es un dato clínico (RNF-03), y el correo es un canal que el asilo deja de controlar en cuanto lo envía: puede reenviarse, quedar en un teléfono compartido o leerse en otra pantalla. Quien necesite el detalle lo pide en el asilo. `NotificacionFamiliarTest` comprueba que el motivo no aparece.
+
+Todo lo que viene de la base pasa por `HtmlUtils.htmlEscape` antes de entrar al HTML del correo: un nombre con `<` no puede romperlo ni inyectar nada.
+
+### La consulta de avisos no expone el correo del familiar
+
+`GET .../notificaciones` la usan el Médico General y la Fundación, y devuelve solo el estado, los intentos y las fechas. El correo al que se envió y el detalle técnico del error quedan en la base (`destinatario`, `ultimo_error`) y en el registro del servidor, no en la API.
+
+### Un correo caído no afecta a la solicitud
+
+El aviso se registra en la misma transacción que la solicitud, y se envía después de confirmarla, en otro hilo. Si el servidor de correo no responde (espera máxima de 5 segundos), el aviso queda `FALLIDA` y la solicitud no se entera. Se comprobó con el servidor real: con Mailpit detenido, la solicitud se creó con 201 y el aviso quedó fallido; al levantarlo, el reintento manual lo envió.
+
+### Credenciales del servidor de correo
+
+Ninguna en el código ni en el repositorio. Por defecto el backend apunta a Mailpit en `localhost:1025`, que no pide credenciales ni reenvía nada. Para un servidor real se definen `spring.mail.*` en `application.properties` (no versionado) o como variables de entorno; `application-example.properties` muestra cómo.
+
+## 22. Qué falta
 
 Nada pendiente de HU-30, HU-31 ni HU-32. Lo que queda abierto, sin historia asignada todavía:
 

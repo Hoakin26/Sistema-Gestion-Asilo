@@ -1886,6 +1886,8 @@ classDiagram
 | GET | `/api/internos/{id}/historial` | MG | — | `HistorialMedicoResponse` | HU-02 |
 | GET | `/api/especialidades` | MG, AF | — | `List<EspecialidadResponse>` | HU-03 |
 | GET | `/api/enfermeros` | MG | — | `List<ResumenPersona>` (id y nombre, sin correo) | HU-03 |
+| GET | `/api/solicitudes-referencia/{id}/notificaciones` | MG, AF | — | `List<NotificacionResponse>` (sin el correo ni el error) | HU-04 |
+| POST | `/api/solicitudes-referencia/{id}/notificaciones/reintentar` | MG, AF | — | `List<NotificacionResponse>` | HU-04 |
 | POST | `/api/solicitudes-referencia` | MG | `SolicitudReferenciaRequest` | `SolicitudReferenciaResponse` (201) | HU-03 |
 | GET | `/api/solicitudes-referencia?estado=` | AF, MG | — | `List<SolicitudReferenciaResponse>` | HU-05 |
 | GET | `/api/solicitudes-referencia/asignadas` | ENF | — | `List<SolicitudReferenciaResponse>` | HU-03 |
