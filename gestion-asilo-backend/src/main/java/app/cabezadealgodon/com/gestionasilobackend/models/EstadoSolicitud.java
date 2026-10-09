@@ -51,4 +51,19 @@ public enum EstadoSolicitud {
     public boolean puedeCambiarA(EstadoSolicitud nuevo) {
         return siguientes().contains(nuevo);
     }
+
+    /**
+     * YS-94. El estado como lo lee una persona, con los nombres del manual de
+     * diseño. Lo usa el correo al familiar, que no puede mostrarle
+     * "PENDIENTE_ASIGNACION".
+     */
+    public String etiqueta() {
+        return switch (this) {
+            case PENDIENTE_ASIGNACION -> "Pendiente de asignación";
+            case CITA_PROGRAMADA -> "Cita programada";
+            case EN_ATENCION -> "En atención";
+            case ATENDIDA -> "Atendida";
+            case CANCELADA -> "Cancelada";
+        };
+    }
 }
