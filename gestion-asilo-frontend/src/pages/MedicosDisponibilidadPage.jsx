@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Filter, Pencil, Plus, Search, Stethoscope } from "lucide-react";
 
 import { EspecialistaFormModal } from "../components/especialistas/EspecialistaFormModal";
+import { TarifasConsulta } from "../components/especialistas/TarifasConsulta";
 import { Alert } from "../components/ui/Alert";
 import { Button, IconButton } from "../components/ui/Button";
 import { Input, Select } from "../components/ui/Input";
@@ -259,6 +260,10 @@ export function MedicosDisponibilidadPage() {
           </>
         )}
       </div>
+
+      {/* YS-169. En la misma pantalla: la Fundación ya viene aquí a
+          administrar a sus especialistas, y la tarifa es de su especialidad. */}
+      <TarifasConsulta />
 
       <EspecialistaFormModal
         abierto={modalAbierto}

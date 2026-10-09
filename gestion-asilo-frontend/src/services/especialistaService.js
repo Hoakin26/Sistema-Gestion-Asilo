@@ -41,6 +41,17 @@ export async function asignarCita(solicitudId, cita) {
   return data;
 }
 
+/** YS-169. Las especialidades con su tarifa de consulta (null si no la tiene). */
+export async function listarTarifas() {
+  const { data } = await api.get("/especialidades/tarifas");
+  return data;
+}
+
+export async function actualizarTarifa(especialidadId, tarifaConsulta) {
+  const { data } = await api.put(`/especialidades/${especialidadId}/tarifa`, { tarifaConsulta });
+  return data;
+}
+
 /** La cita de una solicitud; el backend responde 404 si todavía no tiene. */
 export async function obtenerCita(solicitudId) {
   const { data } = await api.get(`/solicitudes-referencia/${solicitudId}/cita`);
