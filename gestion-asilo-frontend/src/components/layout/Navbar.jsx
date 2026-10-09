@@ -63,9 +63,13 @@ export function Navbar({ migas, menuAbierto, alAbrirMenu, alCambiarPassword }) {
                 /* En teléfono solo queda la miga actual: con el botón de menú
                    al lado, la ruta completa no cabe y empujaría al avatar
                    fuera de la pantalla. */
+                /* min-w-0 en la última: sin él, el <li> no se encoge por
+                   debajo de su texto y el `truncate` de adentro nunca corta.
+                   No se notaba con "Usuarios y roles"; con el nombre completo
+                   de un interno el texto se montaba sobre el avatar (YS-61). */
                 <li
                   key={miga}
-                  className={`items-center gap-2 ${esUltima ? "flex" : "hidden sm:flex"}`}
+                  className={`items-center gap-2 ${esUltima ? "flex min-w-0" : "hidden sm:flex"}`}
                 >
                   {indice > 0 && (
                     <span aria-hidden="true" className="hidden sm:inline">

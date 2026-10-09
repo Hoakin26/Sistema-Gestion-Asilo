@@ -12,3 +12,20 @@ export const ROLES = [
 export function etiquetaDeRol(valor) {
   return ROLES.find((rol) => rol.valor === valor)?.etiqueta ?? valor;
 }
+
+/*
+ * YS-61. Quién lee la ficha médica: la misma lista que la anotación
+ * @PersonalClinico del backend (YS-58). El Administrador del Asilo queda fuera
+ * por el RNF-03. La pantalla la usa para no pedir ni mostrar lo que el backend
+ * de todos modos le negaría; la autoridad sigue siendo el backend.
+ */
+const ROLES_CLINICOS = ["MEDICO_GENERAL", "MEDICO_ESPECIALISTA", "ENFERMERIA"];
+
+export function leeDatosClinicos(rol) {
+  return ROLES_CLINICOS.includes(rol);
+}
+
+/** HU-01. Solo el Médico General registra y edita internos (@SoloMedicoGeneral). */
+export function editaInternos(rol) {
+  return rol === "MEDICO_GENERAL";
+}

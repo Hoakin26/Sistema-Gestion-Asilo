@@ -3,6 +3,8 @@ import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { puedeEntrar } from "./constants/modulos";
 import { useAuth } from "./hooks/useAuth";
 import { DashboardPage } from "./pages/DashboardPage";
+import { InternoPerfilPage } from "./pages/InternoPerfilPage";
+import { InternosPage } from "./pages/InternosPage";
 import { LoginPage } from "./pages/LoginPage";
 import { SinPermisoPage } from "./pages/SinPermisoPage";
 import { UsuariosPage } from "./pages/UsuariosPage";
@@ -73,6 +75,22 @@ function App() {
         element={
           <RutaPrivada>
             <UsuariosPage />
+          </RutaPrivada>
+        }
+      />
+      <Route
+        path="/internos"
+        element={
+          <RutaPrivada>
+            <InternosPage />
+          </RutaPrivada>
+        }
+      />
+      <Route
+        path="/internos/:id"
+        element={
+          <RutaPrivada>
+            <InternoPerfilPage />
           </RutaPrivada>
         }
       />
