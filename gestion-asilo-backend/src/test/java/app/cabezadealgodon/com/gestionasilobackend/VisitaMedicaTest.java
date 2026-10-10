@@ -54,7 +54,8 @@ import tools.jackson.databind.ObjectMapper;
  * YS-101. El inicio de la visita médica (HU-07, RF-06, CU-003): que solo lo
  * haga el especialista asignado, solo sobre una cita programada, una sola vez
  * y desde el día de la cita; que la solicitud pase a En Atención y que la
- * visita copie la tarifa de la especialidad (YS-169).
+ * visita copie la tarifa de la especialidad (YS-169). Desde HU-08 (YS-104),
+ * también que los antecedentes del paciente solo se vean con la visita activa.
  *
  * <p>
  * La asignación solo acepta horas futuras, así que las citas "de hoy" se
@@ -266,6 +267,71 @@ class VisitaMedicaTest extends PruebaConBaseDeDatos {
                 .andExpect(status().isForbidden());
         mvc.perform(get("/api/visitas/{id}", 1).header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
                 .andExpect(status().isForbidden());
+        mvc.perform(get("/api/visitas/{id}/historial", 1).header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isForbidden());
+    }
+
+    // ---- YS-104: los antecedentes durante la visita (HU-08) ----
+
+    @Test
+    @DisplayName("Con la visita activa, el especialista ve las visitas anteriores del paciente con su diagnóstico, la más reciente primero")
+    void veLosAntecedentes() throws Exception {
+        Especialista primero = nuevoEspecialista(0);
+        Especialista segundo = nuevoEspecialista(1);
+        Especialista actual = nuevoEspecialista(0);
+        Cita antigua = citaEl(primero, HOY.minusDays(2).atTime(8, 0), null);
+        Long interno = antigua.getSolicitud().getInterno().getId();
+        Cita reciente = citaEl(segundo, HOY.minusDays(1).atTime(8, 0), interno);
+        Cita deHoy = citaEl(actual, HOY.atTime(8, 0), interno);
+        // Otro paciente del mismo especialista: no es antecedente de este.
+        Cita ajena = citaEl(primero, HOY.minusDays(1).atTime(9, 0), null);
+
+        long visitaAntigua = idDe(iniciar(antigua.getId(), primero));
+        cerrar(visitaAntigua, "Hipertensión arterial controlada", HOY.minusDays(2).atTime(8, 5));
+        long visitaReciente = idDe(iniciar(reciente.getId(), segundo));
+        cerrar(visitaReciente, "Deterioro cognitivo leve", HOY.minusDays(1).atTime(8, 5));
+        idDe(iniciar(ajena.getId(), primero));
+        long enCurso = idDe(iniciar(deHoy.getId(), actual));
+
+        mvc.perform(get("/api/visitas/{id}/historial", enCurso)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(actual)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.internoId").value(interno))
+                .andExpect(jsonPath("$.visitas.length()").value(2))
+                .andExpect(jsonPath("$.visitas[0].id").value(visitaReciente))
+                .andExpect(jsonPath("$.visitas[0].diagnostico").value("Deterioro cognitivo leve"))
+                .andExpect(jsonPath("$.visitas[0].especialista.nombreCompleto")
+                        .value(segundo.usuario().getNombreCompleto()))
+                .andExpect(jsonPath("$.visitas[0].motivo").value("Control de seguimiento"))
+                .andExpect(jsonPath("$.visitas[1].id").value(visitaAntigua))
+                .andExpect(jsonPath("$.visitas[1].diagnostico").value("Hipertensión arterial controlada"));
+    }
+
+    @Test
+    @DisplayName("Con la visita finalizada, los antecedentes ya no se pueden consultar: 403")
+    void conLaVisitaFinalizadaNo() throws Exception {
+        Especialista especialista = nuevoEspecialista(0);
+        Cita cita = citaEl(especialista, HOY.atTime(9, 0), null);
+        long visita = idDe(iniciar(cita.getId(), especialista));
+        cerrar(visita, "Sin hallazgos", HOY.atTime(9, 5));
+
+        mvc.perform(get("/api/visitas/{id}/historial", visita)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(especialista)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.mensaje").value(containsString("solo durante la visita activa")));
+    }
+
+    @Test
+    @DisplayName("Otro especialista no ve los antecedentes de una visita ajena: 403")
+    void otroEspecialistaNoVeLosAntecedentes() throws Exception {
+        Especialista especialista = nuevoEspecialista(0);
+        Especialista otro = nuevoEspecialista(0);
+        Cita cita = citaEl(especialista, HOY.atTime(9, 30), null);
+        long visita = idDe(iniciar(cita.getId(), especialista));
+
+        mvc.perform(get("/api/visitas/{id}/historial", visita)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(otro)))
+                .andExpect(status().isForbidden());
     }
 
     // ---- YS-169: la tarifa de consulta ----
@@ -323,6 +389,26 @@ class VisitaMedicaTest extends PruebaConBaseDeDatos {
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(especialista)));
     }
 
+    private long idDe(ResultActions respuesta) throws Exception {
+        String cuerpo = respuesta.andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
+        return ((Number) JsonPath.read(cuerpo, "$.id")).longValue();
+    }
+
+    /**
+     * Finaliza una visita directo en la base, con su diagnóstico: el cierre por
+     * la API llega con HU-09. También fija el inicio, para que el orden de los
+     * antecedentes no dependa de cuándo corrió cada línea de la prueba.
+     */
+    private void cerrar(long visitaId, String diagnostico, LocalDateTime inicio) {
+        VisitaMedica visita = visitaRepository.findById(visitaId).orElseThrow();
+        visita.setFechaInicio(inicio);
+        visita.setFechaCierre(inicio.plusMinutes(30));
+        visita.setDiagnostico(diagnostico);
+        visita.setEstado(EstadoVisita.FINALIZADA);
+        visitaRepository.save(visita);
+    }
+
     private ResultActions cambiarTarifa(Long especialidadId, String monto) throws Exception {
         return mvc.perform(put("/api/especialidades/{id}/tarifa", especialidadId)
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(RolNombre.ADMINISTRADOR_FUNDACION))
@@ -339,7 +425,12 @@ class VisitaMedicaTest extends PruebaConBaseDeDatos {
      * semana adelante, a la misma hora, y después se mueve al día pedido.
      */
     private Cita citaEl(Especialista especialista, LocalDateTime momento) throws Exception {
-        Long solicitud = crearSolicitud(especialista.especialidad());
+        return citaEl(especialista, momento, null);
+    }
+
+    /** Lo mismo, para un interno que ya existe; con {@code null}, uno nuevo. */
+    private Cita citaEl(Especialista especialista, LocalDateTime momento, Long internoId) throws Exception {
+        Long solicitud = crearSolicitud(especialista.especialidad(), internoId);
         LocalDateTime asignada = SEMANA_PROXIMA.atTime(momento.toLocalTime());
         mvc.perform(post("/api/solicitudes-referencia/{id}/cita", solicitud)
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(RolNombre.ADMINISTRADOR_FUNDACION))
@@ -389,8 +480,25 @@ class VisitaMedicaTest extends PruebaConBaseDeDatos {
         return especialidadRepository.findByActivaTrueOrderByNombreAsc().get(posicion).getId();
     }
 
-    /** Una solicitud pendiente de la especialidad en esa posición, para un interno nuevo. */
-    private Long crearSolicitud(int especialidad) throws Exception {
+    /** Una solicitud pendiente de la especialidad en esa posición; sin interno, para uno nuevo. */
+    private Long crearSolicitud(int especialidad, Long internoExistente) throws Exception {
+        String token = tokenDe(RolNombre.MEDICO_GENERAL);
+        long internoId = internoExistente != null ? internoExistente : crearInterno(token);
+
+        String solicitud = """
+                {"internoId": %d, "especialidadId": %d, "enfermeroAcompananteId": %d,
+                 "motivo": "Control de seguimiento"}
+                """.formatted(internoId, idEspecialidad(especialidad), usuarioDe(RolNombre.ENFERMERIA).getId());
+        String respuesta = mvc.perform(post("/api/solicitudes-referencia")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(solicitud))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
+        return ((Number) JsonPath.read(respuesta, "$.id")).longValue();
+    }
+
+    private long crearInterno(String token) throws Exception {
         String interno = """
                 {"nombreCompleto": "Interno con visita",
                  "dpi": "%d",
@@ -401,23 +509,10 @@ class VisitaMedicaTest extends PruebaConBaseDeDatos {
                    "parentesco": "Hija",
                    "telefono": "5555 0001"}}
                 """.formatted(SIGUIENTE_DPI.getAndIncrement());
-        String token = tokenDe(RolNombre.MEDICO_GENERAL);
-        String respuestaInterno = mvc.perform(post("/api/internos")
+        String respuesta = mvc.perform(post("/api/internos")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(interno))
-                .andExpect(status().isCreated())
-                .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
-        long internoId = ((Number) JsonPath.read(respuestaInterno, "$.id")).longValue();
-
-        String solicitud = """
-                {"internoId": %d, "especialidadId": %d, "enfermeroAcompananteId": %d,
-                 "motivo": "Control de seguimiento"}
-                """.formatted(internoId, idEspecialidad(especialidad), usuarioDe(RolNombre.ENFERMERIA).getId());
-        String respuesta = mvc.perform(post("/api/solicitudes-referencia")
-                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(solicitud))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
         return ((Number) JsonPath.read(respuesta, "$.id")).longValue();

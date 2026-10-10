@@ -50,6 +50,16 @@ public interface VisitaMedicaRepository extends JpaRepository<VisitaMedica, Long
             """)
     List<VisitaMedica> delEspecialista(@Param("usuarioId") Long usuarioId);
 
+    /** YS-102. Las visitas de un interno, con cualquier especialista, la más reciente primero. */
+    @EntityGraph(attributePaths = {
+            "cita", "cita.solicitud", "cita.solicitud.especialidad", "especialista", "especialista.usuario" })
+    @Query("""
+            select v from VisitaMedica v
+            where v.interno.id = :internoId
+            order by v.fechaInicio desc
+            """)
+    List<VisitaMedica> delInterno(@Param("internoId") Long internoId);
+
     /** Lo mismo, solo las que están en un estado. */
     @EntityGraph(attributePaths = {
             "cita", "cita.solicitud", "cita.solicitud.especialidad", "cita.solicitud.medicoGeneral",
