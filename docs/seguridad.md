@@ -775,7 +775,22 @@ El servicio rechaza con 409 una cita cuya visita ya se inició, y debajo queda l
 
 `VisitaMedicaResponse` no lleva el costo de la consulta, que es un dato de la cuenta del familiar y de la fundación, no de quien atiende. La tarifa tiene su propio DTO (`EspecialidadTarifaResponse`) y no se agregó a `EspecialidadResponse`, porque esa también la recibe el Médico General al referir.
 
-## 24. Qué falta
+## 24. Los antecedentes durante la consulta (HU-08)
+
+### Dos permisos distintos para dos lecturas distintas
+
+La ficha médica (alergias, padecimientos, medicamentos habituales) la lee el especialista siempre, con `@PersonalClinico` (YS-58). Los antecedentes, en cambio, se abren **solo al especialista de la visita y solo mientras está activa**, que es lo que pide HU-08. `GET /api/visitas/{id}/historial` comprueba las dos cosas en el servicio:
+
+- Otro especialista recibe 403, aunque tenga el mismo rol.
+- Con la visita finalizada, también 403: el acceso termina con la consulta.
+
+El rol lo filtra antes `@SoloMedicoEspecialista`, así que el Administrador del Asilo no llega ni a esa comprobación (RNF-03). `VisitaMedicaTest` cubre los tres casos y suma el endpoint al barrido de los seis roles.
+
+### Los antecedentes se consultan, no se copian
+
+`HistorialMedicoService` arma los antecedentes a partir de las visitas registradas, en el momento en que se piden. No hay una tabla de historial que pueda quedar desactualizada o contradecir a la visita de la que salió (sección 3.4 del diseño). El servicio no decide quién puede verlos: eso lo hace quien lo llama, para que HU-02 lo reutilice con sus propios permisos.
+
+## 25. Qué falta
 
 Nada pendiente de HU-30, HU-31 ni HU-32. Lo que queda abierto, sin historia asignada todavía:
 
