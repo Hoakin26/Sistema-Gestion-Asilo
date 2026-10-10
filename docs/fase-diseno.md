@@ -1906,7 +1906,7 @@ classDiagram
 | POST | `/api/citas/{id}/visita` | ME (el asignado) | — | `VisitaMedicaResponse` (201); 403 si la cita es de otro especialista; 409 si ya se inició, si la solicitud no está en `CITA_PROGRAMADA` o si todavía no es el día de la cita | HU-07 |
 | GET | `/api/visitas?estado=` | ME | — | `List<VisitaMedicaResponse>`: las del especialista, la más reciente primero | HU-07 |
 | GET | `/api/visitas/{id}` | ME (el de la visita) | — | `VisitaMedicaResponse` | HU-07 |
-| GET | `/api/visitas/{id}/historial` | ME (visita activa propia) | — | `HistorialMedicoResponse` | HU-08 |
+| GET | `/api/visitas/{id}/historial` | ME (visita activa propia) | — | `HistorialMedicoResponse`: las visitas anteriores del interno con su diagnóstico, sin la visita en curso; 403 con la visita finalizada o de otro especialista. HU-10 y HU-11 le agregan las recetas y los exámenes | HU-08 |
 | PUT | `/api/visitas/{id}/diagnostico` | ME | `DiagnosticoRequest` | `VisitaMedicaResponse` | HU-09 |
 | POST | `/api/visitas/{id}/receta` | ME | `RecetaRequest` | `RecetaResponse` | HU-10 |
 | POST | `/api/visitas/{id}/ordenes-laboratorio` | ME | `OrdenesLaboratorioRequest` | `List<OrdenLaboratorioResponse>` | HU-11 |
