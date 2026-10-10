@@ -25,3 +25,9 @@ export async function obtenerVisita(id) {
   const { data } = await api.get(`/visitas/${id}`);
   return data;
 }
+
+/** HU-08 (YS-102). Los antecedentes del paciente; el backend responde 403 si la visita no está activa. */
+export async function obtenerHistorial(visitaId) {
+  const { data } = await api.get(`/visitas/${visitaId}/historial`);
+  return data;
+}
