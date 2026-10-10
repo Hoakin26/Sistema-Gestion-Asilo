@@ -13,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import app.cabezadealgodon.com.gestionasilobackend.dto.CitaAgendaResponse;
 import app.cabezadealgodon.com.gestionasilobackend.dto.EspecialidadResponse;
+import app.cabezadealgodon.com.gestionasilobackend.dto.HistorialMedicoResponse;
 import app.cabezadealgodon.com.gestionasilobackend.dto.ResumenPersona;
 import app.cabezadealgodon.com.gestionasilobackend.dto.VisitaMedicaResponse;
 import app.cabezadealgodon.com.gestionasilobackend.exception.ConflictoException;
@@ -53,12 +54,14 @@ public class VisitaMedicaService {
     private final CitaRepository citaRepository;
     private final VisitaMedicaRepository visitaRepository;
     private final MedicoEspecialistaRepository especialistaRepository;
+    private final HistorialMedicoService historialService;
 
     public VisitaMedicaService(CitaRepository citaRepository, VisitaMedicaRepository visitaRepository,
-            MedicoEspecialistaRepository especialistaRepository) {
+            MedicoEspecialistaRepository especialistaRepository, HistorialMedicoService historialService) {
         this.citaRepository = citaRepository;
         this.visitaRepository = visitaRepository;
         this.especialistaRepository = especialistaRepository;
+        this.historialService = historialService;
     }
 
     /**
@@ -159,6 +162,26 @@ public class VisitaMedicaService {
             throw new OperacionNoPermitidaException("Esta visita es de otro especialista");
         }
         return mapear(visita);
+    }
+
+    /**
+     * YS-102. Los antecedentes del paciente durante la consulta (HU-08,
+     * RF-07): solo para el especialista de la visita y solo mientras está
+     * activa. Al finalizarla el acceso se cierra, a diferencia de la ficha
+     * médica, que el especialista puede leer siempre (YS-58).
+     */
+    @Transactional(readOnly = true)
+    public HistorialMedicoResponse historial(Long visitaId, Usuario medico) {
+        VisitaMedica visita = visitaRepository.findById(visitaId)
+                .orElseThrow(() -> new RecursoNoEncontradoException("No existe una visita con id " + visitaId));
+        if (!visita.getEspecialista().getUsuario().getId().equals(medico.getId())) {
+            throw new OperacionNoPermitidaException("Esta visita es de otro especialista");
+        }
+        if (visita.getEstado() != EstadoVisita.ACTIVA) {
+            throw new OperacionNoPermitidaException(
+                    "Los antecedentes del paciente se consultan solo durante la visita activa");
+        }
+        return historialService.de(visita.getInterno().getId(), visita.getId());
     }
 
     // ---- apoyo ----

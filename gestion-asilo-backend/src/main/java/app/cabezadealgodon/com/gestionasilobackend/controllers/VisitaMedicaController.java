@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import app.cabezadealgodon.com.gestionasilobackend.dto.CitaAgendaResponse;
+import app.cabezadealgodon.com.gestionasilobackend.dto.HistorialMedicoResponse;
 import app.cabezadealgodon.com.gestionasilobackend.dto.VisitaMedicaResponse;
 import app.cabezadealgodon.com.gestionasilobackend.models.EstadoVisita;
 import app.cabezadealgodon.com.gestionasilobackend.security.SoloMedicoEspecialista;
@@ -64,5 +65,12 @@ public class VisitaMedicaController {
     public VisitaMedicaResponse detalle(@PathVariable Long id,
             @AuthenticationPrincipal UsuarioAutenticado medico) {
         return visitaService.detalle(id, medico.getUsuario());
+    }
+
+    /** HU-08 (YS-102). Los antecedentes del paciente, solo durante la visita activa. */
+    @GetMapping("/visitas/{id}/historial")
+    public HistorialMedicoResponse historial(@PathVariable Long id,
+            @AuthenticationPrincipal UsuarioAutenticado medico) {
+        return visitaService.historial(id, medico.getUsuario());
     }
 }
