@@ -17,6 +17,9 @@ import app.cabezadealgodon.com.gestionasilobackend.dto.CitaAgendaResponse;
 import app.cabezadealgodon.com.gestionasilobackend.dto.DiagnosticoRequest;
 import app.cabezadealgodon.com.gestionasilobackend.dto.EspecialidadResponse;
 import app.cabezadealgodon.com.gestionasilobackend.dto.HistorialMedicoResponse;
+import app.cabezadealgodon.com.gestionasilobackend.dto.MedicamentoRecetaRequest;
+import app.cabezadealgodon.com.gestionasilobackend.dto.RecetaRequest;
+import app.cabezadealgodon.com.gestionasilobackend.dto.RecetaResponse;
 import app.cabezadealgodon.com.gestionasilobackend.dto.ResumenPersona;
 import app.cabezadealgodon.com.gestionasilobackend.dto.VisitaMedicaResponse;
 import app.cabezadealgodon.com.gestionasilobackend.exception.CampoInvalidoException;
@@ -24,22 +27,26 @@ import app.cabezadealgodon.com.gestionasilobackend.exception.ConflictoException;
 import app.cabezadealgodon.com.gestionasilobackend.exception.OperacionNoPermitidaException;
 import app.cabezadealgodon.com.gestionasilobackend.exception.RecursoNoEncontradoException;
 import app.cabezadealgodon.com.gestionasilobackend.models.Cita;
+import app.cabezadealgodon.com.gestionasilobackend.models.DetalleReceta;
 import app.cabezadealgodon.com.gestionasilobackend.models.Especialidad;
+import app.cabezadealgodon.com.gestionasilobackend.models.EstadoReceta;
 import app.cabezadealgodon.com.gestionasilobackend.models.EstadoSolicitud;
 import app.cabezadealgodon.com.gestionasilobackend.models.EstadoVisita;
 import app.cabezadealgodon.com.gestionasilobackend.models.Interno;
+import app.cabezadealgodon.com.gestionasilobackend.models.Receta;
 import app.cabezadealgodon.com.gestionasilobackend.models.SolicitudReferencia;
 import app.cabezadealgodon.com.gestionasilobackend.models.TipoServicio;
 import app.cabezadealgodon.com.gestionasilobackend.models.Usuario;
 import app.cabezadealgodon.com.gestionasilobackend.models.VisitaMedica;
 import app.cabezadealgodon.com.gestionasilobackend.repository.CitaRepository;
 import app.cabezadealgodon.com.gestionasilobackend.repository.MedicoEspecialistaRepository;
+import app.cabezadealgodon.com.gestionasilobackend.repository.RecetaRepository;
 import app.cabezadealgodon.com.gestionasilobackend.repository.VisitaMedicaRepository;
 
 /**
  * HU-07 (YS-99). La agenda del especialista y el inicio de la visita médica
- * (RF-06, CU-003). HU-08 agrega el historial y HU-09 el diagnóstico y el
- * cierre; HU-10 y HU-11 agregarán la receta y los exámenes.
+ * (RF-06, CU-003). HU-08 agrega el historial, HU-09 el diagnóstico y el
+ * cierre, y HU-10 la receta; HU-11 agregará los exámenes.
  *
  * <p>
  * Toda operación recibe la cuenta del especialista que la pide: una cita y una
@@ -61,15 +68,17 @@ public class VisitaMedicaService {
     private final MedicoEspecialistaRepository especialistaRepository;
     private final HistorialMedicoService historialService;
     private final CargoService cargoService;
+    private final RecetaRepository recetaRepository;
 
     public VisitaMedicaService(CitaRepository citaRepository, VisitaMedicaRepository visitaRepository,
             MedicoEspecialistaRepository especialistaRepository, HistorialMedicoService historialService,
-            CargoService cargoService) {
+            CargoService cargoService, RecetaRepository recetaRepository) {
         this.citaRepository = citaRepository;
         this.visitaRepository = visitaRepository;
         this.especialistaRepository = especialistaRepository;
         this.historialService = historialService;
         this.cargoService = cargoService;
+        this.recetaRepository = recetaRepository;
     }
 
     /**
@@ -249,7 +258,69 @@ public class VisitaMedicaService {
         return mapear(visita);
     }
 
+    /**
+     * YS-108. Registra la receta de la visita (HU-10, RF-10). Una por visita:
+     * si ya tiene, se corrige con {@link #corregirReceta}. Nace pendiente de
+     * despacho, y desde ese momento la farmacia la ve en su bandeja (HU-15).
+     */
+    @Transactional
+    public RecetaResponse registrarReceta(Long visitaId, RecetaRequest request, Usuario medico) {
+        VisitaMedica visita = activaDe(visitaRepository.bloquear(visitaId), visitaId, medico);
+        if (recetaRepository.existsByVisitaId(visitaId)) {
+            throw new ConflictoException("Esta visita ya tiene receta. Corríjala en lugar de registrar otra");
+        }
+        Receta receta = new Receta();
+        receta.setVisita(visita);
+        receta.setFechaEmision(LocalDateTime.now());
+        llenar(receta, request);
+        return MapeoReceta.receta(recetaRepository.save(receta));
+    }
+
+    /**
+     * YS-108. Reemplaza los medicamentos de la receta por los que llegan.
+     * Solo mientras la visita sigue activa y la farmacia no ha entregado nada:
+     * después, cambiarla dejaría a la farmacia despachando algo distinto de lo
+     * que se recetó.
+     */
+    @Transactional
+    public RecetaResponse corregirReceta(Long visitaId, RecetaRequest request, Usuario medico) {
+        activaDe(visitaRepository.bloquear(visitaId), visitaId, medico);
+        Receta receta = recetaRepository.findByVisitaId(visitaId)
+                .orElseThrow(() -> new RecursoNoEncontradoException("Esta visita todavía no tiene receta"));
+        if (receta.getEstado() != EstadoReceta.PENDIENTE_DESPACHO) {
+            throw new ConflictoException("La farmacia ya empezó a despachar esta receta y no se puede cambiar");
+        }
+        receta.getMedicamentos().clear();
+        llenar(receta, request);
+        return MapeoReceta.receta(recetaRepository.save(receta));
+    }
+
+    /** YS-108. La receta de una visita del especialista, activa o finalizada. */
+    @Transactional(readOnly = true)
+    public RecetaResponse receta(Long visitaId, Usuario medico) {
+        VisitaMedica visita = visitaRepository.findById(visitaId)
+                .orElseThrow(() -> new RecursoNoEncontradoException("No existe una visita con id " + visitaId));
+        if (!visita.getEspecialista().getUsuario().getId().equals(medico.getId())) {
+            throw new OperacionNoPermitidaException("Esta visita es de otro especialista");
+        }
+        return recetaRepository.findByVisitaId(visitaId)
+                .map(MapeoReceta::receta)
+                .orElseThrow(() -> new RecursoNoEncontradoException("Esta visita todavía no tiene receta"));
+    }
+
     // ---- apoyo ----
+
+    private static void llenar(Receta receta, RecetaRequest request) {
+        receta.setIndicacionesGenerales(opcional(request.indicacionesGenerales()));
+        for (MedicamentoRecetaRequest dto : request.medicamentos()) {
+            DetalleReceta detalle = new DetalleReceta();
+            detalle.setMedicamento(dto.medicamento().trim());
+            detalle.setDosis(dto.dosis().trim());
+            detalle.setCantidad(dto.cantidad());
+            detalle.setFormaAplicacion(dto.formaAplicacion().trim());
+            receta.agregarMedicamento(detalle);
+        }
+    }
 
     /** La visita, si es de este especialista y sigue activa: para todo lo que la modifica. */
     private VisitaMedica activaDe(Optional<VisitaMedica> encontrada, Long visitaId, Usuario medico) {

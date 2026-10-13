@@ -39,8 +39,10 @@ import com.jayway.jsonpath.JsonPath;
 import app.cabezadealgodon.com.gestionasilobackend.models.CargoServicio;
 import app.cabezadealgodon.com.gestionasilobackend.models.Cita;
 import app.cabezadealgodon.com.gestionasilobackend.models.Especialidad;
+import app.cabezadealgodon.com.gestionasilobackend.models.EstadoReceta;
 import app.cabezadealgodon.com.gestionasilobackend.models.EstadoSolicitud;
 import app.cabezadealgodon.com.gestionasilobackend.models.EstadoVisita;
+import app.cabezadealgodon.com.gestionasilobackend.models.Receta;
 import app.cabezadealgodon.com.gestionasilobackend.models.RolNombre;
 import app.cabezadealgodon.com.gestionasilobackend.models.SolicitudReferencia;
 import app.cabezadealgodon.com.gestionasilobackend.models.TipoServicio;
@@ -49,6 +51,7 @@ import app.cabezadealgodon.com.gestionasilobackend.models.VisitaMedica;
 import app.cabezadealgodon.com.gestionasilobackend.repository.CargoServicioRepository;
 import app.cabezadealgodon.com.gestionasilobackend.repository.CitaRepository;
 import app.cabezadealgodon.com.gestionasilobackend.repository.EspecialidadRepository;
+import app.cabezadealgodon.com.gestionasilobackend.repository.RecetaRepository;
 import app.cabezadealgodon.com.gestionasilobackend.repository.RolRepository;
 import app.cabezadealgodon.com.gestionasilobackend.repository.SolicitudReferenciaRepository;
 import app.cabezadealgodon.com.gestionasilobackend.repository.UsuarioRepository;
@@ -62,7 +65,7 @@ import tools.jackson.databind.ObjectMapper;
  * visita copie la tarifa de la especialidad (YS-169). Desde HU-08 (YS-104),
  * también que los antecedentes del paciente solo se vean con la visita activa.
  * Desde HU-09 (YS-107), el diagnóstico obligatorio y el cierre de la visita
- * con su cargo de consulta.
+ * con su cargo de consulta. Desde HU-10 (YS-110), la receta.
  *
  * <p>
  * La asignación solo acepta horas futuras, así que las citas "de hoy" se
@@ -106,6 +109,9 @@ class VisitaMedicaTest extends PruebaConBaseDeDatos {
 
     @Autowired
     private CargoServicioRepository cargoRepository;
+
+    @Autowired
+    private RecetaRepository recetaRepository;
 
     @Autowired
     private PasswordEncoder passwordEncoder;
@@ -284,6 +290,163 @@ class VisitaMedicaTest extends PruebaConBaseDeDatos {
                 .andExpect(status().isForbidden());
         mvc.perform(patch("/api/visitas/{id}/finalizar", 1).header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
                 .andExpect(status().isForbidden());
+        String receta = "{\"medicamentos\": [{\"medicamento\": \"x\", \"dosis\": \"x\", \"cantidad\": 1, \"formaAplicacion\": \"x\"}]}";
+        mvc.perform(post("/api/visitas/{id}/receta", 1).header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON).content(receta))
+                .andExpect(status().isForbidden());
+        mvc.perform(put("/api/visitas/{id}/receta", 1).header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON).content(receta))
+                .andExpect(status().isForbidden());
+        mvc.perform(get("/api/visitas/{id}/receta", 1).header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isForbidden());
+    }
+
+    // ---- YS-110: la receta (HU-10) ----
+
+    @Test
+    @DisplayName("El especialista registra la receta: queda pendiente de despacho, asociada a la visita y con sus medicamentos en orden")
+    void registraLaReceta() throws Exception {
+        Especialista especialista = nuevoEspecialista(0);
+        long visita = idDe(iniciar(citaEl(especialista, HOY.atTime(8, 0)).getId(), especialista));
+
+        recetar(visita, especialista, "Tomar con alimentos",
+                medicamento("Losartán", "50 mg", 30, "Cada 24 horas, vía oral"),
+                medicamento("Amlodipino", "5 mg", 30, "Cada 24 horas por la mañana"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.estado").value("PENDIENTE_DESPACHO"))
+                .andExpect(jsonPath("$.visitaId").value(visita))
+                .andExpect(jsonPath("$.indicacionesGenerales").value("Tomar con alimentos"))
+                .andExpect(jsonPath("$.fechaEmision").isNotEmpty())
+                .andExpect(jsonPath("$.medicamentos.length()").value(2))
+                .andExpect(jsonPath("$.medicamentos[0].medicamento").value("Losartán"))
+                .andExpect(jsonPath("$.medicamentos[0].formaAplicacion").value("Cada 24 horas, vía oral"))
+                .andExpect(jsonPath("$.medicamentos[1].cantidad").value(30));
+
+        mvc.perform(get("/api/visitas/{id}/receta", visita).header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(especialista)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.medicamentos[1].medicamento").value("Amlodipino"));
+    }
+
+    @Test
+    @DisplayName("Si falta un campo de un medicamento: 400 señalando la fila, y la receta no se guarda")
+    void camposObligatoriosPorFila() throws Exception {
+        Especialista especialista = nuevoEspecialista(0);
+        long visita = idDe(iniciar(citaEl(especialista, HOY.atTime(8, 30)).getId(), especialista));
+
+        recetar(visita, especialista, null,
+                medicamento("Losartán", "50 mg", 30, "Cada 24 horas"),
+                medicamento("Paracetamol", "  ", 0, null))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errores['medicamentos[1].dosis']").value("La dosis es obligatoria"))
+                .andExpect(jsonPath("$.errores['medicamentos[1].cantidad']").value("La cantidad tiene que ser al menos 1"))
+                .andExpect(jsonPath("$.errores['medicamentos[1].formaAplicacion']")
+                        .value("El tiempo o la forma de aplicación es obligatorio"))
+                .andExpect(jsonPath("$.errores['medicamentos[0].dosis']").doesNotExist());
+
+        recetar(visita, especialista, null)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errores.medicamentos").value("Agregue al menos un medicamento"));
+
+        assertThat(recetaRepository.existsByVisitaId(visita)).isFalse();
+    }
+
+    @Test
+    @DisplayName("Una visita tiene una sola receta (409 a la segunda), y se corrige entera mientras siga pendiente")
+    void unaRecetaPorVisitaQueSeCorrige() throws Exception {
+        Especialista especialista = nuevoEspecialista(0);
+        long visita = idDe(iniciar(citaEl(especialista, HOY.atTime(9, 0)).getId(), especialista));
+        recetar(visita, especialista, null,
+                medicamento("Losartán", "50 mg", 30, "Cada 24 horas"),
+                medicamento("Amlodipino", "5 mg", 30, "Cada 24 horas")).andExpect(status().isCreated());
+
+        recetar(visita, especialista, null, medicamento("Otro", "1", 1, "x"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.mensaje").value(containsString("ya tiene receta")));
+
+        corregir(visita, especialista, "Control en un mes", medicamento("Losartán", "100 mg", 30, "Cada 24 horas"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.medicamentos.length()").value(1))
+                .andExpect(jsonPath("$.medicamentos[0].dosis").value("100 mg"))
+                .andExpect(jsonPath("$.indicacionesGenerales").value("Control en un mes"));
+        assertThat(recetaRepository.findByVisitaId(visita).orElseThrow().getMedicamentos()).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("Una receta que la farmacia ya empezó a despachar no se corrige: 409")
+    void laDespachadaNoSeCorrige() throws Exception {
+        Especialista especialista = nuevoEspecialista(0);
+        long visita = idDe(iniciar(citaEl(especialista, HOY.atTime(9, 30)).getId(), especialista));
+        recetar(visita, especialista, null, medicamento("Losartán", "50 mg", 30, "Cada 24 horas"))
+                .andExpect(status().isCreated());
+        // El despacho llega con HU-16: aquí se marca a mano.
+        Receta receta = recetaRepository.findByVisitaId(visita).orElseThrow();
+        receta.setEstado(EstadoReceta.PARCIALMENTE_ENTREGADA);
+        recetaRepository.save(receta);
+
+        corregir(visita, especialista, null, medicamento("Otro", "1", 1, "x"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.mensaje").value(containsString("ya empezó a despachar")));
+    }
+
+    @Test
+    @DisplayName("Con la visita finalizada no se registra ni se corrige la receta (409), pero se sigue pudiendo consultar")
+    void conLaVisitaFinalizada() throws Exception {
+        tarifaDe(6, "410.00");
+        Especialista especialista = nuevoEspecialista(6);
+        long visita = idDe(iniciar(citaEl(especialista, HOY.atTime(10, 0)).getId(), especialista));
+        recetar(visita, especialista, null, medicamento("Diclofenaco", "50 mg", 10, "Cada 12 horas por 5 días"))
+                .andExpect(status().isCreated());
+        diagnosticar(visita, especialista, "Lumbalgia", null).andExpect(status().isOk());
+        finalizar(visita, especialista).andExpect(status().isOk());
+
+        recetar(visita, especialista, null, medicamento("Otro", "1", 1, "x")).andExpect(status().isConflict());
+        corregir(visita, especialista, null, medicamento("Otro", "1", 1, "x")).andExpect(status().isConflict());
+        mvc.perform(get("/api/visitas/{id}/receta", visita).header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(especialista)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.medicamentos[0].medicamento").value("Diclofenaco"));
+    }
+
+    @Test
+    @DisplayName("Otro especialista no registra ni consulta la receta de una visita ajena: 403")
+    void otroEspecialistaNoReceta() throws Exception {
+        Especialista especialista = nuevoEspecialista(0);
+        Especialista otro = nuevoEspecialista(0);
+        long visita = idDe(iniciar(citaEl(especialista, HOY.atTime(10, 30)).getId(), especialista));
+
+        recetar(visita, otro, null, medicamento("Losartán", "50 mg", 30, "Cada 24 horas"))
+                .andExpect(status().isForbidden());
+        mvc.perform(get("/api/visitas/{id}/receta", visita).header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(otro)))
+                .andExpect(status().isForbidden());
+        assertThat(recetaRepository.existsByVisitaId(visita)).isFalse();
+    }
+
+    /** HU-08: "Mostrar medicamentos recetados anteriormente", que esperaba a esta historia. */
+    @Test
+    @DisplayName("Los antecedentes traen las recetas de visitas anteriores, sin la de la visita en curso")
+    void losAntecedentesTraenLasRecetas() throws Exception {
+        Especialista anterior = nuevoEspecialista(0);
+        Especialista actual = nuevoEspecialista(0);
+        Cita antigua = citaEl(anterior, HOY.minusDays(3).atTime(8, 0), null);
+        Long interno = antigua.getSolicitud().getInterno().getId();
+        Cita deHoy = citaEl(actual, HOY.atTime(11, 0), interno);
+
+        long visitaAntigua = idDe(iniciar(antigua.getId(), anterior));
+        recetar(visitaAntigua, anterior, "Tomar con alimentos",
+                medicamento("Losartán", "50 mg", 30, "Cada 24 horas")).andExpect(status().isCreated());
+        cerrar(visitaAntigua, "Hipertensión arterial", HOY.minusDays(3).atTime(8, 5));
+
+        long enCurso = idDe(iniciar(deHoy.getId(), actual));
+        recetar(enCurso, actual, null, medicamento("Metformina", "850 mg", 60, "Cada 12 horas"))
+                .andExpect(status().isCreated());
+
+        mvc.perform(get("/api/visitas/{id}/historial", enCurso).header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(actual)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.recetas.length()").value(1))
+                .andExpect(jsonPath("$.recetas[0].medicamentos[0].medicamento").value("Losartán"))
+                .andExpect(jsonPath("$.recetas[0].indicacionesGenerales").value("Tomar con alimentos"))
+                .andExpect(jsonPath("$.recetas[0].estado").value("PENDIENTE_DESPACHO"))
+                .andExpect(jsonPath("$.recetas[0].especialista.nombreCompleto")
+                        .value(anterior.usuario().getNombreCompleto()));
     }
 
     // ---- YS-107: el diagnóstico y el cierre de la visita (HU-09) ----
@@ -568,6 +731,41 @@ class VisitaMedicaTest extends PruebaConBaseDeDatos {
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(especialista))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json.writeValueAsString(cuerpo)));
+    }
+
+    @SafeVarargs
+    private ResultActions recetar(long visitaId, Especialista especialista, String indicaciones,
+            Map<String, Object>... medicamentos) throws Exception {
+        return mvc.perform(post("/api/visitas/{id}/receta", visitaId)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(especialista))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json.writeValueAsString(cuerpoReceta(indicaciones, medicamentos))));
+    }
+
+    @SafeVarargs
+    private ResultActions corregir(long visitaId, Especialista especialista, String indicaciones,
+            Map<String, Object>... medicamentos) throws Exception {
+        return mvc.perform(put("/api/visitas/{id}/receta", visitaId)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(especialista))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json.writeValueAsString(cuerpoReceta(indicaciones, medicamentos))));
+    }
+
+    private static Map<String, Object> cuerpoReceta(String indicaciones, Map<String, Object>[] medicamentos) {
+        Map<String, Object> cuerpo = new LinkedHashMap<>();
+        cuerpo.put("indicacionesGenerales", indicaciones);
+        cuerpo.put("medicamentos", List.of(medicamentos));
+        return cuerpo;
+    }
+
+    /** Un medicamento de la receta; los null viajan como null, para probar los obligatorios. */
+    private static Map<String, Object> medicamento(String nombre, String dosis, Integer cantidad, String forma) {
+        Map<String, Object> medicamento = new LinkedHashMap<>();
+        medicamento.put("medicamento", nombre);
+        medicamento.put("dosis", dosis);
+        medicamento.put("cantidad", cantidad);
+        medicamento.put("formaAplicacion", forma);
+        return medicamento;
     }
 
     private ResultActions finalizar(long visitaId, Especialista especialista) throws Exception {

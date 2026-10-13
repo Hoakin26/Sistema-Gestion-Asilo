@@ -24,6 +24,12 @@ export const ETIQUETAS_ESTADO = {
   // YS-98 · Visita médica. Con prefijo, igual que el aviso.
   VISITA_ACTIVA: "En curso",
   VISITA_FINALIZADA: "Finalizada",
+
+  // DE-03 · Receta médica (YS-108). Sin prefijo: los nombres no chocan.
+  PENDIENTE_DESPACHO: "Pendiente de Despacho",
+  PARCIALMENTE_ENTREGADA: "Parcialmente Entregada",
+  ENTREGADA: "Entregada",
+  MEDICAMENTO_AGOTADO: "Medicamento Agotado",
 };
 
 /** DE-01, en el orden del diagrama: para los filtros de las bandejas. */
