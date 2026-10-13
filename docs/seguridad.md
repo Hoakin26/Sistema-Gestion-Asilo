@@ -804,7 +804,19 @@ Finalizar lee la visita con bloqueo (`PESSIMISTIC_WRITE`) hasta el final de la t
 
 Decidido el 10/10: sin tarifa de consulta, la visita no se finaliza. El diagnóstico se guarda aparte y no se pierde, y el mensaje le dice al especialista que la Fundación debe definir la tarifa. Si la definen después de iniciar la visita, el cierre toma esa. Así la cuenta del familiar (HU-18) nunca suma un cargo sin monto.
 
-## 26. Qué falta
+## 26. La receta (HU-10)
+
+### Quién escribe la receta y quién la lee
+
+`POST`, `PUT` y `GET /api/visitas/{id}/receta` están bajo `@SoloMedicoEspecialista`, y el servicio exige además que la visita sea de quien la pide (403 para otro especialista). Registrar y corregir exigen también que la visita siga activa (409 si está finalizada); consultar, no: la receta de una visita finalizada se sigue pudiendo leer. `VisitaMedicaTest` suma los tres endpoints al barrido de los seis roles, con el Administrador del Asilo entre ellos (RNF-03).
+
+`RecetaResponse` no lleva el diagnóstico de la visita. Lo va a recibir también la farmacia (HU-15), que para despachar necesita los medicamentos, las dosis y las cantidades, no la razón clínica (mínimo privilegio, sección 5 del diseño).
+
+### Lo que la farmacia ve no cambia a sus espaldas
+
+La receta se corrige completa y solo mientras está pendiente de despacho: en cuanto la farmacia entrega algo (HU-16), el cambio se rechaza con 409. Además, la receta ya lleva la columna `version` (bloqueo optimista de JPA) que pide el diseño para HU-16: cuando exista el despacho, dos escrituras simultáneas sobre la misma receta, de la farmacia o del especialista, no se pisarán; HU-16 agrega el manejo de ese choque como 409. Hoy dos correcciones del mismo especialista ya se hacen una tras otra, porque cada una bloquea la visita.
+
+## 27. Qué falta
 
 Nada pendiente de HU-30, HU-31 ni HU-32. Lo que queda abierto, sin historia asignada todavía:
 

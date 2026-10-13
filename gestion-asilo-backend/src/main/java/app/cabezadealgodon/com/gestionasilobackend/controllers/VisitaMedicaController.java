@@ -20,6 +20,8 @@ import org.springframework.web.bind.annotation.RestController;
 import app.cabezadealgodon.com.gestionasilobackend.dto.CitaAgendaResponse;
 import app.cabezadealgodon.com.gestionasilobackend.dto.DiagnosticoRequest;
 import app.cabezadealgodon.com.gestionasilobackend.dto.HistorialMedicoResponse;
+import app.cabezadealgodon.com.gestionasilobackend.dto.RecetaRequest;
+import app.cabezadealgodon.com.gestionasilobackend.dto.RecetaResponse;
 import app.cabezadealgodon.com.gestionasilobackend.dto.VisitaMedicaResponse;
 import app.cabezadealgodon.com.gestionasilobackend.models.EstadoVisita;
 import app.cabezadealgodon.com.gestionasilobackend.security.SoloMedicoEspecialista;
@@ -85,6 +87,29 @@ public class VisitaMedicaController {
     public VisitaMedicaResponse finalizar(@PathVariable Long id,
             @AuthenticationPrincipal UsuarioAutenticado medico) {
         return visitaService.finalizar(id, medico.getUsuario());
+    }
+
+    /** HU-10 (YS-108). Una receta por visita, pendiente de despacho desde que se registra. */
+    @PostMapping("/visitas/{id}/receta")
+    @ResponseStatus(HttpStatus.CREATED)
+    public RecetaResponse registrarReceta(@PathVariable Long id,
+            @AuthenticationPrincipal UsuarioAutenticado medico,
+            @Valid @RequestBody RecetaRequest request) {
+        return visitaService.registrarReceta(id, request, medico.getUsuario());
+    }
+
+    /** HU-10 (YS-108). Se corrige entera, mientras la farmacia no haya entregado nada. */
+    @PutMapping("/visitas/{id}/receta")
+    public RecetaResponse corregirReceta(@PathVariable Long id,
+            @AuthenticationPrincipal UsuarioAutenticado medico,
+            @Valid @RequestBody RecetaRequest request) {
+        return visitaService.corregirReceta(id, request, medico.getUsuario());
+    }
+
+    /** HU-10 (YS-108). 404 si la visita todavía no tiene receta. */
+    @GetMapping("/visitas/{id}/receta")
+    public RecetaResponse receta(@PathVariable Long id, @AuthenticationPrincipal UsuarioAutenticado medico) {
+        return visitaService.receta(id, medico.getUsuario());
     }
 
     /** HU-08 (YS-102). Los antecedentes del paciente, solo durante la visita activa. */
