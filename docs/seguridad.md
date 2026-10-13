@@ -790,7 +790,21 @@ El rol lo filtra antes `@SoloMedicoEspecialista`, así que el Administrador del 
 
 `HistorialMedicoService` arma los antecedentes a partir de las visitas registradas, en el momento en que se piden. No hay una tabla de historial que pueda quedar desactualizada o contradecir a la visita de la que salió (sección 3.4 del diseño). El servicio no decide quién puede verlos: eso lo hace quien lo llama, para que HU-02 lo reutilice con sus propios permisos.
 
-## 25. Qué falta
+## 25. El diagnóstico y el cierre de la visita (HU-09)
+
+### Quién escribe y cuándo
+
+`PUT /api/visitas/{id}/diagnostico` y `PATCH /api/visitas/{id}/finalizar` están bajo `@SoloMedicoEspecialista`, como el resto de la visita. Además, el servicio exige que la visita sea de quien la pide (403 para otro especialista) y que siga activa: una visita finalizada responde 409 y ya no acepta cambios. `VisitaMedicaTest` lo comprueba y suma los dos endpoints al barrido de los seis roles, con el Administrador del Asilo entre ellos (RNF-03).
+
+### Un cierre, un cargo
+
+Finalizar lee la visita con bloqueo (`PESSIMISTIC_WRITE`) hasta el final de la transacción. Dos "Finalizar" simultáneos se hacen uno tras otro, y el segundo ya la encuentra finalizada y recibe 409, así que la consulta no se cobra dos veces. El cargo se registra dentro de la misma transacción que el cierre (`CargoService` exige una transacción en curso): si algo falla, no queda una visita finalizada sin cargo ni un cargo de una visita abierta.
+
+### Ningún cargo nace vacío
+
+Decidido el 10/10: sin tarifa de consulta, la visita no se finaliza. El diagnóstico se guarda aparte y no se pierde, y el mensaje le dice al especialista que la Fundación debe definir la tarifa. Si la definen después de iniciar la visita, el cierre toma esa. Así la cuenta del familiar (HU-18) nunca suma un cargo sin monto.
+
+## 26. Qué falta
 
 Nada pendiente de HU-30, HU-31 ni HU-32. Lo que queda abierto, sin historia asignada todavía:
 
