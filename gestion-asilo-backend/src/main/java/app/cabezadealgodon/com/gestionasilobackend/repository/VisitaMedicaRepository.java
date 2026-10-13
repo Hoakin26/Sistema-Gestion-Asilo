@@ -6,11 +6,13 @@ import java.util.Optional;
 
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import app.cabezadealgodon.com.gestionasilobackend.models.EstadoVisita;
 import app.cabezadealgodon.com.gestionasilobackend.models.VisitaMedica;
+import jakarta.persistence.LockModeType;
 
 /**
  * YS-98. Las consultas de detalle traen de una vez todo lo que muestra la
@@ -27,6 +29,15 @@ public interface VisitaMedicaRepository extends JpaRepository<VisitaMedica, Long
     Optional<VisitaMedica> conDetalle(@Param("id") Long id);
 
     boolean existsByCitaId(Long citaId);
+
+    /**
+     * YS-105. Lee la visita bloqueándola hasta el final de la transacción: dos
+     * "Finalizar" a la vez se hacen uno tras otro, y el segundo ya la ve
+     * finalizada. Sin esto, cada uno generaría su propio cargo de consulta.
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select v from VisitaMedica v where v.id = :id")
+    Optional<VisitaMedica> bloquear(@Param("id") Long id);
 
     /** Solo los dos ids: es todo lo que la agenda necesita saber de la visita. */
     interface VisitaDeCita {

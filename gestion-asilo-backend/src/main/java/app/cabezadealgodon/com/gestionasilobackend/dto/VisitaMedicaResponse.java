@@ -12,14 +12,16 @@ import app.cabezadealgodon.com.gestionasilobackend.models.EstadoVisita;
  *
  * <p>
  * No lleva el costo de la consulta: es un dato para la cuenta del familiar y
- * para la fundación, no para quien atiende. El diagnóstico y las
- * observaciones se agregan con HU-09.
+ * para la fundación, no para quien atiende. HU-09 (YS-105) le agrega el
+ * diagnóstico y las observaciones.
  */
 public record VisitaMedicaResponse(
         Long id,
         EstadoVisita estado,
         LocalDateTime fechaInicio,
         LocalDateTime fechaCierre,
+        String diagnostico,
+        String observaciones,
         Long citaId,
         LocalDateTime fechaCita,
         Long solicitudId,
