@@ -6,6 +6,7 @@ import { Alert } from "../ui/Alert";
 import { StatusBadge } from "../ui/StatusBadge";
 import { Barra } from "../ui/TablaSkeleton";
 import { Timeline, TimelineItem } from "../ui/Timeline";
+import { ListaMedicamentos } from "./RecetaVisita";
 
 const TARJETA = "rounded-tarjeta border border-divisor bg-superficie p-4 shadow-tarjeta sm:p-6";
 
@@ -46,14 +47,35 @@ function VisitaAnterior({ visita }) {
   );
 }
 
+/** YS-109. Una receta de una visita anterior: cuándo, quién y qué recetó. */
+function RecetaAnterior({ receta }) {
+  return (
+    <TimelineItem>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <p className="font-semibold text-texto tabular-nums slashed-zero">
+          {formatearFechaHora(receta.fechaEmision)}
+        </p>
+        <StatusBadge estado={receta.estado} />
+      </div>
+      <p className="text-auxiliar text-texto-secundario tabular-nums slashed-zero">
+        {receta.especialidad.nombre} · {receta.especialista.nombreCompleto} · {receta.numeroSolicitud}
+      </p>
+      <ListaMedicamentos medicamentos={receta.medicamentos} />
+      {receta.indicacionesGenerales && (
+        <p className="text-auxiliar text-texto-secundario">{receta.indicacionesGenerales}</p>
+      )}
+    </TimelineItem>
+  );
+}
+
 /**
  * HU-08 (YS-103). Los antecedentes del paciente dentro de la visita: sus
  * visitas anteriores con el diagnóstico, y los medicamentos y exámenes que se
  * le ordenaron antes, del más reciente al más antiguo.
  *
  * Decidido el 09/10: HU-08 va antes que la receta (HU-10) y los exámenes
- * (HU-11). Sus apartados ya están aquí y dicen que no hay registros; cada una
- * de esas historias los llena cuando el backend empiece a mandarlos.
+ * (HU-11). Sus apartados ya están aquí; HU-10 llenó el de los medicamentos
+ * recetados, y el de los exámenes espera a HU-11.
  *
  * - `activa`: los antecedentes solo se consultan durante la visita activa
  *   (criterio de HU-08). Con la visita finalizada no se piden.
@@ -109,10 +131,18 @@ export function Antecedentes({ activa, historial, error }) {
 
           <div>
             <h3 className="font-semibold text-texto">Medicamentos recetados</h3>
-            {recetas.length === 0 && (
+            {recetas.length === 0 ? (
               <p className="mt-2 text-texto-secundario">
                 No hay medicamentos recetados en visitas anteriores.
               </p>
+            ) : (
+              <div className="mt-4">
+                <Timeline etiqueta="Recetas anteriores, de la más reciente a la más antigua">
+                  {recetas.map((receta) => (
+                    <RecetaAnterior key={receta.id} receta={receta} />
+                  ))}
+                </Timeline>
+              </div>
             )}
           </div>
 
