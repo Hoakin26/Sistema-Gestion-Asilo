@@ -78,6 +78,12 @@ La primera vez descarga las dependencias y tarda unos minutos. Está listo cuand
 
 Deje esta terminal abierta.
 
+Si el arranque falla con `Unresolved compilation problems`, el editor (la extensión de Java de VS Code) compiló clases con errores en `target/classes` y el backend las está usando. Arranque limpiando antes lo compilado:
+
+```bash
+./mvnw clean spring-boot:run
+```
+
 ### 4. Frontend
 
 En otra terminal, desde la raíz del repositorio:
