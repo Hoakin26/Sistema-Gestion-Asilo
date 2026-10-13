@@ -6,6 +6,7 @@ import { FichaMedicaDetalle } from "../components/internos/FichaMedicaDetalle";
 import { StatusBadge } from "../components/ui/StatusBadge";
 import { Barra } from "../components/ui/TablaSkeleton";
 import { Antecedentes } from "../components/visitas/Antecedentes";
+import { DiagnosticoVisita } from "../components/visitas/DiagnosticoVisita";
 import { AppLayout } from "../layouts/AppLayout";
 import { mensajeDeError } from "../services/api";
 import { obtenerFichaMedica } from "../services/internoService";
@@ -57,8 +58,8 @@ function TarjetaCargando({ etiqueta }) {
 
 /**
  * HU-07 (YS-100). La pantalla de una visita médica: a quién se atiende, por
- * qué lo refirieron (criterio de HU-07) y cuándo se inició. HU-09 a HU-11 le
- * agregan el diagnóstico, la receta y los exámenes.
+ * qué lo refirieron (criterio de HU-07) y cuándo se inició. HU-09 (YS-106) le
+ * agrega el diagnóstico y el cierre; HU-10 y HU-11, la receta y los exámenes.
  *
  * El motivo va primero y a lo ancho: es lo que el especialista necesita leer
  * antes de empezar la consulta. HU-08 (YS-103): debajo, la ficha médica y los
@@ -155,6 +156,12 @@ export function VisitaMedicaPage() {
                 </dl>
               </section>
 
+              {/* Justo debajo del motivo: es lo que el especialista escribe
+                  mientras lee por qué se lo refirieron. Al guardar o
+                  finalizar, la visita de la pantalla se reemplaza por la que
+                  devolvió el backend. */}
+              <DiagnosticoVisita key={visita.id} visita={visita} alActualizar={setVisita} />
+
               <div className="grid items-start gap-6 lg:grid-cols-2">
                 {ficha || errorFicha ? (
                   <FichaMedicaDetalle ficha={ficha} error={errorFicha} />
@@ -176,6 +183,11 @@ export function VisitaMedicaPage() {
                   <Dato etiqueta="Inicio de la visita">
                     <span className="tabular-nums slashed-zero">{formatearFechaHora(visita.fechaInicio)}</span>
                   </Dato>
+                  {visita.fechaCierre && (
+                    <Dato etiqueta="Fin de la visita">
+                      <span className="tabular-nums slashed-zero">{formatearFechaHora(visita.fechaCierre)}</span>
+                    </Dato>
+                  )}
                   <Dato etiqueta="Cita programada">
                     <span className="block tabular-nums first-letter:uppercase">
                       {formatearCita(visita.fechaCita)}

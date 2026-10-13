@@ -1,21 +1,25 @@
 package app.cabezadealgodon.com.gestionasilobackend.services;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import app.cabezadealgodon.com.gestionasilobackend.dto.CitaAgendaResponse;
+import app.cabezadealgodon.com.gestionasilobackend.dto.DiagnosticoRequest;
 import app.cabezadealgodon.com.gestionasilobackend.dto.EspecialidadResponse;
 import app.cabezadealgodon.com.gestionasilobackend.dto.HistorialMedicoResponse;
 import app.cabezadealgodon.com.gestionasilobackend.dto.ResumenPersona;
 import app.cabezadealgodon.com.gestionasilobackend.dto.VisitaMedicaResponse;
+import app.cabezadealgodon.com.gestionasilobackend.exception.CampoInvalidoException;
 import app.cabezadealgodon.com.gestionasilobackend.exception.ConflictoException;
 import app.cabezadealgodon.com.gestionasilobackend.exception.OperacionNoPermitidaException;
 import app.cabezadealgodon.com.gestionasilobackend.exception.RecursoNoEncontradoException;
@@ -25,6 +29,7 @@ import app.cabezadealgodon.com.gestionasilobackend.models.EstadoSolicitud;
 import app.cabezadealgodon.com.gestionasilobackend.models.EstadoVisita;
 import app.cabezadealgodon.com.gestionasilobackend.models.Interno;
 import app.cabezadealgodon.com.gestionasilobackend.models.SolicitudReferencia;
+import app.cabezadealgodon.com.gestionasilobackend.models.TipoServicio;
 import app.cabezadealgodon.com.gestionasilobackend.models.Usuario;
 import app.cabezadealgodon.com.gestionasilobackend.models.VisitaMedica;
 import app.cabezadealgodon.com.gestionasilobackend.repository.CitaRepository;
@@ -33,8 +38,8 @@ import app.cabezadealgodon.com.gestionasilobackend.repository.VisitaMedicaReposi
 
 /**
  * HU-07 (YS-99). La agenda del especialista y el inicio de la visita médica
- * (RF-06, CU-003). HU-08 a HU-11 agregan aquí el historial, el diagnóstico,
- * la receta y los exámenes.
+ * (RF-06, CU-003). HU-08 agrega el historial y HU-09 el diagnóstico y el
+ * cierre; HU-10 y HU-11 agregarán la receta y los exámenes.
  *
  * <p>
  * Toda operación recibe la cuenta del especialista que la pide: una cita y una
@@ -55,13 +60,16 @@ public class VisitaMedicaService {
     private final VisitaMedicaRepository visitaRepository;
     private final MedicoEspecialistaRepository especialistaRepository;
     private final HistorialMedicoService historialService;
+    private final CargoService cargoService;
 
     public VisitaMedicaService(CitaRepository citaRepository, VisitaMedicaRepository visitaRepository,
-            MedicoEspecialistaRepository especialistaRepository, HistorialMedicoService historialService) {
+            MedicoEspecialistaRepository especialistaRepository, HistorialMedicoService historialService,
+            CargoService cargoService) {
         this.citaRepository = citaRepository;
         this.visitaRepository = visitaRepository;
         this.especialistaRepository = especialistaRepository;
         this.historialService = historialService;
+        this.cargoService = cargoService;
     }
 
     /**
@@ -184,7 +192,82 @@ public class VisitaMedicaService {
         return historialService.de(visita.getInterno().getId(), visita.getId());
     }
 
+    /**
+     * YS-105. Guarda el diagnóstico y las observaciones de la consulta (HU-09).
+     * Se puede guardar las veces que haga falta mientras la visita está
+     * activa; finalizada, ya no admite cambios.
+     */
+    @Transactional
+    public VisitaMedicaResponse registrarDiagnostico(Long visitaId, DiagnosticoRequest request, Usuario medico) {
+        VisitaMedica visita = activaDe(visitaRepository.bloquear(visitaId), visitaId, medico);
+        visita.setDiagnostico(request.diagnostico().trim());
+        visita.setObservaciones(opcional(request.observaciones()));
+        return mapear(visita);
+    }
+
+    /**
+     * YS-105. Cierra la visita (HU-09, CU-003 E.1). En este orden:
+     * <ol>
+     * <li>es de este especialista (403) y sigue activa (409);</li>
+     * <li>tiene diagnóstico (400, en el campo): no se finaliza sin él;</li>
+     * <li>hay tarifa de consulta (409): la que se copió al iniciar o, si la
+     * especialidad no tenía, la que la Fundación haya definido después.
+     * Decidido el 10/10: sin tarifa no se finaliza, para que ningún cargo
+     * nazca vacío. El diagnóstico ya guardado no se pierde.</li>
+     * </ol>
+     * Al finalizar, la solicitud pasa a Atendida (DE-01) y se registra el
+     * cargo de la consulta para la cuenta del familiar (HU-18).
+     *
+     * <p>
+     * La visita se lee bloqueada: dos "Finalizar" a la vez no generan dos
+     * cargos, porque el segundo ya la encuentra finalizada.
+     */
+    @Transactional
+    public VisitaMedicaResponse finalizar(Long visitaId, Usuario medico) {
+        VisitaMedica visita = activaDe(visitaRepository.bloquear(visitaId), visitaId, medico);
+        if (visita.getDiagnostico() == null || visita.getDiagnostico().isBlank()) {
+            throw new CampoInvalidoException("diagnostico", "Registre el diagnóstico antes de finalizar la visita");
+        }
+
+        SolicitudReferencia solicitud = visita.getCita().getSolicitud();
+        Especialidad especialidad = solicitud.getEspecialidad();
+        BigDecimal costo = visita.getCostoConsulta() != null
+                ? visita.getCostoConsulta()
+                : especialidad.getTarifaConsulta();
+        if (costo == null) {
+            throw new ConflictoException("La consulta de " + especialidad.getNombre()
+                    + " todavía no tiene tarifa, así que la visita no se puede finalizar. "
+                    + "Pídale a la Fundación que la defina en «Médicos y disponibilidad». "
+                    + "El diagnóstico ya quedó guardado.");
+        }
+
+        visita.setCostoConsulta(costo);
+        visita.setEstado(EstadoVisita.FINALIZADA);
+        visita.setFechaCierre(LocalDateTime.now());
+        solicitud.cambiarEstado(EstadoSolicitud.ATENDIDA);
+        cargoService.registrar(visita, TipoServicio.CONSULTA, costo);
+        return mapear(visita);
+    }
+
     // ---- apoyo ----
+
+    /** La visita, si es de este especialista y sigue activa: para todo lo que la modifica. */
+    private VisitaMedica activaDe(Optional<VisitaMedica> encontrada, Long visitaId, Usuario medico) {
+        VisitaMedica visita = encontrada
+                .orElseThrow(() -> new RecursoNoEncontradoException("No existe una visita con id " + visitaId));
+        if (!visita.getEspecialista().getUsuario().getId().equals(medico.getId())) {
+            throw new OperacionNoPermitidaException("Esta visita es de otro especialista");
+        }
+        if (visita.getEstado() != EstadoVisita.ACTIVA) {
+            throw new ConflictoException("La visita ya está finalizada y no admite cambios");
+        }
+        return visita;
+    }
+
+    /** Un texto opcional vacío se guarda como null: "" no es "sin observaciones". */
+    private static String opcional(String texto) {
+        return texto == null || texto.isBlank() ? null : texto.trim();
+    }
 
     private VisitaMedicaResponse mapear(VisitaMedica visita) {
         Cita cita = visita.getCita();
@@ -195,6 +278,8 @@ public class VisitaMedicaService {
                 visita.getEstado(),
                 visita.getFechaInicio(),
                 visita.getFechaCierre(),
+                visita.getDiagnostico(),
+                visita.getObservaciones(),
                 cita.getId(),
                 cita.getFechaHora(),
                 solicitud.getId(),
