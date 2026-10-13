@@ -3,6 +3,7 @@ package app.cabezadealgodon.com.gestionasilobackend;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -35,13 +36,17 @@ import org.springframework.test.web.servlet.ResultActions;
 
 import com.jayway.jsonpath.JsonPath;
 
+import app.cabezadealgodon.com.gestionasilobackend.models.CargoServicio;
 import app.cabezadealgodon.com.gestionasilobackend.models.Cita;
+import app.cabezadealgodon.com.gestionasilobackend.models.Especialidad;
 import app.cabezadealgodon.com.gestionasilobackend.models.EstadoSolicitud;
 import app.cabezadealgodon.com.gestionasilobackend.models.EstadoVisita;
 import app.cabezadealgodon.com.gestionasilobackend.models.RolNombre;
 import app.cabezadealgodon.com.gestionasilobackend.models.SolicitudReferencia;
+import app.cabezadealgodon.com.gestionasilobackend.models.TipoServicio;
 import app.cabezadealgodon.com.gestionasilobackend.models.Usuario;
 import app.cabezadealgodon.com.gestionasilobackend.models.VisitaMedica;
+import app.cabezadealgodon.com.gestionasilobackend.repository.CargoServicioRepository;
 import app.cabezadealgodon.com.gestionasilobackend.repository.CitaRepository;
 import app.cabezadealgodon.com.gestionasilobackend.repository.EspecialidadRepository;
 import app.cabezadealgodon.com.gestionasilobackend.repository.RolRepository;
@@ -56,6 +61,8 @@ import tools.jackson.databind.ObjectMapper;
  * y desde el día de la cita; que la solicitud pase a En Atención y que la
  * visita copie la tarifa de la especialidad (YS-169). Desde HU-08 (YS-104),
  * también que los antecedentes del paciente solo se vean con la visita activa.
+ * Desde HU-09 (YS-107), el diagnóstico obligatorio y el cierre de la visita
+ * con su cargo de consulta.
  *
  * <p>
  * La asignación solo acepta horas futuras, así que las citas "de hoy" se
@@ -96,6 +103,9 @@ class VisitaMedicaTest extends PruebaConBaseDeDatos {
 
     @Autowired
     private VisitaMedicaRepository visitaRepository;
+
+    @Autowired
+    private CargoServicioRepository cargoRepository;
 
     @Autowired
     private PasswordEncoder passwordEncoder;
@@ -269,6 +279,146 @@ class VisitaMedicaTest extends PruebaConBaseDeDatos {
                 .andExpect(status().isForbidden());
         mvc.perform(get("/api/visitas/{id}/historial", 1).header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
                 .andExpect(status().isForbidden());
+        mvc.perform(put("/api/visitas/{id}/diagnostico", 1).header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON).content("{\"diagnostico\": \"x\"}"))
+                .andExpect(status().isForbidden());
+        mvc.perform(patch("/api/visitas/{id}/finalizar", 1).header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isForbidden());
+    }
+
+    // ---- YS-107: el diagnóstico y el cierre de la visita (HU-09) ----
+
+    @Test
+    @DisplayName("El especialista guarda el diagnóstico y las observaciones, y puede corregirlos mientras la visita sigue activa")
+    void guardaElDiagnostico() throws Exception {
+        Especialista especialista = nuevoEspecialista(0);
+        long visita = idDe(iniciar(citaEl(especialista, HOY.atTime(8, 0)).getId(), especialista));
+
+        diagnosticar(visita, especialista, "Hipertensión", "Control en 15 días")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.diagnostico").value("Hipertensión"))
+                .andExpect(jsonPath("$.observaciones").value("Control en 15 días"))
+                .andExpect(jsonPath("$.estado").value("ACTIVA"));
+
+        // Se corrige: los espacios sobrantes se quitan y unas observaciones en
+        // blanco quedan vacías, no como "   ".
+        diagnosticar(visita, especialista, "  Hipertensión arterial estadio 1  ", "   ")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.diagnostico").value("Hipertensión arterial estadio 1"))
+                .andExpect(jsonPath("$.observaciones").isEmpty());
+    }
+
+    @Test
+    @DisplayName("Sin diagnóstico: 400 en el campo, y la visita no se puede finalizar")
+    void sinDiagnosticoNoSeFinaliza() throws Exception {
+        tarifaDe(6, "410.00");
+        Especialista especialista = nuevoEspecialista(6);
+        long visita = idDe(iniciar(citaEl(especialista, HOY.atTime(8, 30)).getId(), especialista));
+
+        diagnosticar(visita, especialista, "   ", null)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errores.diagnostico").value("El diagnóstico es obligatorio"));
+        finalizar(visita, especialista)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errores.diagnostico").value("Registre el diagnóstico antes de finalizar la visita"));
+
+        assertThat(visitaRepository.findById(visita).orElseThrow().getEstado()).isEqualTo(EstadoVisita.ACTIVA);
+        assertThat(cargoRepository.findByVisitaIdOrderByIdAsc(visita)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("Finalizar pasa la solicitud a Atendida y registra el cargo de la consulta con la tarifa de la especialidad")
+    void finalizaLaVisita() throws Exception {
+        tarifaDe(6, "410.00");
+        Especialista especialista = nuevoEspecialista(6);
+        Cita cita = citaEl(especialista, HOY.atTime(9, 0));
+        long visita = idDe(iniciar(cita.getId(), especialista));
+        diagnosticar(visita, especialista, "Gonartrosis bilateral", null).andExpect(status().isOk());
+
+        finalizar(visita, especialista)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.estado").value("FINALIZADA"))
+                .andExpect(jsonPath("$.estadoSolicitud").value("ATENDIDA"))
+                .andExpect(jsonPath("$.fechaCierre").isNotEmpty())
+                .andExpect(jsonPath("$.diagnostico").value("Gonartrosis bilateral"));
+
+        assertThat(estadoDe(cita)).isEqualTo(EstadoSolicitud.ATENDIDA);
+        List<CargoServicio> cargos = cargoRepository.findByVisitaIdOrderByIdAsc(visita);
+        assertThat(cargos).hasSize(1);
+        CargoServicio cargo = cargos.get(0);
+        assertThat(cargo.getTipo()).isEqualTo(TipoServicio.CONSULTA);
+        assertThat(cargo.getMontoOriginal()).isEqualByComparingTo("410.00");
+        assertThat(cargo.getDescuento()).isEqualByComparingTo("0");
+        assertThat(cargo.getMontoNeto()).isEqualByComparingTo("410.00");
+        assertThat(cargo.getInterno().getId()).isEqualTo(cita.getSolicitud().getInterno().getId());
+        assertThat(cargo.getFecha()).isEqualTo(HOY);
+    }
+
+    @Test
+    @DisplayName("Una visita finalizada ya no acepta cambios: 409, y no se genera un segundo cargo")
+    void finalizadaNoAceptaCambios() throws Exception {
+        tarifaDe(6, "410.00");
+        Especialista especialista = nuevoEspecialista(6);
+        long visita = idDe(iniciar(citaEl(especialista, HOY.atTime(9, 30)).getId(), especialista));
+        diagnosticar(visita, especialista, "Lumbalgia mecánica", null).andExpect(status().isOk());
+        finalizar(visita, especialista).andExpect(status().isOk());
+
+        diagnosticar(visita, especialista, "Otro diagnóstico", null)
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.mensaje").value("La visita ya está finalizada y no admite cambios"));
+        finalizar(visita, especialista).andExpect(status().isConflict());
+
+        assertThat(cargoRepository.findByVisitaIdOrderByIdAsc(visita)).hasSize(1);
+        assertThat(visitaRepository.findById(visita).orElseThrow().getDiagnostico()).isEqualTo("Lumbalgia mecánica");
+    }
+
+    @Test
+    @DisplayName("Otro especialista no registra el diagnóstico ni finaliza una visita ajena: 403")
+    void otroEspecialistaNoDiagnostica() throws Exception {
+        Especialista especialista = nuevoEspecialista(0);
+        Especialista otro = nuevoEspecialista(0);
+        long visita = idDe(iniciar(citaEl(especialista, HOY.atTime(10, 0)).getId(), especialista));
+
+        diagnosticar(visita, otro, "Intento ajeno", null).andExpect(status().isForbidden());
+        finalizar(visita, otro).andExpect(status().isForbidden());
+
+        assertThat(visitaRepository.findById(visita).orElseThrow().getDiagnostico()).isNull();
+    }
+
+    /** Decidido el 10/10: sin tarifa no se finaliza, pero el diagnóstico no se pierde. */
+    @Test
+    @DisplayName("Sin tarifa de consulta la visita no se finaliza (409), pero el diagnóstico queda guardado")
+    void sinTarifaNoSeFinaliza() throws Exception {
+        sinTarifa(7);
+        Especialista especialista = nuevoEspecialista(7);
+        long visita = idDe(iniciar(citaEl(especialista, HOY.atTime(10, 30)).getId(), especialista));
+        diagnosticar(visita, especialista, "Hiperplasia prostática", null).andExpect(status().isOk());
+
+        finalizar(visita, especialista)
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.mensaje").value(containsString("todavía no tiene tarifa")));
+
+        VisitaMedica guardada = visitaRepository.findById(visita).orElseThrow();
+        assertThat(guardada.getEstado()).isEqualTo(EstadoVisita.ACTIVA);
+        assertThat(guardada.getDiagnostico()).isEqualTo("Hiperplasia prostática");
+        assertThat(cargoRepository.findByVisitaIdOrderByIdAsc(visita)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("Si la Fundación define la tarifa después de iniciar la visita, el cargo usa esa")
+    void tarifaDefinidaDespuesDeIniciar() throws Exception {
+        sinTarifa(7);
+        Especialista especialista = nuevoEspecialista(7);
+        long visita = idDe(iniciar(citaEl(especialista, HOY.atTime(11, 0)).getId(), especialista));
+        diagnosticar(visita, especialista, "Infección urinaria", null).andExpect(status().isOk());
+
+        tarifaDe(7, "180.00");
+        finalizar(visita, especialista).andExpect(status().isOk());
+
+        assertThat(cargoRepository.findByVisitaIdOrderByIdAsc(visita).get(0).getMontoOriginal())
+                .isEqualByComparingTo("180.00");
+        assertThat(visitaRepository.findById(visita).orElseThrow().getCostoConsulta())
+                .isEqualByComparingTo("180.00");
     }
 
     // ---- YS-104: los antecedentes durante la visita (HU-08) ----
@@ -407,6 +557,35 @@ class VisitaMedicaTest extends PruebaConBaseDeDatos {
         visita.setDiagnostico(diagnostico);
         visita.setEstado(EstadoVisita.FINALIZADA);
         visitaRepository.save(visita);
+    }
+
+    private ResultActions diagnosticar(long visitaId, Especialista especialista, String diagnostico,
+            String observaciones) throws Exception {
+        Map<String, Object> cuerpo = new LinkedHashMap<>();
+        cuerpo.put("diagnostico", diagnostico);
+        cuerpo.put("observaciones", observaciones);
+        return mvc.perform(put("/api/visitas/{id}/diagnostico", visitaId)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(especialista))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json.writeValueAsString(cuerpo)));
+    }
+
+    private ResultActions finalizar(long visitaId, Especialista especialista) throws Exception {
+        return mvc.perform(patch("/api/visitas/{id}/finalizar", visitaId)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(especialista)));
+    }
+
+    /** Fija la tarifa directo en la base: la API de tarifas ya tiene sus propias pruebas. */
+    private void tarifaDe(int especialidad, String monto) {
+        Especialidad encontrada = especialidadRepository.findById(idEspecialidad(especialidad)).orElseThrow();
+        encontrada.setTarifaConsulta(new BigDecimal(monto));
+        especialidadRepository.save(encontrada);
+    }
+
+    private void sinTarifa(int especialidad) {
+        Especialidad encontrada = especialidadRepository.findById(idEspecialidad(especialidad)).orElseThrow();
+        encontrada.setTarifaConsulta(null);
+        especialidadRepository.save(encontrada);
     }
 
     private ResultActions cambiarTarifa(Long especialidadId, String monto) throws Exception {

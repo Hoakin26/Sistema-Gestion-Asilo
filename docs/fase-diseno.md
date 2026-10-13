@@ -1907,10 +1907,10 @@ classDiagram
 | GET | `/api/visitas?estado=` | ME | — | `List<VisitaMedicaResponse>`: las del especialista, la más reciente primero | HU-07 |
 | GET | `/api/visitas/{id}` | ME (el de la visita) | — | `VisitaMedicaResponse` | HU-07 |
 | GET | `/api/visitas/{id}/historial` | ME (visita activa propia) | — | `HistorialMedicoResponse`: las visitas anteriores del interno con su diagnóstico, sin la visita en curso; 403 con la visita finalizada o de otro especialista. HU-10 y HU-11 le agregan las recetas y los exámenes | HU-08 |
-| PUT | `/api/visitas/{id}/diagnostico` | ME | `DiagnosticoRequest` | `VisitaMedicaResponse` | HU-09 |
+| PUT | `/api/visitas/{id}/diagnostico` | ME (el de la visita) | `DiagnosticoRequest` (diagnóstico obligatorio, observaciones opcionales) | `VisitaMedicaResponse`; 409 con la visita finalizada | HU-09 |
 | POST | `/api/visitas/{id}/receta` | ME | `RecetaRequest` | `RecetaResponse` | HU-10 |
 | POST | `/api/visitas/{id}/ordenes-laboratorio` | ME | `OrdenesLaboratorioRequest` | `List<OrdenLaboratorioResponse>` | HU-11 |
-| PATCH | `/api/visitas/{id}/finalizar` | ME | — | `VisitaMedicaResponse` | HU-09 |
+| PATCH | `/api/visitas/{id}/finalizar` | ME (el de la visita) | — | `VisitaMedicaResponse`; la solicitud pasa a `ATENDIDA` y se registra el `CargoServicio` de la consulta. 400 sin diagnóstico; 409 si ya está finalizada o si la especialidad no tiene tarifa | HU-09 |
 | GET | `/api/ordenes-laboratorio?estado=&paciente=` | LAB | — | `Page<OrdenLaboratorioResponse>` | HU-12 |
 | PATCH | `/api/ordenes-laboratorio/{id}/iniciar` | LAB | — | `OrdenLaboratorioResponse` | DE-02 |
 | POST | `/api/ordenes-laboratorio/{id}/resultado` | LAB | `multipart`: `ResultadoLaboratorioRequest` y archivo opcional | `OrdenLaboratorioResponse` | HU-13, HU-14 |
