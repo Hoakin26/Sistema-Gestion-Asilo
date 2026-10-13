@@ -1908,7 +1908,9 @@ classDiagram
 | GET | `/api/visitas/{id}` | ME (el de la visita) | — | `VisitaMedicaResponse` | HU-07 |
 | GET | `/api/visitas/{id}/historial` | ME (visita activa propia) | — | `HistorialMedicoResponse`: las visitas anteriores del interno con su diagnóstico, sin la visita en curso; 403 con la visita finalizada o de otro especialista. HU-10 y HU-11 le agregan las recetas y los exámenes | HU-08 |
 | PUT | `/api/visitas/{id}/diagnostico` | ME (el de la visita) | `DiagnosticoRequest` (diagnóstico obligatorio, observaciones opcionales) | `VisitaMedicaResponse`; 409 con la visita finalizada | HU-09 |
-| POST | `/api/visitas/{id}/receta` | ME | `RecetaRequest` | `RecetaResponse` | HU-10 |
+| POST | `/api/visitas/{id}/receta` | ME (el de la visita) | `RecetaRequest` (medicamentos con nombre, dosis, cantidad y tiempo o forma de aplicación, todos obligatorios; indicaciones generales opcionales) | `RecetaResponse` (201), en `PENDIENTE_DESPACHO`; 400 señalando la fila (`medicamentos[1].dosis`); 409 si la visita ya tiene receta o está finalizada | HU-10 |
+| PUT | `/api/visitas/{id}/receta` | ME (el de la visita) | `RecetaRequest` | `RecetaResponse`; reemplaza los medicamentos mientras la visita siga activa y la receta, pendiente de despacho (409 si no) | HU-10 |
+| GET | `/api/visitas/{id}/receta` | ME (el de la visita) | — | `RecetaResponse`; 404 si la visita no tiene receta | HU-10 |
 | POST | `/api/visitas/{id}/ordenes-laboratorio` | ME | `OrdenesLaboratorioRequest` | `List<OrdenLaboratorioResponse>` | HU-11 |
 | PATCH | `/api/visitas/{id}/finalizar` | ME (el de la visita) | — | `VisitaMedicaResponse`; la solicitud pasa a `ATENDIDA` y se registra el `CargoServicio` de la consulta. 400 sin diagnóstico; 409 si ya está finalizada o si la especialidad no tiene tarifa | HU-09 |
 | GET | `/api/ordenes-laboratorio?estado=&paciente=` | LAB | — | `Page<OrdenLaboratorioResponse>` | HU-12 |
