@@ -149,17 +149,26 @@ export function MiAgendaPage() {
           <p className="mt-2 text-texto-secundario first-letter:uppercase">{formatearDia(fecha)}</p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        {/* Los cuatro controles van siempre en una fila: separados, la
+            flecha "anterior" quedaba lejos de la "siguiente" y no se leían
+            como un mismo control. */}
+        <div className="flex items-center gap-2">
           <IconButton etiqueta="Día anterior" onClick={() => irA(sumarDias(fecha, -1))}>
             <ChevronLeft aria-hidden="true" size={24} />
           </IconButton>
-          <Input
-            type="date"
-            value={fecha}
-            onChange={(evento) => irA(evento.target.value)}
-            aria-label="Fecha de la agenda"
-            className="w-auto tabular-nums"
-          />
+          {/* El ancho va en un contenedor y no en el campo: el Input trae
+              w-full, y un w-auto o w-44 sobre él pierde contra esa clase en el
+              CSS generado. El campo se estiraba a todo el ancho y empujaba las
+              flechas a otro renglón. */}
+          <div className="w-44">
+            <Input
+              type="date"
+              value={fecha}
+              onChange={(evento) => irA(evento.target.value)}
+              aria-label="Fecha de la agenda"
+              className="tabular-nums"
+            />
+          </div>
           <IconButton etiqueta="Día siguiente" onClick={() => irA(sumarDias(fecha, 1))}>
             <ChevronRight aria-hidden="true" size={24} />
           </IconButton>
