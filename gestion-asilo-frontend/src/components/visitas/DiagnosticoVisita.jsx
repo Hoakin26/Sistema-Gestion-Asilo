@@ -44,8 +44,9 @@ function DiagnosticoRegistrado({ visita, idTitulo }) {
         {visita.observaciones ?? "Sin observaciones."}
       </p>
 
+      {/* Sin punto final: la hora ya termina en "a. m." o "p. m.". */}
       <p className="mt-6 text-auxiliar text-texto-secundario tabular-nums slashed-zero">
-        Visita finalizada el {formatearFechaHora(visita.fechaCierre)}.
+        Visita finalizada el {formatearFechaHora(visita.fechaCierre)}
       </p>
     </section>
   );

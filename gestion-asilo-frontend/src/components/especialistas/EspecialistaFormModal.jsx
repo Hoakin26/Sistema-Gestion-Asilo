@@ -120,30 +120,36 @@ function FilaDia({ dia, valor, error, invalidoGrupo, idErrorGrupo, alMarcar, alC
         </label>
 
         {valor.atiende ? (
+          // El ancho de cada hora va en su contenedor: un w-36 sobre el
+          // Input pierde contra su w-full, y cada campo ocupaba la fila entera.
           <div className="flex flex-1 flex-wrap items-center gap-2">
-            <Input
-              type="time"
-              step={300}
-              value={valor.horaInicio}
-              onChange={(evento) => alCambiarHora("horaInicio", evento.target.value)}
-              aria-label={`Hora de inicio del ${nombre}`}
-              invalido={Boolean(error)}
-              aria-invalid={Boolean(error)}
-              aria-describedby={error ? idError : undefined}
-              className="w-36 tabular-nums"
-            />
+            <div className="w-36">
+              <Input
+                type="time"
+                step={300}
+                value={valor.horaInicio}
+                onChange={(evento) => alCambiarHora("horaInicio", evento.target.value)}
+                aria-label={`Hora de inicio del ${nombre}`}
+                invalido={Boolean(error)}
+                aria-invalid={Boolean(error)}
+                aria-describedby={error ? idError : undefined}
+                className="tabular-nums"
+              />
+            </div>
             <span className="text-texto-secundario">a</span>
-            <Input
-              type="time"
-              step={300}
-              value={valor.horaFin}
-              onChange={(evento) => alCambiarHora("horaFin", evento.target.value)}
-              aria-label={`Hora de fin del ${nombre}`}
-              invalido={Boolean(error)}
-              aria-invalid={Boolean(error)}
-              aria-describedby={error ? idError : undefined}
-              className="w-36 tabular-nums"
-            />
+            <div className="w-36">
+              <Input
+                type="time"
+                step={300}
+                value={valor.horaFin}
+                onChange={(evento) => alCambiarHora("horaFin", evento.target.value)}
+                aria-label={`Hora de fin del ${nombre}`}
+                invalido={Boolean(error)}
+                aria-invalid={Boolean(error)}
+                aria-describedby={error ? idError : undefined}
+                className="tabular-nums"
+              />
+            </div>
           </div>
         ) : (
           <span className="text-texto-secundario">No atiende</span>
