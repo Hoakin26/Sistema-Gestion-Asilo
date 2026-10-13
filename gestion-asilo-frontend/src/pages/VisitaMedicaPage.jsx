@@ -7,10 +7,11 @@ import { StatusBadge } from "../components/ui/StatusBadge";
 import { Barra } from "../components/ui/TablaSkeleton";
 import { Antecedentes } from "../components/visitas/Antecedentes";
 import { DiagnosticoVisita } from "../components/visitas/DiagnosticoVisita";
+import { RecetaVisita } from "../components/visitas/RecetaVisita";
 import { AppLayout } from "../layouts/AppLayout";
 import { mensajeDeError } from "../services/api";
 import { obtenerFichaMedica } from "../services/internoService";
-import { obtenerHistorial, obtenerVisita } from "../services/visitaService";
+import { obtenerHistorial, obtenerReceta, obtenerVisita } from "../services/visitaService";
 import { edadEnAnios, formatearCita, formatearFechaHora } from "../utils/fechas";
 
 const TARJETA = "rounded-tarjeta border border-divisor bg-superficie p-4 shadow-tarjeta sm:p-6";
@@ -59,7 +60,8 @@ function TarjetaCargando({ etiqueta }) {
 /**
  * HU-07 (YS-100). La pantalla de una visita médica: a quién se atiende, por
  * qué lo refirieron (criterio de HU-07) y cuándo se inició. HU-09 (YS-106) le
- * agrega el diagnóstico y el cierre; HU-10 y HU-11, la receta y los exámenes.
+ * agrega el diagnóstico y el cierre, HU-10 (YS-109) la receta y HU-11 los
+ * exámenes.
  *
  * El motivo va primero y a lo ancho: es lo que el especialista necesita leer
  * antes de empezar la consulta. HU-08 (YS-103): debajo, la ficha médica y los
@@ -73,6 +75,9 @@ export function VisitaMedicaPage() {
   const [errorFicha, setErrorFicha] = useState(null);
   const [historial, setHistorial] = useState(null);
   const [errorHistorial, setErrorHistorial] = useState(null);
+  // undefined mientras carga; null si la visita no tiene receta.
+  const [receta, setReceta] = useState(undefined);
+  const [errorReceta, setErrorReceta] = useState(null);
 
   useEffect(() => {
     let vigente = true;
@@ -86,8 +91,11 @@ export function VisitaMedicaPage() {
         return Promise.allSettled([
           obtenerFichaMedica(encontrada.paciente.id),
           encontrada.estado === "ACTIVA" ? obtenerHistorial(encontrada.id) : null,
-        ]).then(([deFicha, deHistorial]) => {
+          obtenerReceta(encontrada.id),
+        ]).then(([deFicha, deHistorial, deReceta]) => {
           if (!vigente) return;
+          if (deReceta.status === "fulfilled") setReceta(deReceta.value);
+          else setErrorReceta(mensajeDeError(deReceta.reason, "No se pudo cargar la receta"));
           if (deFicha.status === "fulfilled") setFicha(deFicha.value);
           else setErrorFicha(mensajeDeError(deFicha.reason, "No se pudo cargar la ficha médica"));
           if (deHistorial.status === "fulfilled") setHistorial(deHistorial.value);
@@ -161,6 +169,8 @@ export function VisitaMedicaPage() {
                   finalizar, la visita de la pantalla se reemplaza por la que
                   devolvió el backend. */}
               <DiagnosticoVisita key={visita.id} visita={visita} alActualizar={setVisita} />
+
+              <RecetaVisita visita={visita} receta={receta} error={errorReceta} alGuardar={setReceta} />
 
               <div className="grid items-start gap-6 lg:grid-cols-2">
                 {ficha || errorFicha ? (

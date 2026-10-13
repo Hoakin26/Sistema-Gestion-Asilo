@@ -41,6 +41,29 @@ export async function finalizarVisita(visitaId) {
   return data;
 }
 
+/** HU-10 (YS-108). La receta de la visita, o null si todavía no tiene. */
+export async function obtenerReceta(visitaId) {
+  try {
+    const { data } = await api.get(`/visitas/${visitaId}/receta`);
+    return data;
+  } catch (fallo) {
+    if (fallo.response?.status === 404) return null;
+    throw fallo;
+  }
+}
+
+/** HU-10 (YS-108). Una receta por visita: nace pendiente de despacho. */
+export async function registrarReceta(visitaId, receta) {
+  const { data } = await api.post(`/visitas/${visitaId}/receta`, receta);
+  return data;
+}
+
+/** HU-10 (YS-108). Se manda entera; 409 si la farmacia ya empezó a despacharla. */
+export async function corregirReceta(visitaId, receta) {
+  const { data } = await api.put(`/visitas/${visitaId}/receta`, receta);
+  return data;
+}
+
 /** HU-08 (YS-102). Los antecedentes del paciente; el backend responde 403 si la visita no está activa. */
 export async function obtenerHistorial(visitaId) {
   const { data } = await api.get(`/visitas/${visitaId}/historial`);
