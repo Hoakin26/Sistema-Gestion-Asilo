@@ -16,6 +16,11 @@ import app.cabezadealgodon.com.gestionasilobackend.models.EstadoVisita;
  * Decidido el 09/10: HU-08 se construye antes que la receta (HU-10) y los
  * exámenes (HU-11). Cada una de esas historias agregó aquí su lista: HU-10
  * las recetas y HU-11 los exámenes.
+ *
+ * <p>
+ * HU-02 (YS-63) lo reutiliza para el historial centralizado del Médico
+ * General, que agrupa todo por consulta: por eso la receta y cada examen dicen
+ * de qué visita salieron.
  */
 public record HistorialMedicoResponse(Long internoId, List<VisitaAnterior> visitas, List<RecetaAnterior> recetas,
         List<ExamenAnterior> examenes) {
@@ -23,6 +28,7 @@ public record HistorialMedicoResponse(Long internoId, List<VisitaAnterior> visit
     /** YS-111. Un examen ordenado en una visita anterior, con quién lo pidió. HU-13 le agrega el resultado. */
     public record ExamenAnterior(
             Long id,
+            Long visitaId,
             LocalDateTime fechaOrden,
             EstadoOrden estado,
             ExamenLaboratorioResponse examen,
@@ -35,6 +41,7 @@ public record HistorialMedicoResponse(Long internoId, List<VisitaAnterior> visit
     /** YS-108. Una receta de una visita anterior, con quién la emitió. */
     public record RecetaAnterior(
             Long id,
+            Long visitaId,
             LocalDateTime fechaEmision,
             EstadoReceta estado,
             String numeroSolicitud,

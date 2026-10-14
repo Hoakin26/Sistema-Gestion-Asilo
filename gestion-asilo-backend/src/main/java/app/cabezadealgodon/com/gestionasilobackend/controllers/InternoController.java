@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import app.cabezadealgodon.com.gestionasilobackend.dto.FichaMedicaRequest;
 import app.cabezadealgodon.com.gestionasilobackend.dto.FichaMedicaResponse;
+import app.cabezadealgodon.com.gestionasilobackend.dto.HistorialMedicoResponse;
 import app.cabezadealgodon.com.gestionasilobackend.dto.InternoRequest;
 import app.cabezadealgodon.com.gestionasilobackend.dto.InternoResponse;
 import app.cabezadealgodon.com.gestionasilobackend.dto.InternoResumenResponse;
@@ -25,6 +26,7 @@ import app.cabezadealgodon.com.gestionasilobackend.exception.OrdenNoPermitidoExc
 import app.cabezadealgodon.com.gestionasilobackend.security.PersonalClinico;
 import app.cabezadealgodon.com.gestionasilobackend.security.PersonalConAccesoAInternos;
 import app.cabezadealgodon.com.gestionasilobackend.security.SoloMedicoGeneral;
+import app.cabezadealgodon.com.gestionasilobackend.services.HistorialMedicoService;
 import app.cabezadealgodon.com.gestionasilobackend.services.InternoService;
 import jakarta.validation.Valid;
 
@@ -56,9 +58,11 @@ public class InternoController {
     private static final Set<String> ORDENES = Set.of("nombreCompleto", "fechaIngreso", "dpi");
 
     private final InternoService internoService;
+    private final HistorialMedicoService historialMedicoService;
 
-    public InternoController(InternoService internoService) {
+    public InternoController(InternoService internoService, HistorialMedicoService historialMedicoService) {
         this.internoService = internoService;
+        this.historialMedicoService = historialMedicoService;
     }
 
     /**
@@ -108,5 +112,22 @@ public class InternoController {
     public FichaMedicaResponse actualizarFicha(@PathVariable Long id,
             @Valid @RequestBody FichaMedicaRequest request) {
         return internoService.actualizarFicha(id, request);
+    }
+
+    /**
+     * HU-02 (YS-64). El historial médico centralizado (RF-02): todas las
+     * visitas del interno con su diagnóstico, y lo que se le recetó y ordenó
+     * en cada una. Los padecimientos y los medicamentos habituales siguen en
+     * la ficha médica, que la pantalla pide aparte.
+     *
+     * <p>
+     * Solo el Médico General. El especialista ve los antecedentes dentro de
+     * su visita activa y no fuera de ella (HU-08), enfermería trabaja con la
+     * ficha, y el Administrador del Asilo no lee datos clínicos (RNF-03).
+     */
+    @GetMapping("/{id}/historial")
+    @SoloMedicoGeneral
+    public HistorialMedicoResponse obtenerHistorial(@PathVariable Long id) {
+        return historialMedicoService.delInterno(id);
     }
 }

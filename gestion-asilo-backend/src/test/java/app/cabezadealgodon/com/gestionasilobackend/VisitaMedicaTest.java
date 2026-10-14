@@ -69,7 +69,8 @@ import tools.jackson.databind.ObjectMapper;
  * también que los antecedentes del paciente solo se vean con la visita activa.
  * Desde HU-09 (YS-107), el diagnóstico obligatorio y el cierre de la visita
  * con su cargo de consulta. Desde HU-10 (YS-110), la receta, y desde HU-11
- * (YS-113), los exámenes de laboratorio.
+ * (YS-113), los exámenes de laboratorio. Desde HU-02 (YS-67), el historial
+ * médico centralizado del Médico General, que se arma con todo lo anterior.
  *
  * <p>
  * La asignación solo acepta horas futuras, así que las citas "de hoy" se
@@ -843,6 +844,85 @@ class VisitaMedicaTest extends PruebaConBaseDeDatos {
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"tarifaConsulta\": 1}"))
+                .andExpect(status().isForbidden());
+    }
+
+    // ---- YS-67: el historial médico centralizado (HU-02) ----
+
+    @Test
+    @DisplayName("El Médico General ve todas las consultas del interno, la más reciente primero, con lo recetado y ordenado en cada una")
+    void elHistorialCentralizado() throws Exception {
+        Especialista primero = nuevoEspecialista(0);
+        Especialista segundo = nuevoEspecialista(1);
+        Cita antigua = citaEl(primero, HOY.minusDays(3).atTime(8, 0), null);
+        Long interno = antigua.getSolicitud().getInterno().getId();
+        Cita reciente = citaEl(segundo, HOY.minusDays(1).atTime(8, 0), interno);
+        Cita deHoy = citaEl(primero, HOY.atTime(10, 0), interno);
+        // Otro paciente: no es parte de este historial.
+        Cita ajena = citaEl(segundo, HOY.atTime(9, 0), null);
+
+        long visitaAntigua = idDe(iniciar(antigua.getId(), primero));
+        recetar(visitaAntigua, primero, null, medicamento("Losartán", "50 mg", 30, "Cada 24 horas, vía oral"))
+                .andExpect(status().isCreated());
+        ordenar(visitaAntigua, primero, examen("Perfil lipídico", "En ayunas de 12 horas"))
+                .andExpect(status().isCreated());
+        cerrar(visitaAntigua, "Hipertensión arterial estadio 1", HOY.minusDays(3).atTime(8, 5));
+        long visitaReciente = idDe(iniciar(reciente.getId(), segundo));
+        cerrar(visitaReciente, "Deterioro cognitivo leve", HOY.minusDays(1).atTime(8, 5));
+        idDe(iniciar(ajena.getId(), segundo));
+        // La que sigue en curso también es historia: para el Médico General no
+        // hay una consulta propia que excluir.
+        long enCurso = idDe(iniciar(deHoy.getId(), primero));
+
+        mvc.perform(get("/api/internos/{id}/historial", interno)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(RolNombre.MEDICO_GENERAL)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.internoId").value(interno))
+                .andExpect(jsonPath("$.visitas.length()").value(3))
+                .andExpect(jsonPath("$.visitas[0].id").value(enCurso))
+                .andExpect(jsonPath("$.visitas[0].estado").value("ACTIVA"))
+                .andExpect(jsonPath("$.visitas[1].id").value(visitaReciente))
+                .andExpect(jsonPath("$.visitas[1].diagnostico").value("Deterioro cognitivo leve"))
+                .andExpect(jsonPath("$.visitas[1].especialista.nombreCompleto")
+                        .value(segundo.usuario().getNombreCompleto()))
+                .andExpect(jsonPath("$.visitas[2].id").value(visitaAntigua))
+                .andExpect(jsonPath("$.visitas[2].diagnostico").value("Hipertensión arterial estadio 1"))
+                // La receta y el examen dicen de qué consulta salieron, para agruparlos.
+                .andExpect(jsonPath("$.recetas.length()").value(1))
+                .andExpect(jsonPath("$.recetas[0].visitaId").value(visitaAntigua))
+                .andExpect(jsonPath("$.recetas[0].medicamentos[0].medicamento").value("Losartán"))
+                .andExpect(jsonPath("$.examenes.length()").value(1))
+                .andExpect(jsonPath("$.examenes[0].visitaId").value(visitaAntigua))
+                .andExpect(jsonPath("$.examenes[0].examen.nombre").value("Perfil lipídico"))
+                .andExpect(jsonPath("$.examenes[0].estado").value("PENDIENTE"));
+    }
+
+    @Test
+    @DisplayName("Un interno sin consultas tiene el historial vacío; uno que no existe, 404")
+    void historialVacioOInexistente() throws Exception {
+        String token = tokenDe(RolNombre.MEDICO_GENERAL);
+        long sinVisitas = crearInterno(token);
+
+        mvc.perform(get("/api/internos/{id}/historial", sinVisitas)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.internoId").value(sinVisitas))
+                .andExpect(jsonPath("$.visitas").isEmpty())
+                .andExpect(jsonPath("$.recetas").isEmpty())
+                .andExpect(jsonPath("$.examenes").isEmpty());
+
+        mvc.perform(get("/api/internos/{id}/historial", 999_999)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isNotFound());
+    }
+
+    /** RNF-03 para el Administrador del Asilo; HU-08 para el especialista, que lo ve solo dentro de su visita. */
+    @ParameterizedTest
+    @EnumSource(value = RolNombre.class, names = "MEDICO_GENERAL", mode = EnumSource.Mode.EXCLUDE)
+    @DisplayName("El historial centralizado lo consulta solo el Médico General")
+    void historialSoloDelMedicoGeneral(RolNombre rol) throws Exception {
+        mvc.perform(get("/api/internos/{id}/historial", 1)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(rol)))
                 .andExpect(status().isForbidden());
     }
 

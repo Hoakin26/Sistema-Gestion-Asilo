@@ -39,6 +39,15 @@ export async function obtenerFichaMedica(id) {
 }
 
 /** Reemplaza la ficha completa, listas incluidas: se manda como debe quedar. */
+/**
+ * HU-02 (YS-64). El historial médico centralizado: todas las consultas del
+ * interno, con lo recetado y ordenado en cada una. Solo el Médico General.
+ */
+export async function obtenerHistorialMedico(id) {
+  const { data } = await api.get(`/internos/${id}/historial`);
+  return data;
+}
+
 export async function actualizarFichaMedica(id, ficha) {
   const { data } = await api.put(`/internos/${id}/ficha-medica`, ficha);
   return data;
