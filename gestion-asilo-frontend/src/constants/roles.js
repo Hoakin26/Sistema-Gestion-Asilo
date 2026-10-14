@@ -30,6 +30,14 @@ export function editaInternos(rol) {
   return rol === "MEDICO_GENERAL";
 }
 
+/**
+ * HU-02. Solo el Médico General consulta el historial centralizado: el
+ * especialista ve los antecedentes dentro de su visita activa (HU-08).
+ */
+export function consultaHistorial(rol) {
+  return rol === "MEDICO_GENERAL";
+}
+
 /** HU-03. Solo el Médico General refiere a especialistas (RF-03). */
 export function creaReferencias(rol) {
   return rol === "MEDICO_GENERAL";
