@@ -39,8 +39,18 @@ function fichaVacia(ficha) {
  * YS-103. Salió del perfil del interno para usarse también en la visita
  * médica: el especialista ve los padecimientos junto a los antecedentes sin
  * salir de la consulta. Recibe la ficha ya cargada, o el error.
+ *
+ * - `mensajeVacio`: lo que se dice si la ficha está vacía y no se puede editar
+ *   desde aquí. HU-02 lo cambia: en el historial quien lee es el propio Médico
+ *   General, y "el Médico General todavía no la completa" le hablaría de él.
  */
-export function FichaMedicaDetalle({ ficha, error, puedeEditar = false, alEditar }) {
+export function FichaMedicaDetalle({
+  ficha,
+  error,
+  puedeEditar = false,
+  alEditar,
+  mensajeVacio = "El Médico General todavía no ha completado la ficha médica.",
+}) {
   const idTitulo = useId();
 
   return (
@@ -67,9 +77,7 @@ export function FichaMedicaDetalle({ ficha, error, puedeEditar = false, alEditar
       ) : fichaVacia(ficha) ? (
         <div className="mt-4 flex flex-col items-center gap-4 rounded-tarjeta bg-fondo px-4 py-8 text-center">
           <p className="text-texto-secundario">
-            {puedeEditar
-              ? "La ficha médica todavía está vacía."
-              : "El Médico General todavía no ha completado la ficha médica."}
+            {puedeEditar ? "La ficha médica todavía está vacía." : mensajeVacio}
           </p>
           {puedeEditar && <Button onClick={alEditar}>Completar ficha médica</Button>}
         </div>
