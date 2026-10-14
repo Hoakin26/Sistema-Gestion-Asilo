@@ -3,6 +3,7 @@ package app.cabezadealgodon.com.gestionasilobackend.dto;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import app.cabezadealgodon.com.gestionasilobackend.models.EstadoOrden;
 import app.cabezadealgodon.com.gestionasilobackend.models.EstadoReceta;
 import app.cabezadealgodon.com.gestionasilobackend.models.EstadoVisita;
 
@@ -13,10 +14,23 @@ import app.cabezadealgodon.com.gestionasilobackend.models.EstadoVisita;
  *
  * <p>
  * Decidido el 09/10: HU-08 se construye antes que la receta (HU-10) y los
- * exámenes (HU-11). Cada una de esas historias agrega aquí su lista: HU-10
- * ya trajo las recetas; los exámenes llegan con HU-11.
+ * exámenes (HU-11). Cada una de esas historias agregó aquí su lista: HU-10
+ * las recetas y HU-11 los exámenes.
  */
-public record HistorialMedicoResponse(Long internoId, List<VisitaAnterior> visitas, List<RecetaAnterior> recetas) {
+public record HistorialMedicoResponse(Long internoId, List<VisitaAnterior> visitas, List<RecetaAnterior> recetas,
+        List<ExamenAnterior> examenes) {
+
+    /** YS-111. Un examen ordenado en una visita anterior, con quién lo pidió. HU-13 le agrega el resultado. */
+    public record ExamenAnterior(
+            Long id,
+            LocalDateTime fechaOrden,
+            EstadoOrden estado,
+            ExamenLaboratorioResponse examen,
+            String indicaciones,
+            String numeroSolicitud,
+            EspecialidadResponse especialidad,
+            ResumenPersona especialista) {
+    }
 
     /** YS-108. Una receta de una visita anterior, con quién la emitió. */
     public record RecetaAnterior(
