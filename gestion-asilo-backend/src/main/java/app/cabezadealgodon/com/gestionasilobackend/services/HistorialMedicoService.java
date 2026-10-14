@@ -7,13 +7,16 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import app.cabezadealgodon.com.gestionasilobackend.dto.EspecialidadResponse;
+import app.cabezadealgodon.com.gestionasilobackend.dto.ExamenLaboratorioResponse;
 import app.cabezadealgodon.com.gestionasilobackend.dto.HistorialMedicoResponse;
 import app.cabezadealgodon.com.gestionasilobackend.dto.ResumenPersona;
 import app.cabezadealgodon.com.gestionasilobackend.models.Especialidad;
+import app.cabezadealgodon.com.gestionasilobackend.models.OrdenLaboratorio;
 import app.cabezadealgodon.com.gestionasilobackend.models.Receta;
 import app.cabezadealgodon.com.gestionasilobackend.models.SolicitudReferencia;
 import app.cabezadealgodon.com.gestionasilobackend.models.Usuario;
 import app.cabezadealgodon.com.gestionasilobackend.models.VisitaMedica;
+import app.cabezadealgodon.com.gestionasilobackend.repository.OrdenLaboratorioRepository;
 import app.cabezadealgodon.com.gestionasilobackend.repository.RecetaRepository;
 import app.cabezadealgodon.com.gestionasilobackend.repository.VisitaMedicaRepository;
 
@@ -31,10 +34,13 @@ public class HistorialMedicoService {
 
     private final VisitaMedicaRepository visitaRepository;
     private final RecetaRepository recetaRepository;
+    private final OrdenLaboratorioRepository ordenRepository;
 
-    public HistorialMedicoService(VisitaMedicaRepository visitaRepository, RecetaRepository recetaRepository) {
+    public HistorialMedicoService(VisitaMedicaRepository visitaRepository, RecetaRepository recetaRepository,
+            OrdenLaboratorioRepository ordenRepository) {
         this.visitaRepository = visitaRepository;
         this.recetaRepository = recetaRepository;
+        this.ordenRepository = ordenRepository;
     }
 
     /**
@@ -53,7 +59,26 @@ public class HistorialMedicoService {
                 .filter(receta -> !Objects.equals(receta.getVisita().getId(), visitaEnCurso))
                 .map(this::anterior)
                 .toList();
-        return new HistorialMedicoResponse(internoId, visitas, recetas);
+        // YS-111. Los exámenes de HU-11, el último criterio de HU-08.
+        List<HistorialMedicoResponse.ExamenAnterior> examenes = ordenRepository.delInterno(internoId).stream()
+                .filter(orden -> !Objects.equals(orden.getVisita().getId(), visitaEnCurso))
+                .map(this::anterior)
+                .toList();
+        return new HistorialMedicoResponse(internoId, visitas, recetas, examenes);
+    }
+
+    private HistorialMedicoResponse.ExamenAnterior anterior(OrdenLaboratorio orden) {
+        VisitaMedica visita = orden.getVisita();
+        SolicitudReferencia solicitud = visita.getCita().getSolicitud();
+        return new HistorialMedicoResponse.ExamenAnterior(
+                orden.getId(),
+                orden.getFechaOrden(),
+                orden.getEstado(),
+                new ExamenLaboratorioResponse(orden.getExamen().getId(), orden.getExamen().getNombre()),
+                orden.getIndicaciones(),
+                solicitud.getNumero(),
+                especialidad(solicitud.getEspecialidad()),
+                persona(visita.getEspecialista().getUsuario()));
     }
 
     private HistorialMedicoResponse.VisitaAnterior anterior(VisitaMedica visita) {
