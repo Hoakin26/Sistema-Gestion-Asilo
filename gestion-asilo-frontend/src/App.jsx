@@ -3,6 +3,7 @@ import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { puedeEntrar } from "./constants/modulos";
 import { useAuth } from "./hooks/useAuth";
 import { DashboardPage } from "./pages/DashboardPage";
+import { HistorialMedicoPage } from "./pages/HistorialMedicoPage";
 import { InternoPerfilPage } from "./pages/InternoPerfilPage";
 import { InternosPage } from "./pages/InternosPage";
 import { LoginPage } from "./pages/LoginPage";
@@ -97,6 +98,25 @@ function App() {
         element={
           <RutaPrivada>
             <InternoPerfilPage />
+          </RutaPrivada>
+        }
+      />
+      {/* HU-02 (YS-66). La misma lista que "/internos", con otro destino por
+          fila. La key la remonta al cambiar de módulo: sin ella, React
+          reutilizaría la de Internos con la búsqueda escrita allá. */}
+      <Route
+        path="/historial-medico"
+        element={
+          <RutaPrivada>
+            <InternosPage key="historial" modo="historial" />
+          </RutaPrivada>
+        }
+      />
+      <Route
+        path="/historial-medico/:id"
+        element={
+          <RutaPrivada>
+            <HistorialMedicoPage />
           </RutaPrivada>
         }
       />

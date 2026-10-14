@@ -35,7 +35,8 @@ const CATALOGO = {
   usuarios: { etiqueta: "Usuarios y roles", Icono: Users, ruta: "/usuarios" },
 
   internos: { etiqueta: "Internos", Icono: UserRound, ruta: "/internos" },
-  historialMedico: { etiqueta: "Historial médico", Icono: ClipboardList, ruta: null },
+  // HU-02 (YS-66). "/historial-medico/15" es el historial de un interno.
+  historialMedico: { etiqueta: "Historial médico", Icono: ClipboardList, ruta: "/historial-medico" },
   solicitudesReferencia: {
     etiqueta: "Solicitudes de referencia",
     Icono: FileText,
@@ -104,14 +105,12 @@ const MENU_POR_ROL = {
     "agendaAsignacion",
     "medicosDisponibilidad",
   ],
-  MEDICO_ESPECIALISTA: [
-    "dashboard",
-    "miAgenda",
-    "visitasMedicas",
-    "historialMedico",
-    "ordenesLaboratorio",
-    "recetas",
-  ],
+  /*
+   * HU-02. Sin "Historial médico", aunque la matriz del diseño lo traía: por
+   * HU-08 el especialista ve los antecedentes solo durante su visita activa, y
+   * ahí ya los tiene. Un módulo aparte no tendría nada que mostrarle.
+   */
+  MEDICO_ESPECIALISTA: ["dashboard", "miAgenda", "visitasMedicas", "ordenesLaboratorio", "recetas"],
   ADMINISTRADOR_ASILO: [
     "dashboard",
     "usuarios",

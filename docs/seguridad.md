@@ -362,7 +362,7 @@ El Administrador del Asilo (ACT-04), y nadie más. La matriz de roles del diseñ
 |---|---|
 | Médico General (ACT-01) | Dashboard, Internos, Historial médico, Solicitudes de referencia |
 | Administrador de la Fundación (ACT-02) | Dashboard, Solicitudes entrantes, Agenda y asignación, Médicos y disponibilidad |
-| Médico Especialista (ACT-03) | Dashboard, Mi agenda del día, Visitas médicas, Historial médico, Órdenes de laboratorio, Recetas |
+| Médico Especialista (ACT-03) | Dashboard, Mi agenda del día, Visitas médicas, Órdenes de laboratorio, Recetas (sin "Historial médico" desde HU-02: ver sección 28) |
 | **Administrador del Asilo (ACT-04)** | Dashboard, **Usuarios y roles**, Internos (vista administrativa), Cuentas por cobrar, Cuentas por pagar, Donaciones, Gastos, Reportes, Configuración |
 | Enfermería (ACT-05) | Dashboard, Internos, Solicitudes asignadas, Citas |
 | Laboratorio (ACT-06) | Dashboard, Órdenes pendientes, Registro de resultados |
@@ -832,7 +832,29 @@ Cada examen crea su propia orden en `PENDIENTE`, porque el laboratorio avanza ca
 
 Decidido el 13/10: por ahora, una lista base de 16 exámenes frecuentes en adultos mayores con su costo de referencia en quetzales, que agrega `ExamenLaboratorioSeeder`. El seeder solo agrega los nombres que falten, así que un precio corregido a mano en la base no se pisa al reiniciar. Un examen marcado como inactivo deja de aparecer en el catálogo y ya no se puede ordenar (400), sin perder las órdenes que lo usaron.
 
-## 28. Qué falta
+## 28. El historial médico centralizado (HU-02)
+
+### Quién lo consulta
+
+`GET /api/internos/{id}/historial` está bajo `@SoloMedicoGeneral`, como lo pedía el diseño. Para cada rol que queda fuera hay una razón:
+
+- **Administrador del Asilo:** el RNF-03. El historial es todo dato clínico: diagnósticos, medicamentos y exámenes.
+- **Médico Especialista:** HU-08. Ve los antecedentes del paciente solo durante su visita activa, por `GET /api/visitas/{id}/historial`. Un historial abierto fuera de la visita le daría justo lo que ese criterio le niega. Por la misma razón, "Historial médico" salió de su menú (decidido el 14/10).
+- **Enfermería:** sigue leyendo la ficha médica (alergias, padecimientos, medicamentos habituales), que es lo que necesita para administrar. El historial de consultas no.
+
+`VisitaMedicaTest` barre los seis roles restantes, con el Administrador del Asilo entre ellos: todos reciben 403.
+
+### Lo mismo que los antecedentes, sin la exclusión
+
+`HistorialMedicoService` arma las dos cosas a partir de lo registrado en las visitas, sin una copia aparte que pueda contradecirlas (sección 24). Los antecedentes de HU-08 dejan fuera la visita en curso, que el especialista está registrando. El historial no deja fuera nada, porque el Médico General no está registrando ninguna: la consulta en curso aparece marcada como tal. Un interno que no existe responde 404, y uno sin consultas, con las listas vacías.
+
+Los padecimientos y los medicamentos habituales no se duplican en el historial: la pantalla pide aparte la ficha médica, con el permiso que ya tenía (`@PersonalClinico`).
+
+### En la pantalla
+
+El guardia de rutas del frontend resuelve los permisos con la misma matriz del menú. Como "Historial médico" ya no está en el menú del especialista ni en el de enfermería, si escriben a mano `/historial-medico/15` ven "No tiene permiso para ver esta página" sin que la pantalla llegue a pedir nada. La autoridad sigue siendo el backend: aunque el guardia se equivocara, el endpoint respondería 403.
+
+## 29. Qué falta
 
 Nada pendiente de HU-30, HU-31 ni HU-32. Lo que queda abierto, sin historia asignada todavía:
 
