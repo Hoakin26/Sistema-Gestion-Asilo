@@ -25,6 +25,13 @@ export const ETIQUETAS_ESTADO = {
   VISITA_ACTIVA: "En curso",
   VISITA_FINALIZADA: "Finalizada",
 
+  // DE-02 · Orden de laboratorio (YS-111). "PENDIENTE" es suya: por eso el
+  // aviso al familiar lleva prefijo.
+  PENDIENTE: "Pendiente",
+  EN_PROCESO: "En Proceso",
+  RESULTADOS_CARGADOS: "Resultados Cargados",
+  ANULADA: "Anulada",
+
   // DE-03 · Receta médica (YS-108). Sin prefijo: los nombres no chocan.
   PENDIENTE_DESPACHO: "Pendiente de Despacho",
   PARCIALMENTE_ENTREGADA: "Parcialmente Entregada",

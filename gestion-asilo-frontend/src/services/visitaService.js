@@ -64,6 +64,24 @@ export async function corregirReceta(visitaId, receta) {
   return data;
 }
 
+/** HU-11 (YS-111). El catálogo de exámenes de laboratorio que se pueden ordenar. */
+export async function listarExamenesLaboratorio() {
+  const { data } = await api.get("/examenes-laboratorio");
+  return data;
+}
+
+/** HU-11 (YS-111). Una orden pendiente por examen; devuelve las órdenes creadas. */
+export async function ordenarExamenes(visitaId, examenes) {
+  const { data } = await api.post(`/visitas/${visitaId}/ordenes-laboratorio`, { examenes });
+  return data;
+}
+
+/** HU-11 (YS-111). Las órdenes de laboratorio generadas desde la visita. */
+export async function listarOrdenes(visitaId) {
+  const { data } = await api.get(`/visitas/${visitaId}/ordenes-laboratorio`);
+  return data;
+}
+
 /** HU-08 (YS-102). Los antecedentes del paciente; el backend responde 403 si la visita no está activa. */
 export async function obtenerHistorial(visitaId) {
   const { data } = await api.get(`/visitas/${visitaId}/historial`);
