@@ -1347,11 +1347,13 @@ Todos los roles entran a un **Dashboard** común y navegan con un menú lateral 
 |---|---|
 | Médico General | Dashboard · Internos · Historial médico · Solicitudes de referencia |
 | Administrador de la Fundación | Dashboard · Solicitudes entrantes · Agenda y asignación · Médicos y disponibilidad |
-| Médico Especialista | Dashboard · Mi agenda del día · Visitas médicas · Historial médico · Órdenes de laboratorio · Recetas |
+| Médico Especialista | Dashboard · Mi agenda del día · Visitas médicas · Órdenes de laboratorio · Recetas |
 | Administrador del Asilo | Dashboard · Usuarios y roles · Internos (vista administrativa) · Cuentas por cobrar · Cuentas por pagar · Donaciones · Gastos · Reportes · Configuración |
 | Enfermería | Dashboard · Internos · Solicitudes asignadas · Citas |
 | Laboratorio | Dashboard · Órdenes pendientes · Registro de resultados |
 | Farmacia | Dashboard · Recetas pendientes · Despacho de medicamentos |
+
+Decidido el 14/10, con HU-02: el Médico Especialista ya no tiene "Historial médico" en su menú. Por HU-08 ve los antecedentes del paciente solo durante su visita activa, y ahí ya los tiene; un módulo aparte no tendría nada que mostrarle sin contradecir ese criterio. El del Médico General abre la lista de internos, y cada fila lleva al historial de ese interno.
 
 Cada módulo del menú puede estar en tres situaciones, y cada una dice algo distinto:
 
@@ -1886,7 +1888,7 @@ classDiagram
 | PUT | `/api/internos/{id}` | MG | `InternoRequest` | `InternoResponse` | HU-01 |
 | GET | `/api/internos/{id}/ficha-medica` | MG, ME, ENF | — | `FichaMedicaResponse` | HU-01 |
 | PUT | `/api/internos/{id}/ficha-medica` | MG | `FichaMedicaRequest` | `FichaMedicaResponse` | HU-01 |
-| GET | `/api/internos/{id}/historial` | MG | — | `HistorialMedicoResponse` | HU-02 |
+| GET | `/api/internos/{id}/historial` | MG | — | `HistorialMedicoResponse`: todas las visitas del interno con su diagnóstico, incluida la que esté en curso, de la más reciente a la más antigua, y las recetas y los exámenes, cada uno con el `visitaId` de la consulta de la que salió; 404 si el interno no existe | HU-02 |
 | GET | `/api/especialidades` | MG, AF | — | `List<EspecialidadResponse>` | HU-03 |
 | GET | `/api/especialidades/tarifas` | AF | — | `List<EspecialidadTarifaResponse>` (con la tarifa de consulta, vacía si no tiene) | HU-07 |
 | PUT | `/api/especialidades/{id}/tarifa` | AF | `TarifaRequest` | `EspecialidadTarifaResponse` | HU-07 |

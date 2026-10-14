@@ -11,7 +11,7 @@ La entrega se evalúa contra los 21 RF, y los 21 están en el plan de la entrega
 | RF | Requerimiento | Historias | Subtareas | Estado |
 |---|---|---|---|---|
 | RF-01 | Gestión de perfil del interno | HU-01 | YS-57 a YS-62 | **Implementado** (08/10): alta, edición y consulta del expediente, ficha médica con psicopatologías y medicamentos, validación en pantalla y en servidor. Vista administrativa sin datos clínicos para el Administrador del Asilo |
-| RF-02 | Historial médico centralizado | HU-02 | YS-63 a YS-67 | Sprint 2, 11/10, después de la visita médica — ver hallazgo 2 |
+| RF-02 | Historial médico centralizado | HU-02 | YS-63 a YS-67 | **Implementado** (14/10): el Médico General consulta el historial de cada interno desde su perfil o desde el módulo "Historial médico". Arriba, los padecimientos, alergias y medicamentos habituales de la ficha; debajo, cada consulta con especialista, de la más reciente a la más antigua, con su motivo, diagnóstico, observaciones, medicamentos recetados y exámenes ordenados. Se arma de lo registrado en las visitas (RF-06), sin copia aparte — ver hallazgo 2 |
 | RF-03 | Solicitudes de referencia médica | HU-03 | YS-83 a YS-86 | **Implementado** (09/10): el Médico General crea la solicitud con número correlativo, especialidad y enfermero(a) acompañante, desde su módulo o desde el perfil del interno. El listado llega con HU-05 |
 | RF-04 | Notificación por correo al familiar | HU-04, HU-06 | YS-94 a YS-97, YS-91 | **Implementado** (09/10): el aviso al crear la solicitud, con su estado y especialidad (HU-04), y el aviso al asignar la cita, con el especialista, la fecha y la hora (HU-06, YS-91). Los dos salen en segundo plano después de confirmar, con reintento automático y manual |
 | RF-05 | Módulo de asignación | HU-05, HU-06 | YS-87 a YS-93, YS-166 a YS-168 | **Implementado** (09/10): la Fundación visualiza las solicitudes en su bandeja, con búsqueda y orden por fecha (HU-05, YS-166); registra a los especialistas con su horario de atención (YS-167, YS-168), y desde el detalle de cada solicitud asigna especialista, fecha y una de las horas libres, con lo que la solicitud pasa a "Cita Programada" (HU-06) |
@@ -32,7 +32,7 @@ La entrega se evalúa contra los 21 RF, y los 21 están en el plan de la entrega
 | RF-20 | Reportes financieros consolidados | HU-27 | YS-160 a YS-162 | Sprint 3, 14/10 |
 | RF-21 | Reportes médicos específicos | HU-28 | YS-163 a YS-165 | Sprint 3, 14/10 |
 
-**Cobertura planificada para la entrega del 16/10: 21 de 21.** Implementados al 13/10: RF-01, RF-03, RF-04, RF-05, RF-06, RF-07 y RF-10; en parte, RF-08. Si el tiempo aprieta, lo que se ajusta es el nivel de detalle de cada historia (`fase-diseno.md`, 1.7, Nivel 1), nunca la lista de requerimientos.
+**Cobertura planificada para la entrega del 16/10: 21 de 21.** Implementados al 14/10: RF-01, RF-02, RF-03, RF-04, RF-05, RF-06, RF-07 y RF-10; en parte, RF-08. Si el tiempo aprieta, lo que se ajusta es el nivel de detalle de cada historia (`fase-diseno.md`, 1.7, Nivel 1), nunca la lista de requerimientos.
 
 ## 2. Requerimientos no funcionales
 
