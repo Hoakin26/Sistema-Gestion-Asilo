@@ -1,15 +1,15 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { ArrowLeft, Pencil, Stethoscope, UserRound } from "lucide-react";
+import { ArrowLeft, ClipboardList, Pencil, Stethoscope, UserRound } from "lucide-react";
 
 import { FichaMedicaFormModal } from "../components/internos/FichaMedicaFormModal";
 import { FichaMedicaDetalle } from "../components/internos/FichaMedicaDetalle";
 import { InternoFormModal } from "../components/internos/InternoFormModal";
 import { SolicitudReferenciaFormModal } from "../components/referencias/SolicitudReferenciaFormModal";
-import { Button } from "../components/ui/Button";
+import { BotonEnlace, Button } from "../components/ui/Button";
 import { StatusBadge } from "../components/ui/StatusBadge";
 import { Barra } from "../components/ui/TablaSkeleton";
-import { creaReferencias, editaInternos, leeDatosClinicos } from "../constants/roles";
+import { consultaHistorial, creaReferencias, editaInternos, leeDatosClinicos } from "../constants/roles";
 import { useAuth } from "../hooks/useAuth";
 import { useToast } from "../hooks/useToast";
 import { AppLayout } from "../layouts/AppLayout";
@@ -69,6 +69,7 @@ export function InternoPerfilPage() {
   const puedeEditar = editaInternos(usuario?.rol);
   const veFicha = leeDatosClinicos(usuario?.rol);
   const puedeReferir = creaReferencias(usuario?.rol);
+  const veHistorial = consultaHistorial(usuario?.rol);
 
   const [interno, setInterno] = useState(null);
   const [ficha, setFicha] = useState(null);
@@ -171,6 +172,13 @@ export function InternoPerfilPage() {
                     <Pencil aria-hidden="true" size={20} />
                     Editar datos
                   </Button>
+                )}
+                {/* HU-02 (YS-66): el historial se consulta desde el perfil. */}
+                {veHistorial && (
+                  <BotonEnlace to={`/historial-medico/${interno.id}`} variante="secundario">
+                    <ClipboardList aria-hidden="true" size={20} />
+                    Ver historial médico
+                  </BotonEnlace>
                 )}
                 {/* YS-85. Desde aquí ya se sabe a quién se refiere: la ventana
                     llega con el interno elegido. Uno inactivo no se ofrece,

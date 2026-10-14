@@ -31,13 +31,22 @@ const ENCABEZADO =
  *
  * A diferencia de la de usuarios, la búsqueda y la paginación las hace el
  * backend: la lista crece con cada ingreso y no conviene traerla entera.
+ *
+ * HU-02 (YS-66). Con `modo="historial"` es el módulo "Historial médico" del
+ * Médico General: la misma lista y la misma búsqueda, pero cada fila lleva al
+ * historial del interno en vez de a su perfil, y no ofrece registrar uno
+ * nuevo, porque ese no es el trabajo de este módulo.
  */
-export function InternosPage() {
+export function InternosPage({ modo = "expediente" }) {
   const { usuario } = useAuth();
   const { mostrar } = useToast();
   const navegar = useNavigate();
-  const puedeRegistrar = editaInternos(usuario?.rol);
+  const enHistorial = modo === "historial";
+  const puedeRegistrar = editaInternos(usuario?.rol) && !enHistorial;
   const vistaClinica = leeDatosClinicos(usuario?.rol);
+  const destino = (interno) => (enHistorial ? `/historial-medico/${interno.id}` : `/internos/${interno.id}`);
+  const accion = (interno) =>
+    enHistorial ? `Ver el historial médico de ${interno.nombreCompleto}` : `Ver el perfil de ${interno.nombreCompleto}`;
 
   const [busqueda, setBusqueda] = useState("");
   // Lo que de verdad se consulta: la búsqueda, una vez que dejó de escribir.
@@ -94,16 +103,18 @@ export function InternosPage() {
   const totalPaginas = resultado?.totalPages ?? 0;
 
   return (
-    <AppLayout migas={["Inicio", "Internos"]}>
+    <AppLayout migas={["Inicio", enHistorial ? "Historial médico" : "Internos"]}>
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-h1 font-bold">Internos</h1>
+          <h1 className="text-h1 font-bold">{enHistorial ? "Historial médico" : "Internos"}</h1>
           <p className="mt-2 text-texto-secundario">
             {/* El Administrador del Asilo entra a esta misma lista desde
                 "Internos (vista administrativa)": se le recuerda qué incluye. */}
-            {vistaClinica
-              ? "Expedientes de los residentes del asilo."
-              : "Vista administrativa: datos personales y familiar responsable."}
+            {enHistorial
+              ? "Elija un interno para ver sus consultas, diagnósticos, padecimientos y medicamentos."
+              : vistaClinica
+                ? "Expedientes de los residentes del asilo."
+                : "Vista administrativa: datos personales y familiar responsable."}
           </p>
         </div>
 
@@ -174,7 +185,9 @@ export function InternosPage() {
             <div className="overflow-x-auto rounded-tarjeta border border-divisor bg-superficie shadow-tarjeta">
               <table className="w-full min-w-xl border-collapse text-left">
                 <caption className="sr-only">
-                  Internos del asilo con su fecha de ingreso y estado
+                  {enHistorial
+                    ? "Internos del asilo: elija uno para ver su historial médico"
+                    : "Internos del asilo con su fecha de ingreso y estado"}
                 </caption>
                 <thead>
                   <tr className="border-b border-divisor bg-fondo">
@@ -197,7 +210,7 @@ export function InternosPage() {
                     <tr key={interno.id} className="border-b border-divisor last:border-b-0">
                       <td className="px-4 py-4 xl:px-6">
                         <Link
-                          to={`/internos/${interno.id}`}
+                          to={destino(interno)}
                           className="block font-medium text-texto hover:text-primario hover:underline"
                         >
                           {interno.nombreCompleto}
@@ -217,9 +230,9 @@ export function InternosPage() {
                           {/* El nombre ya enlaza al perfil, pero un texto es un
                               blanco chico en tableta: esto da los 44px. */}
                           <Link
-                            to={`/internos/${interno.id}`}
-                            aria-label={`Ver el perfil de ${interno.nombreCompleto}`}
-                            title={`Ver el perfil de ${interno.nombreCompleto}`}
+                            to={destino(interno)}
+                            aria-label={accion(interno)}
+                            title={accion(interno)}
                             className="inline-flex size-11 items-center justify-center rounded-tarjeta text-texto-secundario hover:bg-neutral-tenue hover:text-primario"
                           >
                             <ChevronRight aria-hidden="true" size={20} />
