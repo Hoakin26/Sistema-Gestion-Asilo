@@ -10,12 +10,14 @@ import app.cabezadealgodon.com.gestionasilobackend.dto.EspecialidadResponse;
 import app.cabezadealgodon.com.gestionasilobackend.dto.ExamenLaboratorioResponse;
 import app.cabezadealgodon.com.gestionasilobackend.dto.HistorialMedicoResponse;
 import app.cabezadealgodon.com.gestionasilobackend.dto.ResumenPersona;
+import app.cabezadealgodon.com.gestionasilobackend.exception.RecursoNoEncontradoException;
 import app.cabezadealgodon.com.gestionasilobackend.models.Especialidad;
 import app.cabezadealgodon.com.gestionasilobackend.models.OrdenLaboratorio;
 import app.cabezadealgodon.com.gestionasilobackend.models.Receta;
 import app.cabezadealgodon.com.gestionasilobackend.models.SolicitudReferencia;
 import app.cabezadealgodon.com.gestionasilobackend.models.Usuario;
 import app.cabezadealgodon.com.gestionasilobackend.models.VisitaMedica;
+import app.cabezadealgodon.com.gestionasilobackend.repository.InternoRepository;
 import app.cabezadealgodon.com.gestionasilobackend.repository.OrdenLaboratorioRepository;
 import app.cabezadealgodon.com.gestionasilobackend.repository.RecetaRepository;
 import app.cabezadealgodon.com.gestionasilobackend.repository.VisitaMedicaRepository;
@@ -27,20 +29,40 @@ import app.cabezadealgodon.com.gestionasilobackend.repository.VisitaMedicaReposi
  *
  * <p>
  * No decide quién puede verlo: eso lo hace quien lo llama. HU-08 lo abre al
- * especialista durante su visita activa; HU-02 lo abrirá al Médico General.
+ * especialista durante su visita activa; HU-02 (YS-64), al Médico General.
  */
 @Service
 public class HistorialMedicoService {
 
+    private final InternoRepository internoRepository;
     private final VisitaMedicaRepository visitaRepository;
     private final RecetaRepository recetaRepository;
     private final OrdenLaboratorioRepository ordenRepository;
 
-    public HistorialMedicoService(VisitaMedicaRepository visitaRepository, RecetaRepository recetaRepository,
-            OrdenLaboratorioRepository ordenRepository) {
+    public HistorialMedicoService(InternoRepository internoRepository, VisitaMedicaRepository visitaRepository,
+            RecetaRepository recetaRepository, OrdenLaboratorioRepository ordenRepository) {
+        this.internoRepository = internoRepository;
         this.visitaRepository = visitaRepository;
         this.recetaRepository = recetaRepository;
         this.ordenRepository = ordenRepository;
+    }
+
+    /**
+     * HU-02 (YS-64). El historial completo del interno, con la visita que
+     * esté en curso incluida: para el Médico General no hay una consulta
+     * propia que excluir. Todo llega de la más reciente a la más antigua.
+     *
+     * <p>
+     * Un interno sin visitas responde con las listas vacías; uno que no
+     * existe, 404, para que la pantalla no muestre "sin consultas" de alguien
+     * que nunca estuvo registrado.
+     */
+    @Transactional(readOnly = true)
+    public HistorialMedicoResponse delInterno(Long internoId) {
+        if (!internoRepository.existsById(internoId)) {
+            throw new RecursoNoEncontradoException("No existe un interno con id " + internoId);
+        }
+        return de(internoId, null);
     }
 
     /**
@@ -72,6 +94,7 @@ public class HistorialMedicoService {
         SolicitudReferencia solicitud = visita.getCita().getSolicitud();
         return new HistorialMedicoResponse.ExamenAnterior(
                 orden.getId(),
+                visita.getId(),
                 orden.getFechaOrden(),
                 orden.getEstado(),
                 new ExamenLaboratorioResponse(orden.getExamen().getId(), orden.getExamen().getNombre()),
@@ -101,6 +124,7 @@ public class HistorialMedicoService {
         SolicitudReferencia solicitud = visita.getCita().getSolicitud();
         return new HistorialMedicoResponse.RecetaAnterior(
                 receta.getId(),
+                visita.getId(),
                 receta.getFechaEmision(),
                 receta.getEstado(),
                 solicitud.getNumero(),
