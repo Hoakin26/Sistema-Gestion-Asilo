@@ -69,13 +69,37 @@ function RecetaAnterior({ receta }) {
 }
 
 /**
+ * HU-11 (YS-103). Un examen ordenado en una visita anterior. Uno por fila y no
+ * agrupados por visita: cada examen avanza por su cuenta en el laboratorio
+ * (DE-02), y su estado es lo que el especialista busca.
+ */
+function ExamenAnterior({ examen }) {
+  return (
+    <TimelineItem>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <p className="font-semibold text-texto tabular-nums slashed-zero">
+          {formatearFechaHora(examen.fechaOrden)}
+        </p>
+        <StatusBadge estado={examen.estado} />
+      </div>
+      <p className="text-auxiliar text-texto-secundario tabular-nums slashed-zero">
+        {examen.especialidad.nombre} · {examen.especialista.nombreCompleto} · {examen.numeroSolicitud}
+      </p>
+      <p className="mt-2 font-medium text-texto">{examen.examen.nombre}</p>
+      {examen.indicaciones && <p className="text-texto">{examen.indicaciones}</p>}
+    </TimelineItem>
+  );
+}
+
+/**
  * HU-08 (YS-103). Los antecedentes del paciente dentro de la visita: sus
  * visitas anteriores con el diagnóstico, y los medicamentos y exámenes que se
  * le ordenaron antes, del más reciente al más antiguo.
  *
  * Decidido el 09/10: HU-08 va antes que la receta (HU-10) y los exámenes
- * (HU-11). Sus apartados ya están aquí; HU-10 llenó el de los medicamentos
- * recetados, y el de los exámenes espera a HU-11.
+ * (HU-11). Sus apartados ya estaban aquí; HU-10 llenó el de los medicamentos
+ * recetados y HU-11 el de los exámenes. El resultado de cada examen lo agrega
+ * HU-13, cuando el laboratorio pueda cargarlo.
  *
  * - `activa`: los antecedentes solo se consultan durante la visita activa
  *   (criterio de HU-08). Con la visita finalizada no se piden.
@@ -148,10 +172,18 @@ export function Antecedentes({ activa, historial, error }) {
 
           <div>
             <h3 className="font-semibold text-texto">Exámenes de laboratorio</h3>
-            {examenes.length === 0 && (
+            {examenes.length === 0 ? (
               <p className="mt-2 text-texto-secundario">
                 No hay exámenes de laboratorio anteriores.
               </p>
+            ) : (
+              <div className="mt-4">
+                <Timeline etiqueta="Exámenes anteriores, del más reciente al más antiguo">
+                  {examenes.map((examen) => (
+                    <ExamenAnterior key={examen.id} examen={examen} />
+                  ))}
+                </Timeline>
+              </div>
             )}
           </div>
         </div>

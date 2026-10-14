@@ -1,13 +1,18 @@
 package app.cabezadealgodon.com.gestionasilobackend.services;
 
 import java.math.BigDecimal;
+import java.text.Collator;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
@@ -16,8 +21,11 @@ import org.springframework.transaction.annotation.Transactional;
 import app.cabezadealgodon.com.gestionasilobackend.dto.CitaAgendaResponse;
 import app.cabezadealgodon.com.gestionasilobackend.dto.DiagnosticoRequest;
 import app.cabezadealgodon.com.gestionasilobackend.dto.EspecialidadResponse;
+import app.cabezadealgodon.com.gestionasilobackend.dto.ExamenLaboratorioResponse;
 import app.cabezadealgodon.com.gestionasilobackend.dto.HistorialMedicoResponse;
 import app.cabezadealgodon.com.gestionasilobackend.dto.MedicamentoRecetaRequest;
+import app.cabezadealgodon.com.gestionasilobackend.dto.OrdenLaboratorioResponse;
+import app.cabezadealgodon.com.gestionasilobackend.dto.OrdenesLaboratorioRequest;
 import app.cabezadealgodon.com.gestionasilobackend.dto.RecetaRequest;
 import app.cabezadealgodon.com.gestionasilobackend.dto.RecetaResponse;
 import app.cabezadealgodon.com.gestionasilobackend.dto.ResumenPersona;
@@ -29,24 +37,29 @@ import app.cabezadealgodon.com.gestionasilobackend.exception.RecursoNoEncontrado
 import app.cabezadealgodon.com.gestionasilobackend.models.Cita;
 import app.cabezadealgodon.com.gestionasilobackend.models.DetalleReceta;
 import app.cabezadealgodon.com.gestionasilobackend.models.Especialidad;
+import app.cabezadealgodon.com.gestionasilobackend.models.EstadoOrden;
 import app.cabezadealgodon.com.gestionasilobackend.models.EstadoReceta;
+import app.cabezadealgodon.com.gestionasilobackend.models.ExamenLaboratorio;
 import app.cabezadealgodon.com.gestionasilobackend.models.EstadoSolicitud;
 import app.cabezadealgodon.com.gestionasilobackend.models.EstadoVisita;
 import app.cabezadealgodon.com.gestionasilobackend.models.Interno;
+import app.cabezadealgodon.com.gestionasilobackend.models.OrdenLaboratorio;
 import app.cabezadealgodon.com.gestionasilobackend.models.Receta;
 import app.cabezadealgodon.com.gestionasilobackend.models.SolicitudReferencia;
 import app.cabezadealgodon.com.gestionasilobackend.models.TipoServicio;
 import app.cabezadealgodon.com.gestionasilobackend.models.Usuario;
 import app.cabezadealgodon.com.gestionasilobackend.models.VisitaMedica;
 import app.cabezadealgodon.com.gestionasilobackend.repository.CitaRepository;
+import app.cabezadealgodon.com.gestionasilobackend.repository.ExamenLaboratorioRepository;
 import app.cabezadealgodon.com.gestionasilobackend.repository.MedicoEspecialistaRepository;
+import app.cabezadealgodon.com.gestionasilobackend.repository.OrdenLaboratorioRepository;
 import app.cabezadealgodon.com.gestionasilobackend.repository.RecetaRepository;
 import app.cabezadealgodon.com.gestionasilobackend.repository.VisitaMedicaRepository;
 
 /**
  * HU-07 (YS-99). La agenda del especialista y el inicio de la visita médica
  * (RF-06, CU-003). HU-08 agrega el historial, HU-09 el diagnóstico y el
- * cierre, y HU-10 la receta; HU-11 agregará los exámenes.
+ * cierre, HU-10 la receta y HU-11 los exámenes de laboratorio.
  *
  * <p>
  * Toda operación recibe la cuenta del especialista que la pide: una cita y una
@@ -69,16 +82,21 @@ public class VisitaMedicaService {
     private final HistorialMedicoService historialService;
     private final CargoService cargoService;
     private final RecetaRepository recetaRepository;
+    private final ExamenLaboratorioRepository examenRepository;
+    private final OrdenLaboratorioRepository ordenRepository;
 
     public VisitaMedicaService(CitaRepository citaRepository, VisitaMedicaRepository visitaRepository,
             MedicoEspecialistaRepository especialistaRepository, HistorialMedicoService historialService,
-            CargoService cargoService, RecetaRepository recetaRepository) {
+            CargoService cargoService, RecetaRepository recetaRepository,
+            ExamenLaboratorioRepository examenRepository, OrdenLaboratorioRepository ordenRepository) {
         this.citaRepository = citaRepository;
         this.visitaRepository = visitaRepository;
         this.especialistaRepository = especialistaRepository;
         this.historialService = historialService;
         this.cargoService = cargoService;
         this.recetaRepository = recetaRepository;
+        this.examenRepository = examenRepository;
+        this.ordenRepository = ordenRepository;
     }
 
     /**
@@ -308,7 +326,92 @@ public class VisitaMedicaService {
                 .orElseThrow(() -> new RecursoNoEncontradoException("Esta visita todavía no tiene receta"));
     }
 
+    /**
+     * YS-111. El catálogo de exámenes que el especialista puede ordenar, en
+     * orden alfabético para encontrarlos rápido. Se ordena aquí y no en la
+     * consulta: PostgreSQL ordena según la intercalación de la base, y con la
+     * de desarrollo «Ácido úrico» quedaba después de «Vitamina B12».
+     */
+    @Transactional(readOnly = true)
+    public List<ExamenLaboratorioResponse> catalogoExamenes() {
+        Collator espanol = Collator.getInstance(Locale.forLanguageTag("es"));
+        return examenRepository.findByActivoTrue().stream()
+                .sorted(Comparator.comparing(ExamenLaboratorio::getNombre, espanol))
+                .map(examen -> new ExamenLaboratorioResponse(examen.getId(), examen.getNombre()))
+                .toList();
+    }
+
+    /**
+     * YS-111. Ordena uno o más exámenes en la visita activa (HU-11, RF-08):
+     * una orden pendiente por examen, que el laboratorio ve en su bandeja
+     * (HU-12). Cada orden copia el costo de referencia del catálogo: es el
+     * costo para el asilo que pide RF-08.
+     *
+     * <p>
+     * Un examen que no está en el catálogo, o que se repite en la misma
+     * petición, es un error del campo (400, en su fila). Uno que ya se ordenó
+     * en esta visita es un conflicto con lo existente (409): ordenarlo otra
+     * vez sacaría la muestra dos veces.
+     */
+    @Transactional
+    public List<OrdenLaboratorioResponse> ordenarExamenes(Long visitaId, OrdenesLaboratorioRequest request,
+            Usuario medico) {
+        VisitaMedica visita = activaDe(visitaRepository.bloquear(visitaId), visitaId, medico);
+
+        Set<Long> vistos = new HashSet<>();
+        List<ExamenLaboratorio> examenes = new ArrayList<>();
+        for (int i = 0; i < request.examenes().size(); i++) {
+            Long examenId = request.examenes().get(i).examenId();
+            String campo = "examenes[%d].examenId".formatted(i);
+            ExamenLaboratorio examen = examenRepository.findById(examenId)
+                    .filter(ExamenLaboratorio::isActivo)
+                    .orElseThrow(() -> new CampoInvalidoException(campo, "El examen seleccionado no está en el catálogo"));
+            if (!vistos.add(examenId)) {
+                throw new CampoInvalidoException(campo, "Ese examen ya está en la lista");
+            }
+            if (ordenRepository.existsByVisitaIdAndExamenIdAndEstadoNot(visitaId, examenId, EstadoOrden.ANULADA)) {
+                throw new ConflictoException("El examen «" + examen.getNombre() + "» ya se ordenó en esta visita");
+            }
+            examenes.add(examen);
+        }
+
+        LocalDateTime ahora = LocalDateTime.now();
+        List<OrdenLaboratorio> ordenes = new ArrayList<>();
+        for (int i = 0; i < examenes.size(); i++) {
+            OrdenLaboratorio orden = new OrdenLaboratorio();
+            orden.setVisita(visita);
+            orden.setExamen(examenes.get(i));
+            orden.setIndicaciones(opcional(request.examenes().get(i).indicaciones()));
+            orden.setCosto(examenes.get(i).getCostoReferencia());
+            orden.setEstado(EstadoOrden.PENDIENTE);
+            orden.setFechaOrden(ahora);
+            ordenes.add(orden);
+        }
+        return ordenRepository.saveAll(ordenes).stream().map(VisitaMedicaService::orden).toList();
+    }
+
+    /** YS-111. Las órdenes de una visita del especialista, activa o finalizada (criterio de HU-11). */
+    @Transactional(readOnly = true)
+    public List<OrdenLaboratorioResponse> ordenes(Long visitaId, Usuario medico) {
+        VisitaMedica visita = visitaRepository.findById(visitaId)
+                .orElseThrow(() -> new RecursoNoEncontradoException("No existe una visita con id " + visitaId));
+        if (!visita.getEspecialista().getUsuario().getId().equals(medico.getId())) {
+            throw new OperacionNoPermitidaException("Esta visita es de otro especialista");
+        }
+        return ordenRepository.findByVisitaIdOrderByIdAsc(visitaId).stream().map(VisitaMedicaService::orden).toList();
+    }
+
     // ---- apoyo ----
+
+    static OrdenLaboratorioResponse orden(OrdenLaboratorio orden) {
+        return new OrdenLaboratorioResponse(
+                orden.getId(),
+                orden.getVisita().getId(),
+                new ExamenLaboratorioResponse(orden.getExamen().getId(), orden.getExamen().getNombre()),
+                orden.getIndicaciones(),
+                orden.getEstado(),
+                orden.getFechaOrden());
+    }
 
     private static void llenar(Receta receta, RecetaRequest request) {
         receta.setIndicacionesGenerales(opcional(request.indicacionesGenerales()));
