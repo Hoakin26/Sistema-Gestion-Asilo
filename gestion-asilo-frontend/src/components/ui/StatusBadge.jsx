@@ -4,6 +4,7 @@ import {
   CircleCheck,
   CircleSlash,
   Clock,
+  FlaskConical,
   PackageOpen,
   TriangleAlert,
 } from "lucide-react";
@@ -29,10 +30,10 @@ const ESTILOS = {
  * módulo. Las claves son las del enum del backend, para pasarlas tal cual; el
  * texto sale de constants/estados.js.
  *
- * Por ahora DE-01 (la solicitud de referencia), DE-03 (la receta), el aviso
- * al familiar y la visita. Los estados de DE-02 y DE-04 se agregan con sus
- * historias, cuando existan sus enums: escribirlos antes sería adivinar sus
- * nombres.
+ * Por ahora DE-01 (la solicitud de referencia), DE-02 (la orden de
+ * laboratorio), DE-03 (la receta), el aviso al familiar y la visita. Los de
+ * DE-04 se agregan con su historia, cuando exista su enum: escribirlos antes
+ * sería adivinar sus nombres.
  */
 const ESTADOS = {
   ACTIVO: { Icono: CircleCheck, tono: "exito" },
@@ -55,6 +56,12 @@ const ESTADOS = {
   // estado en que deja a la solicitud.
   VISITA_ACTIVA: { Icono: Activity, tono: "proceso" },
   VISITA_FINALIZADA: { Icono: CircleCheck, tono: "exito" },
+
+  // DE-02 · Orden de laboratorio, con los tonos del manual de diseño.
+  PENDIENTE: { Icono: Clock, tono: "advertencia" },
+  EN_PROCESO: { Icono: FlaskConical, tono: "proceso" },
+  RESULTADOS_CARGADOS: { Icono: CircleCheck, tono: "exito" },
+  ANULADA: { Icono: CircleSlash, tono: "neutral" },
 
   // DE-03 · Receta médica, con los tonos del manual de diseño.
   PENDIENTE_DESPACHO: { Icono: Clock, tono: "advertencia" },

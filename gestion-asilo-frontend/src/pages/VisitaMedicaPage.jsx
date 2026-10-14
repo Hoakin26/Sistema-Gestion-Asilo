@@ -7,11 +7,12 @@ import { StatusBadge } from "../components/ui/StatusBadge";
 import { Barra } from "../components/ui/TablaSkeleton";
 import { Antecedentes } from "../components/visitas/Antecedentes";
 import { DiagnosticoVisita } from "../components/visitas/DiagnosticoVisita";
+import { ExamenesVisita } from "../components/visitas/ExamenesVisita";
 import { RecetaVisita } from "../components/visitas/RecetaVisita";
 import { AppLayout } from "../layouts/AppLayout";
 import { mensajeDeError } from "../services/api";
 import { obtenerFichaMedica } from "../services/internoService";
-import { obtenerHistorial, obtenerReceta, obtenerVisita } from "../services/visitaService";
+import { listarOrdenes, obtenerHistorial, obtenerReceta, obtenerVisita } from "../services/visitaService";
 import { edadEnAnios, formatearCita, formatearFechaHora } from "../utils/fechas";
 
 const TARJETA = "rounded-tarjeta border border-divisor bg-superficie p-4 shadow-tarjeta sm:p-6";
@@ -60,8 +61,8 @@ function TarjetaCargando({ etiqueta }) {
 /**
  * HU-07 (YS-100). La pantalla de una visita médica: a quién se atiende, por
  * qué lo refirieron (criterio de HU-07) y cuándo se inició. HU-09 (YS-106) le
- * agrega el diagnóstico y el cierre, HU-10 (YS-109) la receta y HU-11 los
- * exámenes.
+ * agrega el diagnóstico y el cierre, HU-10 (YS-109) la receta y HU-11
+ * (YS-112) los exámenes de laboratorio.
  *
  * El motivo va primero y a lo ancho: es lo que el especialista necesita leer
  * antes de empezar la consulta. HU-08 (YS-103): debajo, la ficha médica y los
@@ -78,6 +79,9 @@ export function VisitaMedicaPage() {
   // undefined mientras carga; null si la visita no tiene receta.
   const [receta, setReceta] = useState(undefined);
   const [errorReceta, setErrorReceta] = useState(null);
+  // undefined mientras cargan.
+  const [ordenes, setOrdenes] = useState(undefined);
+  const [errorOrdenes, setErrorOrdenes] = useState(null);
 
   useEffect(() => {
     let vigente = true;
@@ -92,10 +96,13 @@ export function VisitaMedicaPage() {
           obtenerFichaMedica(encontrada.paciente.id),
           encontrada.estado === "ACTIVA" ? obtenerHistorial(encontrada.id) : null,
           obtenerReceta(encontrada.id),
-        ]).then(([deFicha, deHistorial, deReceta]) => {
+          listarOrdenes(encontrada.id),
+        ]).then(([deFicha, deHistorial, deReceta, deOrdenes]) => {
           if (!vigente) return;
           if (deReceta.status === "fulfilled") setReceta(deReceta.value);
           else setErrorReceta(mensajeDeError(deReceta.reason, "No se pudo cargar la receta"));
+          if (deOrdenes.status === "fulfilled") setOrdenes(deOrdenes.value);
+          else setErrorOrdenes(mensajeDeError(deOrdenes.reason, "No se pudieron cargar los exámenes"));
           if (deFicha.status === "fulfilled") setFicha(deFicha.value);
           else setErrorFicha(mensajeDeError(deFicha.reason, "No se pudo cargar la ficha médica"));
           if (deHistorial.status === "fulfilled") setHistorial(deHistorial.value);
@@ -171,6 +178,15 @@ export function VisitaMedicaPage() {
               <DiagnosticoVisita key={visita.id} visita={visita} alActualizar={setVisita} />
 
               <RecetaVisita visita={visita} receta={receta} error={errorReceta} alGuardar={setReceta} />
+
+              {/* Las órdenes nuevas se agregan al final: el backend las
+                  devuelve en el orden en que se crearon, igual que la lista. */}
+              <ExamenesVisita
+                visita={visita}
+                ordenes={ordenes}
+                error={errorOrdenes}
+                alOrdenar={(nuevas) => setOrdenes((previas) => [...(previas ?? []), ...nuevas])}
+              />
 
               <div className="grid items-start gap-6 lg:grid-cols-2">
                 {ficha || errorFicha ? (
