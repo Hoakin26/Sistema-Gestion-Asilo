@@ -40,6 +40,7 @@ import app.cabezadealgodon.com.gestionasilobackend.models.CargoServicio;
 import app.cabezadealgodon.com.gestionasilobackend.models.Cita;
 import app.cabezadealgodon.com.gestionasilobackend.models.Especialidad;
 import app.cabezadealgodon.com.gestionasilobackend.models.EstadoReceta;
+import app.cabezadealgodon.com.gestionasilobackend.models.OrdenLaboratorio;
 import app.cabezadealgodon.com.gestionasilobackend.models.EstadoSolicitud;
 import app.cabezadealgodon.com.gestionasilobackend.models.EstadoVisita;
 import app.cabezadealgodon.com.gestionasilobackend.models.Receta;
@@ -51,6 +52,8 @@ import app.cabezadealgodon.com.gestionasilobackend.models.VisitaMedica;
 import app.cabezadealgodon.com.gestionasilobackend.repository.CargoServicioRepository;
 import app.cabezadealgodon.com.gestionasilobackend.repository.CitaRepository;
 import app.cabezadealgodon.com.gestionasilobackend.repository.EspecialidadRepository;
+import app.cabezadealgodon.com.gestionasilobackend.repository.ExamenLaboratorioRepository;
+import app.cabezadealgodon.com.gestionasilobackend.repository.OrdenLaboratorioRepository;
 import app.cabezadealgodon.com.gestionasilobackend.repository.RecetaRepository;
 import app.cabezadealgodon.com.gestionasilobackend.repository.RolRepository;
 import app.cabezadealgodon.com.gestionasilobackend.repository.SolicitudReferenciaRepository;
@@ -65,7 +68,8 @@ import tools.jackson.databind.ObjectMapper;
  * visita copie la tarifa de la especialidad (YS-169). Desde HU-08 (YS-104),
  * también que los antecedentes del paciente solo se vean con la visita activa.
  * Desde HU-09 (YS-107), el diagnóstico obligatorio y el cierre de la visita
- * con su cargo de consulta. Desde HU-10 (YS-110), la receta.
+ * con su cargo de consulta. Desde HU-10 (YS-110), la receta, y desde HU-11
+ * (YS-113), los exámenes de laboratorio.
  *
  * <p>
  * La asignación solo acepta horas futuras, así que las citas "de hoy" se
@@ -112,6 +116,12 @@ class VisitaMedicaTest extends PruebaConBaseDeDatos {
 
     @Autowired
     private RecetaRepository recetaRepository;
+
+    @Autowired
+    private ExamenLaboratorioRepository examenRepository;
+
+    @Autowired
+    private OrdenLaboratorioRepository ordenRepository;
 
     @Autowired
     private PasswordEncoder passwordEncoder;
@@ -299,6 +309,151 @@ class VisitaMedicaTest extends PruebaConBaseDeDatos {
                 .andExpect(status().isForbidden());
         mvc.perform(get("/api/visitas/{id}/receta", 1).header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
                 .andExpect(status().isForbidden());
+        mvc.perform(get("/api/examenes-laboratorio").header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isForbidden());
+        mvc.perform(post("/api/visitas/{id}/ordenes-laboratorio", 1).header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON).content("{\"examenes\": [{\"examenId\": 1}]}"))
+                .andExpect(status().isForbidden());
+        mvc.perform(get("/api/visitas/{id}/ordenes-laboratorio", 1).header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isForbidden());
+    }
+
+    // ---- YS-113: los exámenes de laboratorio (HU-11) ----
+
+    @Test
+    @DisplayName("El catálogo de exámenes trae los 16 de la lista base en orden alfabético, sin el costo")
+    void elCatalogoDeExamenes() throws Exception {
+        Especialista especialista = nuevoEspecialista(0);
+        mvc.perform(get("/api/examenes-laboratorio").header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(especialista)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(16))
+                // Con tilde y todo, va primero: no al final, como con la intercalación de la base.
+                .andExpect(jsonPath("$[0].nombre").value("Ácido úrico"))
+                .andExpect(jsonPath("$[15].nombre").value("Vitamina B12"))
+                .andExpect(jsonPath("$[?(@.nombre == 'Hematología completa')]").isNotEmpty())
+                .andExpect(jsonPath("$[0].costoReferencia").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("Ordenar varios exámenes genera una orden pendiente por cada uno, con el costo del catálogo")
+    void ordenaVariosExamenes() throws Exception {
+        Especialista especialista = nuevoEspecialista(0);
+        long visita = idDe(iniciar(citaEl(especialista, HOY.atTime(8, 0)).getId(), especialista));
+
+        ordenar(visita, especialista, examen("Hematología completa", "En ayunas"), examen("Glucosa en ayunas", null))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0].estado").value("PENDIENTE"))
+                .andExpect(jsonPath("$[0].visitaId").value(visita))
+                .andExpect(jsonPath("$[0].examen.nombre").value("Hematología completa"))
+                .andExpect(jsonPath("$[0].indicaciones").value("En ayunas"))
+                .andExpect(jsonPath("$[1].estado").value("PENDIENTE"))
+                .andExpect(jsonPath("$[1].indicaciones").isEmpty())
+                .andExpect(jsonPath("$[0].costo").doesNotExist());
+
+        mvc.perform(get("/api/visitas/{id}/ordenes-laboratorio", visita)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(especialista)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2));
+
+        List<OrdenLaboratorio> ordenes = ordenRepository.findByVisitaIdOrderByIdAsc(visita);
+        assertThat(ordenes.get(0).getCosto()).isEqualByComparingTo("75.00");
+        assertThat(ordenes.get(1).getCosto()).isEqualByComparingTo("30.00");
+    }
+
+    @Test
+    @DisplayName("Un examen que no está en el catálogo se rechaza en su fila (400), y no se crea ninguna orden")
+    void examenFueraDelCatalogo() throws Exception {
+        Especialista especialista = nuevoEspecialista(0);
+        long visita = idDe(iniciar(citaEl(especialista, HOY.atTime(8, 30)).getId(), especialista));
+
+        Map<String, Object> inexistente = new LinkedHashMap<>();
+        inexistente.put("examenId", 999_999);
+        ordenar(visita, especialista, examen("Creatinina", null), inexistente)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errores['examenes[1].examenId']").value("El examen seleccionado no está en el catálogo"));
+
+        ordenar(visita, especialista)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errores.examenes").value("Seleccione al menos un examen"));
+
+        assertThat(ordenRepository.findByVisitaIdOrderByIdAsc(visita)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("Un examen repetido en la misma petición es 400; uno ya ordenado en la visita, 409")
+    void examenRepetido() throws Exception {
+        Especialista especialista = nuevoEspecialista(0);
+        long visita = idDe(iniciar(citaEl(especialista, HOY.atTime(9, 0)).getId(), especialista));
+
+        ordenar(visita, especialista, examen("Urocultivo", null), examen("Urocultivo", null))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errores['examenes[1].examenId']").value("Ese examen ya está en la lista"));
+
+        ordenar(visita, especialista, examen("Urocultivo", null)).andExpect(status().isCreated());
+        ordenar(visita, especialista, examen("Examen general de orina", null), examen("Urocultivo", null))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.mensaje").value(containsString("ya se ordenó en esta visita")));
+
+        assertThat(ordenRepository.findByVisitaIdOrderByIdAsc(visita)).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("Con la visita finalizada ya no se ordenan exámenes (409), pero se siguen pudiendo consultar")
+    void conLaVisitaFinalizadaNoSeOrdena() throws Exception {
+        tarifaDe(6, "410.00");
+        Especialista especialista = nuevoEspecialista(6);
+        long visita = idDe(iniciar(citaEl(especialista, HOY.atTime(9, 30)).getId(), especialista));
+        ordenar(visita, especialista, examen("Ácido úrico", null)).andExpect(status().isCreated());
+        diagnosticar(visita, especialista, "Gota", null).andExpect(status().isOk());
+        finalizar(visita, especialista).andExpect(status().isOk());
+
+        ordenar(visita, especialista, examen("Creatinina", null)).andExpect(status().isConflict());
+        mvc.perform(get("/api/visitas/{id}/ordenes-laboratorio", visita)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(especialista)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1));
+    }
+
+    @Test
+    @DisplayName("Otro especialista no ordena ni consulta los exámenes de una visita ajena: 403")
+    void otroEspecialistaNoOrdena() throws Exception {
+        Especialista especialista = nuevoEspecialista(0);
+        Especialista otro = nuevoEspecialista(0);
+        long visita = idDe(iniciar(citaEl(especialista, HOY.atTime(10, 0)).getId(), especialista));
+
+        ordenar(visita, otro, examen("Creatinina", null)).andExpect(status().isForbidden());
+        mvc.perform(get("/api/visitas/{id}/ordenes-laboratorio", visita)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(otro)))
+                .andExpect(status().isForbidden());
+        assertThat(ordenRepository.findByVisitaIdOrderByIdAsc(visita)).isEmpty();
+    }
+
+    /** HU-08: "Mostrar exámenes de laboratorio previos", su último criterio. */
+    @Test
+    @DisplayName("Los antecedentes traen los exámenes de visitas anteriores, sin los de la visita en curso")
+    void losAntecedentesTraenLosExamenes() throws Exception {
+        Especialista anterior = nuevoEspecialista(0);
+        Especialista actual = nuevoEspecialista(0);
+        Cita antigua = citaEl(anterior, HOY.minusDays(4).atTime(8, 0), null);
+        Long interno = antigua.getSolicitud().getInterno().getId();
+        Cita deHoy = citaEl(actual, HOY.atTime(10, 30), interno);
+
+        long visitaAntigua = idDe(iniciar(antigua.getId(), anterior));
+        ordenar(visitaAntigua, anterior, examen("Perfil lipídico", "En ayunas de 12 horas")).andExpect(status().isCreated());
+        cerrar(visitaAntigua, "Dislipidemia", HOY.minusDays(4).atTime(8, 5));
+
+        long enCurso = idDe(iniciar(deHoy.getId(), actual));
+        ordenar(enCurso, actual, examen("Hematología completa", null)).andExpect(status().isCreated());
+
+        mvc.perform(get("/api/visitas/{id}/historial", enCurso).header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(actual)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.examenes.length()").value(1))
+                .andExpect(jsonPath("$.examenes[0].examen.nombre").value("Perfil lipídico"))
+                .andExpect(jsonPath("$.examenes[0].indicaciones").value("En ayunas de 12 horas"))
+                .andExpect(jsonPath("$.examenes[0].estado").value("PENDIENTE"))
+                .andExpect(jsonPath("$.examenes[0].especialista.nombreCompleto")
+                        .value(anterior.usuario().getNombreCompleto()));
     }
 
     // ---- YS-110: la receta (HU-10) ----
@@ -731,6 +886,25 @@ class VisitaMedicaTest extends PruebaConBaseDeDatos {
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(especialista))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json.writeValueAsString(cuerpo)));
+    }
+
+    @SafeVarargs
+    private ResultActions ordenar(long visitaId, Especialista especialista, Map<String, Object>... examenes)
+            throws Exception {
+        return mvc.perform(post("/api/visitas/{id}/ordenes-laboratorio", visitaId)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(especialista))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json.writeValueAsString(Map.of("examenes", List.of(examenes)))));
+    }
+
+    /** Un examen del catálogo, buscado por su nombre en la lista base. */
+    private Map<String, Object> examen(String nombre, String indicaciones) {
+        Long id = examenRepository.findByActivoTrue().stream()
+                .filter(e -> e.getNombre().equals(nombre)).findFirst().orElseThrow().getId();
+        Map<String, Object> examen = new LinkedHashMap<>();
+        examen.put("examenId", id);
+        examen.put("indicaciones", indicaciones);
+        return examen;
     }
 
     @SafeVarargs

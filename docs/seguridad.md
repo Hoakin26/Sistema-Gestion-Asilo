@@ -816,7 +816,23 @@ Decidido el 10/10: sin tarifa de consulta, la visita no se finaliza. El diagnós
 
 La receta se corrige completa y solo mientras está pendiente de despacho: en cuanto la farmacia entrega algo (HU-16), el cambio se rechaza con 409. Además, la receta ya lleva la columna `version` (bloqueo optimista de JPA) que pide el diseño para HU-16: cuando exista el despacho, dos escrituras simultáneas sobre la misma receta, de la farmacia o del especialista, no se pisarán; HU-16 agrega el manejo de ese choque como 409. Hoy dos correcciones del mismo especialista ya se hacen una tras otra, porque cada una bloquea la visita.
 
-## 27. Qué falta
+## 27. Los exámenes de laboratorio (HU-11)
+
+### Quién ordena y quién ve el costo
+
+`GET /api/examenes-laboratorio` y `POST` y `GET /api/visitas/{id}/ordenes-laboratorio` están bajo `@SoloMedicoEspecialista`, y el servicio exige además que la visita sea de quien la pide (403 para otro especialista). Ordenar exige también que la visita siga activa (409 si está finalizada); consultar las órdenes, no. `VisitaMedicaTest` suma los tres endpoints al barrido de los seis roles, con el Administrador del Asilo entre ellos (RNF-03): el nombre de un examen ya dice algo de lo que se sospecha del paciente.
+
+Cada orden guarda el costo que tenía el examen en el catálogo al ordenarlo (RF-08: "registrando el costo para el asilo"). Si el precio del catálogo cambia después, las órdenes ya hechas conservan el suyo. El costo no viaja en las respuestas: el especialista ordena por criterio clínico, y quien lo usa es el laboratorio, que lo confirma al cargar el resultado y lo pasa a la cuenta del familiar (HU-14).
+
+### Un examen, una orden, una sola vez
+
+Cada examen crea su propia orden en `PENDIENTE`, porque el laboratorio avanza cada uno por separado (DE-02). Un examen repetido en la misma petición se rechaza en su fila (400), y uno que ya tiene una orden vigente en la visita, con 409 y su nombre. Ordenar bloquea la visita (`PESSIMISTIC_WRITE`), igual que la receta y el cierre: dos "Ordenar" simultáneos con el mismo examen se hacen uno tras otro, y el segundo recibe 409, así que el examen no se cobra dos veces. Todas las órdenes de una petición se guardan en la misma transacción: si una fila falla, no se crea ninguna.
+
+### El catálogo
+
+Decidido el 13/10: por ahora, una lista base de 16 exámenes frecuentes en adultos mayores con su costo de referencia en quetzales, que agrega `ExamenLaboratorioSeeder`. El seeder solo agrega los nombres que falten, así que un precio corregido a mano en la base no se pisa al reiniciar. Un examen marcado como inactivo deja de aparecer en el catálogo y ya no se puede ordenar (400), sin perder las órdenes que lo usaron.
+
+## 28. Qué falta
 
 Nada pendiente de HU-30, HU-31 ni HU-32. Lo que queda abierto, sin historia asignada todavía:
 

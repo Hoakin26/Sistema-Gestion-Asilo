@@ -19,7 +19,10 @@ import org.springframework.web.bind.annotation.RestController;
 
 import app.cabezadealgodon.com.gestionasilobackend.dto.CitaAgendaResponse;
 import app.cabezadealgodon.com.gestionasilobackend.dto.DiagnosticoRequest;
+import app.cabezadealgodon.com.gestionasilobackend.dto.ExamenLaboratorioResponse;
 import app.cabezadealgodon.com.gestionasilobackend.dto.HistorialMedicoResponse;
+import app.cabezadealgodon.com.gestionasilobackend.dto.OrdenLaboratorioResponse;
+import app.cabezadealgodon.com.gestionasilobackend.dto.OrdenesLaboratorioRequest;
 import app.cabezadealgodon.com.gestionasilobackend.dto.RecetaRequest;
 import app.cabezadealgodon.com.gestionasilobackend.dto.RecetaResponse;
 import app.cabezadealgodon.com.gestionasilobackend.dto.VisitaMedicaResponse;
@@ -110,6 +113,28 @@ public class VisitaMedicaController {
     @GetMapping("/visitas/{id}/receta")
     public RecetaResponse receta(@PathVariable Long id, @AuthenticationPrincipal UsuarioAutenticado medico) {
         return visitaService.receta(id, medico.getUsuario());
+    }
+
+    /** HU-11 (YS-111). El catálogo de exámenes que se pueden ordenar. */
+    @GetMapping("/examenes-laboratorio")
+    public List<ExamenLaboratorioResponse> catalogoExamenes() {
+        return visitaService.catalogoExamenes();
+    }
+
+    /** HU-11 (YS-111). Una orden pendiente por cada examen, en la visita activa. */
+    @PostMapping("/visitas/{id}/ordenes-laboratorio")
+    @ResponseStatus(HttpStatus.CREATED)
+    public List<OrdenLaboratorioResponse> ordenarExamenes(@PathVariable Long id,
+            @AuthenticationPrincipal UsuarioAutenticado medico,
+            @Valid @RequestBody OrdenesLaboratorioRequest request) {
+        return visitaService.ordenarExamenes(id, request, medico.getUsuario());
+    }
+
+    /** HU-11 (YS-111). Las órdenes generadas desde la visita. */
+    @GetMapping("/visitas/{id}/ordenes-laboratorio")
+    public List<OrdenLaboratorioResponse> ordenes(@PathVariable Long id,
+            @AuthenticationPrincipal UsuarioAutenticado medico) {
+        return visitaService.ordenes(id, medico.getUsuario());
     }
 
     /** HU-08 (YS-102). Los antecedentes del paciente, solo durante la visita activa. */
