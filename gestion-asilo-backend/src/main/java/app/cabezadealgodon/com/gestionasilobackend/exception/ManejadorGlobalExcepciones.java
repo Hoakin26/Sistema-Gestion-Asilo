@@ -4,6 +4,8 @@ import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.core.PropertyReferenceException;
 import org.springframework.http.HttpStatus;
@@ -24,6 +26,17 @@ import jakarta.servlet.http.HttpServletRequest;
 /** Traduce las excepciones a respuestas HTTP con un cuerpo uniforme. */
 @RestControllerAdvice
 public class ManejadorGlobalExcepciones {
+
+    /**
+     * YS-172. Lo que se le dice al usuario cuando el servidor falla por algo
+     * que nadie previó. Genérico a propósito: el detalle de la excepción
+     * revela nombres de clases, tablas y columnas, y a quien usa el sistema no
+     * le sirve. La traza completa queda en el log.
+     */
+    public static final String MENSAJE_INESPERADO =
+            "Ocurrió un error inesperado. Intente de nuevo y, si se repite, avise al administrador del sistema";
+
+    private static final Logger log = LoggerFactory.getLogger(ManejadorGlobalExcepciones.class);
 
     private final RegistroAccesoDenegado registroAccesoDenegado;
 
@@ -195,5 +208,55 @@ public class ManejadorGlobalExcepciones {
     public ResponseEntity<ErrorResponse> manejarIntegridad(HttpServletRequest peticion) {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(ErrorResponse.de(HttpStatus.CONFLICT,
                 "La operación entra en conflicto con datos ya existentes", peticion.getRequestURI()));
+    }
+
+    /**
+     * YS-172. La red de seguridad: lo que ningún método de arriba atiende.
+     *
+     * <p>
+     * Sin ella, una falla no prevista salía del controlador sin traducir. El
+     * contenedor la reenviaba a {@code /error}, ese reenvío no lleva el token,
+     * y la respuesta terminaba siendo 401: el frontend la tomaba por una
+     * sesión vencida y sacaba al usuario, que perdía lo que estaba escribiendo.
+     * Atiende también los {@link Error} de Java, como el de una clase
+     * compilada con errores, porque Spring MVC los entrega envueltos en una
+     * excepción.
+     *
+     * <p>
+     * Las excepciones de Spring que ya traen su estado se respetan: una
+     * dirección que no existe es 404 y un método que no corresponde, 405, con
+     * sus cabeceras (el {@code Allow} del 405). Este método se consulta antes
+     * que el resolvedor de Spring que las atendía, y sin esa distinción las
+     * convertiría todas en 500.
+     */
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<ErrorResponse> manejarNoPrevisto(Exception ex, HttpServletRequest peticion) {
+        HttpStatus estado = HttpStatus.INTERNAL_SERVER_ERROR;
+        ResponseEntity.BodyBuilder respuesta = ResponseEntity.status(estado);
+        if (ex instanceof org.springframework.web.ErrorResponse conEstado) {
+            HttpStatus propio = HttpStatus.resolve(conEstado.getStatusCode().value());
+            if (propio != null) {
+                estado = propio;
+                respuesta = ResponseEntity.status(estado).headers(conEstado.getHeaders());
+            }
+        }
+
+        if (!estado.is4xxClientError()) {
+            log.error("Error no previsto en {} {}", peticion.getMethod(), peticion.getRequestURI(), ex);
+        }
+        return respuesta.body(ErrorResponse.de(estado, mensajePara(estado), peticion.getRequestURI()));
+    }
+
+    /**
+     * YS-172. El mensaje de una respuesta de error que no trae uno propio. Lo
+     * usan este manejador y el cuerpo del reenvío a {@code /error}
+     * ({@link AtributosDeError}), para que digan lo mismo.
+     */
+    static String mensajePara(HttpStatus estado) {
+        return switch (estado) {
+            case NOT_FOUND -> "La dirección solicitada no existe";
+            case METHOD_NOT_ALLOWED -> "Esa operación no está disponible en esta dirección";
+            default -> estado.is4xxClientError() ? "No se pudo procesar la petición" : MENSAJE_INESPERADO;
+        };
     }
 }

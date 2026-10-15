@@ -708,7 +708,7 @@ classDiagram
 | `XRepository` | `repository` | Interfaz de Spring Data; las consultas se derivan del nombre del método |
 | `X` | `models` | Entidad JPA. Nunca sale de la API |
 | `XRequest` / `XResponse` | `dto` | Records inmutables: la única forma en que los datos cruzan la frontera de la API |
-| Excepciones | `exception` | Excepciones de negocio que el manejador global traduce a 400, 403, 404 o 409 con un cuerpo uniforme |
+| Excepciones | `exception` | Excepciones de negocio que el manejador global traduce a 400, 403, 404 o 409 con un cuerpo uniforme; lo no previsto sale como 500 con un mensaje genérico (YS-172) |
 
 ### 3.3 Módulo de acceso y usuarios (implementado)
 
@@ -872,6 +872,7 @@ classDiagram
         +manejarAccesoDenegado() ResponseEntity~ErrorResponse~
         +manejarCorreoDuplicado() ResponseEntity~ErrorResponse~
         +manejarIntegridad() ResponseEntity~ErrorResponse~
+        +manejarNoPrevisto() ResponseEntity~ErrorResponse~
     }
     class SoloAdministradorAsilo {
         <<annotation>>
@@ -1794,10 +1795,12 @@ La interfaz del backend es su **API REST**: los controladores y los DTO que reci
 |---|---|
 | 200 / 201 / 204 | Éxito / recurso creado / éxito sin cuerpo |
 | 400 | DTO inválido; `errores` trae el mensaje de cada campo |
-| 401 | Sin token, token vencido o sesión invalidada |
+| 401 | Sin token, token vencido o sesión invalidada, y nada más: el frontend lo toma como sesión terminada y saca al usuario (YS-172) |
 | 403 | El rol no puede usar el endpoint (queda anotado en el registro del servidor) |
-| 404 | El recurso no existe |
+| 404 | El recurso o la dirección no existe |
+| 405 | El método HTTP no corresponde a esa dirección; la cabecera `Allow` dice cuáles sí |
 | 409 | Conflicto: correo duplicado, transición de estado inválida, doble despacho |
+| 500 | Falla no prevista del servidor: mensaje genérico, sin el detalle interno, que queda en el log. La sesión sigue valiendo (YS-172) |
 
 **Roles:** MG = Médico General · AF = Administrador de la Fundación · ME = Médico Especialista · AA = Administrador del Asilo · ENF = Enfermería · LAB = Laboratorio · FAR = Farmacia · *todos* = cualquier usuario autenticado.
 
