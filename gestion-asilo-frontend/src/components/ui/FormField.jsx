@@ -41,9 +41,11 @@ export function FormField({ etiqueta, error, ayuda, obligatorio, children }) {
         <p
           id={idError}
           role="alert"
-          className="entrada-error flex items-center gap-2 text-auxiliar text-error"
+          className="entrada-error flex items-start gap-2 text-auxiliar text-error"
         >
-          <TriangleAlert aria-hidden="true" size={16} />
+          {/* shrink-0: en una columna angosta el mensaje ocupa dos líneas y,
+              sin esto, el flex encogía el ícono hasta volverlo ilegible. */}
+          <TriangleAlert aria-hidden="true" size={16} className="shrink-0" />
           {error}
         </p>
       )}

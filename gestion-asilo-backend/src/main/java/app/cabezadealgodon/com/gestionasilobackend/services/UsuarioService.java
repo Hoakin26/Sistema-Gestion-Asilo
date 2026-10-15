@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import app.cabezadealgodon.com.gestionasilobackend.dto.RestablecerPasswordRequest;
+import app.cabezadealgodon.com.gestionasilobackend.dto.ResumenPersona;
 import app.cabezadealgodon.com.gestionasilobackend.dto.UsuarioRequest;
 import app.cabezadealgodon.com.gestionasilobackend.dto.UsuarioResponse;
 import app.cabezadealgodon.com.gestionasilobackend.dto.UsuarioUpdateRequest;
@@ -39,6 +40,18 @@ public class UsuarioService {
     @Transactional(readOnly = true)
     public List<UsuarioResponse> listar() {
         return usuarioRepository.findAll().stream().map(this::mapear).toList();
+    }
+
+    /**
+     * YS-84. Los enfermeros que el Médico General puede asignar como
+     * acompañantes. Solo id y nombre: es todo lo que necesita para elegir.
+     */
+    @Transactional(readOnly = true)
+    public List<ResumenPersona> enfermerosActivos() {
+        return usuarioRepository.findByRolNombreAndActivoTrueOrderByNombreCompletoAsc(RolNombre.ENFERMERIA)
+                .stream()
+                .map(usuario -> new ResumenPersona(usuario.getId(), usuario.getNombreCompleto()))
+                .toList();
     }
 
     @Transactional(readOnly = true)

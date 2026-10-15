@@ -1,0 +1,45 @@
+package app.cabezadealgodon.com.gestionasilobackend.repository;
+
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+
+import app.cabezadealgodon.com.gestionasilobackend.models.EstadoSolicitud;
+import app.cabezadealgodon.com.gestionasilobackend.models.SolicitudReferencia;
+
+/**
+ * YS-87. Los listados traen de una vez todo lo que la fila muestra. Sin el
+ * {@code @EntityGraph}, cada solicitud de la página dispararía sus propias
+ * consultas para el interno, la especialidad y las dos personas: veinte
+ * filas serían más de ochenta consultas.
+ */
+public interface SolicitudReferenciaRepository extends JpaRepository<SolicitudReferencia, Long> {
+
+    /*
+     * YS-166. La búsqueda: por número, nombre del interno o especialidad, sin
+     * mayúsculas ni tildes (el patrón llega normalizado de PatronBusqueda, y
+     * la columna pasa por translate antes que por lower, como en internos).
+     * Con la búsqueda vacía el patrón es "%%" y trae todas.
+     */
+    String COINCIDE = """
+            (lower(s.numero) like :patron escape '\\'
+             or lower(function('translate', s.interno.nombreCompleto,
+                    'áéíóúüñÁÉÍÓÚÜÑ', 'aeiouunAEIOUUN')) like :patron escape '\\'
+             or lower(function('translate', s.especialidad.nombre,
+                    'áéíóúüñÁÉÍÓÚÜÑ', 'aeiouunAEIOUUN')) like :patron escape '\\')
+            """;
+
+    @EntityGraph(attributePaths = { "interno", "interno.familiarResponsable", "especialidad", "medicoGeneral",
+            "enfermeroAcompanante" })
+    @Query("select s from SolicitudReferencia s where " + COINCIDE)
+    Page<SolicitudReferencia> buscar(@Param("patron") String patron, Pageable paginado);
+
+    @EntityGraph(attributePaths = { "interno", "interno.familiarResponsable", "especialidad", "medicoGeneral",
+            "enfermeroAcompanante" })
+    @Query("select s from SolicitudReferencia s where s.estado = :estado and " + COINCIDE)
+    Page<SolicitudReferencia> buscarPorEstado(@Param("estado") EstadoSolicitud estado,
+            @Param("patron") String patron, Pageable paginado);
+}

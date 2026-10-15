@@ -34,24 +34,30 @@ const CATALOGO = {
   dashboard: { etiqueta: "Dashboard", Icono: LayoutDashboard, ruta: "/dashboard" },
   usuarios: { etiqueta: "Usuarios y roles", Icono: Users, ruta: "/usuarios" },
 
-  internos: { etiqueta: "Internos", Icono: UserRound, ruta: null },
-  historialMedico: { etiqueta: "Historial médico", Icono: ClipboardList, ruta: null },
+  internos: { etiqueta: "Internos", Icono: UserRound, ruta: "/internos" },
+  // HU-02 (YS-66). "/historial-medico/15" es el historial de un interno.
+  historialMedico: { etiqueta: "Historial médico", Icono: ClipboardList, ruta: "/historial-medico" },
   solicitudesReferencia: {
     etiqueta: "Solicitudes de referencia",
     Icono: FileText,
-    ruta: null,
+    ruta: "/solicitudes-referencia",
   },
 
-  solicitudesEntrantes: { etiqueta: "Solicitudes entrantes", Icono: FileText, ruta: null },
+  solicitudesEntrantes: {
+    etiqueta: "Solicitudes entrantes",
+    Icono: FileText,
+    ruta: "/solicitudes-entrantes",
+  },
   agendaAsignacion: { etiqueta: "Agenda y asignación", Icono: CalendarClock, ruta: null },
   medicosDisponibilidad: {
     etiqueta: "Médicos y disponibilidad",
     Icono: Stethoscope,
-    ruta: null,
+    ruta: "/medicos-disponibilidad",
   },
 
-  miAgenda: { etiqueta: "Mi agenda del día", Icono: CalendarCheck, ruta: null },
-  visitasMedicas: { etiqueta: "Visitas médicas", Icono: HeartPulse, ruta: null },
+  miAgenda: { etiqueta: "Mi agenda del día", Icono: CalendarCheck, ruta: "/mi-agenda" },
+  // YS-100. "/visitas/15" es la pantalla de una visita: entra con este módulo.
+  visitasMedicas: { etiqueta: "Visitas médicas", Icono: HeartPulse, ruta: "/visitas" },
   ordenesLaboratorio: { etiqueta: "Órdenes de laboratorio", Icono: FlaskConical, ruta: null },
   recetas: { etiqueta: "Recetas", Icono: Pill, ruta: null },
 
@@ -72,11 +78,15 @@ const CATALOGO = {
    * Etiqueta distinta de "Internos" a propósito (RNF-03): esta vista nunca
    * muestra psicopatologías, diagnósticos ni medicamentos, solo datos
    * personales, familiar responsable y estado de cuenta.
+   *
+   * YS-61. Misma ruta que la vista clínica: la pantalla decide qué mostrar
+   * según el rol, y el backend decide qué devolver. Dos rutas distintas
+   * habrían duplicado la pantalla sin agregar ninguna protección.
    */
   internosAdministrativo: {
     etiqueta: "Internos (vista administrativa)",
     Icono: UserRound,
-    ruta: null,
+    ruta: "/internos",
   },
   cuentasPorCobrar: { etiqueta: "Cuentas por cobrar", Icono: Receipt, ruta: null },
   cuentasPorPagar: { etiqueta: "Cuentas por pagar", Icono: Wallet, ruta: null },
@@ -95,14 +105,12 @@ const MENU_POR_ROL = {
     "agendaAsignacion",
     "medicosDisponibilidad",
   ],
-  MEDICO_ESPECIALISTA: [
-    "dashboard",
-    "miAgenda",
-    "visitasMedicas",
-    "historialMedico",
-    "ordenesLaboratorio",
-    "recetas",
-  ],
+  /*
+   * HU-02. Sin "Historial médico", aunque la matriz del diseño lo traía: por
+   * HU-08 el especialista ve los antecedentes solo durante su visita activa, y
+   * ahí ya los tiene. Un módulo aparte no tendría nada que mostrarle.
+   */
+  MEDICO_ESPECIALISTA: ["dashboard", "miAgenda", "visitasMedicas", "ordenesLaboratorio", "recetas"],
   ADMINISTRADOR_ASILO: [
     "dashboard",
     "usuarios",
@@ -136,7 +144,13 @@ export function modulosDeRol(rol) {
  *
  * Esto no reemplaza al backend, que es la autoridad (YS-53). Solo evita que el
  * usuario llegue a una pantalla que no le va a responder.
+ *
+ * YS-61. Una ruta hija hereda el permiso del módulo: quien entra a
+ * "/internos" entra también a "/internos/15". Se compara con la barra para que
+ * un módulo "/internos" no abra por accidente un "/internosX".
  */
 export function puedeEntrar(rol, ruta) {
-  return modulosDeRol(rol).some((modulo) => modulo.ruta === ruta);
+  return modulosDeRol(rol).some(
+    (modulo) => modulo.ruta && (ruta === modulo.ruta || ruta.startsWith(`${modulo.ruta}/`)),
+  );
 }

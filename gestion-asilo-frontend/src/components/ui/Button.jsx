@@ -1,4 +1,5 @@
 import { Loader2 } from "lucide-react";
+import { Link } from "react-router-dom";
 
 /*
  * Altura mínima 44px: área táctil obligatoria en tableta (rondas de enfermería).
@@ -44,6 +45,15 @@ export function Button({
       {children}
     </button>
   );
+}
+
+/**
+ * HU-02 (YS-66). Un enlace con el aspecto de un botón, para las acciones que
+ * llevan a otra pantalla. Sigue siendo un enlace: se puede abrir en otra
+ * pestaña, y el lector de pantalla lo anuncia como tal.
+ */
+export function BotonEnlace({ variante = "primario", className = "", ...props }) {
+  return <Link className={`${BASE} ${VARIANTES[variante]} ${className}`} {...props} />;
 }
 
 export function IconButton({ etiqueta, children, className = "", ...props }) {
