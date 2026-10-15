@@ -1,0 +1,10 @@
+# YS-174. Lo que no entra al contexto de construcción de la imagen.
+node_modules/
+dist/
+*.log
+
+# Las variables de desarrollo (VITE_API_URL apunta a localhost:8080). La imagen
+# fija VITE_API_URL=/api en el Dockerfile.
+.env
+.env.*
+!.env.example

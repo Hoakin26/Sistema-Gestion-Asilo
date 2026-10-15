@@ -1,0 +1,86 @@
+# docker-compose.prod.yml — YS-174. Producción, a partir del esquema del diseño
+# (docs/fase-diseno.md, 2.5).
+#
+# Versionado y sin secretos: los valores salen de .env.prod, que existe solo en
+# el servidor (copie .env.prod.example y complételo). Se levanta con:
+#
+#   docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --build
+#
+# Las variables obligatorias usan ${VARIABLE:?mensaje}: si falta una, compose se
+# detiene con ese mensaje en vez de arrancar con un valor vacío.
+
+# Rotación de registros: hasta 3 archivos de 10 MB por contenedor, para que un
+# disco lleno no tumbe el sistema (RNF-05).
+x-registros: &registros
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  web:
+    build: ./gestion-asilo-frontend        # etapa 1: npm run build; etapa 2: Caddy + dist
+    ports: ["80:80", "443:443"]            # el 80 solo redirige a HTTPS y atiende a Let's Encrypt
+    environment:
+      DOMINIO: ${DOMINIO:?Falta DOMINIO en .env.prod}
+    volumes:
+      - caddy_data:/data                   # certificados: sin esto se pedirían de nuevo en cada reinicio
+      - caddy_config:/config
+    depends_on: [backend]
+    restart: unless-stopped
+    logging: *registros
+
+  backend:
+    build: ./gestion-asilo-backend         # etapa 1: ./mvnw package; etapa 2: JRE 21 + jar
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      TZ: America/Guatemala
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:?Falta POSTGRES_DB en .env.prod}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:?Falta POSTGRES_USER en .env.prod}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?Falta POSTGRES_PASSWORD en .env.prod}
+      JWT_SECRET: ${JWT_SECRET:?Falta JWT_SECRET en .env.prod}
+      JWT_EXPIRATION: ${JWT_EXPIRATION:-28800000}
+      APP_CORS_ORIGENFRONTEND: https://${DOMINIO:?Falta DOMINIO en .env.prod}
+      # Correo al familiar (RF-04). Sin usuario, se envía sin autenticarse.
+      SPRING_MAIL_HOST: ${SPRING_MAIL_HOST:?Falta SPRING_MAIL_HOST en .env.prod}
+      SPRING_MAIL_PORT: ${SPRING_MAIL_PORT:-587}
+      SPRING_MAIL_USERNAME: ${SPRING_MAIL_USERNAME:-}
+      SPRING_MAIL_PASSWORD: ${SPRING_MAIL_PASSWORD:-}
+      SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE: ${SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE:-true}
+      APP_CORREO_REMITENTE: ${APP_CORREO_REMITENTE:?Falta APP_CORREO_REMITENTE en .env.prod}
+      # Primer Administrador del Asilo: solo se crea contra una base vacía. Sin
+      # contraseña, se genera una al azar y aparece una vez en el registro.
+      APP_ADMININICIAL_CORREO: ${APP_ADMININICIAL_CORREO:?Falta APP_ADMININICIAL_CORREO en .env.prod}
+      APP_ADMININICIAL_PASSWORD: ${APP_ADMININICIAL_PASSWORD:-}
+    volumes: ["asilo_archivos:/var/lib/asilo/archivos"]
+    depends_on:
+      # Espera a que la base acepte conexiones, no solo a que el contenedor
+      # exista: así el backend no arranca contra una base que todavía se inicia.
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    logging: *registros
+
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?Falta POSTGRES_USER en .env.prod}
+      POSTGRES_DB: ${POSTGRES_DB:?Falta POSTGRES_DB en .env.prod}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Falta POSTGRES_PASSWORD en .env.prod}
+      TZ: America/Guatemala
+    volumes: ["asilo_db_data:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    logging: *registros
+    # Sin "ports": la base de datos no es alcanzable desde fuera del servidor.
+
+volumes:
+  asilo_db_data:
+  asilo_archivos:
+  caddy_data:
+  caddy_config:
