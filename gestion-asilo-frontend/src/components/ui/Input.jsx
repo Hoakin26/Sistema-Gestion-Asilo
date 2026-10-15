@@ -23,6 +23,18 @@ export function Select({ invalido = false, className = "", children, ...props })
   );
 }
 
+/*
+ * YS-60. Para alergias, motivo de ingreso y observaciones: textos que pueden
+ * ocupar varias líneas y que en un <input> quedarían cortados a la vista.
+ * `resize-y` deja agrandarlo hacia abajo sin romper el ancho del formulario.
+ */
+export function Textarea({ invalido = false, className = "", rows = 3, ...props }) {
+  const borde = invalido ? "border-error" : "border-texto-secundario";
+  return (
+    <textarea rows={rows} className={`${BASE} ${borde} resize-y py-2 ${className}`} {...props} />
+  );
+}
+
 /**
  * Contraseña con opción de revelarla. Escribir a ciegas es una fuente clásica
  * de errores de acceso, sobre todo en tableta; poder verificar lo escrito

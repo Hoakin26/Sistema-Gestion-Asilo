@@ -75,3 +75,7 @@ Ninguno de estos archivos debe llegar a git. Tener la regla en `.gitignore` no b
 
 - **`diseno-visual-asilo`** — colores, tipografía, espaciado, sombras, iconografía y componentes del Manual de Diseño Visual. Consultar siempre al escribir componentes de UI o clases de Tailwind.
 - **`arquitectura-backend`** — convenciones de capas y estructura para el backend Spring Boot.
+
+## Requerimientos
+Los requerimientos del sistema no se puede modificar y se encuentran en /docs/requerimientos-del-sistema.md.
+Los requerimientos estan transformados en historias que se encuentran en JIRA.

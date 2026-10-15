@@ -62,7 +62,7 @@ Para quien prefiera ver el plan como línea de tiempo, la sección 1.6 presenta 
 
 **Duración de los sprints.** El Sprint 1 duró tres semanas. **Desde el Sprint 2 los sprints duran una semana**, porque solo quedan 19 días hasta la entrega del 16 de octubre. Con sprints de tres semanas habría una única revisión antes de entregar, demasiado tarde para corregir el rumbo.
 
-**Versionado.** Se usa git-flow: `develop` integra las historias terminadas y `main` solo recibe una fusión por sprint, etiquetada con su versión (`v0.1.0` y `v0.1.1` en el Sprint 1, `v0.2.0`, `v0.3.0` y `v1.0.0` en la entrega). Así cada etiqueta de git corresponde a un sprint de Jira.
+**Versionado.** Se usa git-flow: `develop` integra las historias terminadas y `main` solo recibe fusiones etiquetadas. Las etiquetas hasta ahora son `v0.1.0` y `v0.1.1` (Sprint 1) y `v0.1.2` (HU-32, el 08/10); quedan `v0.2.0` al cerrar el Sprint 2 y `v1.0.0` en la entrega. La correspondencia es con el trabajo entregado y no estrictamente con el sprint: `v0.1.1` y `v0.1.2` recogen historias terminadas fuera de la ventana de su sprint, que es lo que de verdad ocurrió.
 
 ### 1.2 Recursos
 
@@ -119,18 +119,18 @@ Los límites del nivel gratuito se verifican al crear la cuenta. Si Oracle no ti
 
 ### 1.3 Dedicación y capacidad
 
-La dedicación comprometida es de **20 horas semanales**, unas 3 horas diarias. Entre el lunes 28 de septiembre y el viernes 16 de octubre eso da **55 horas**:
+Al 8 de octubre quedan **128 puntos** —las 24 historias pendientes de las épicas 1 a 7— y **ocho días** hasta la entrega del viernes 16. Son 16 puntos por día; el Sprint 1 rindió 0,65.
 
-| Actividad | Sprint 2 (28/09–04/10) | Sprint 3 (05/10–11/10) | Sprint 4 (12/10–16/10) | Total |
-|---|---:|---:|---:|---:|
-| Desarrollo de historias (backend, frontend y pruebas) | 13 h | 16 h | 6 h | 35 h |
-| Prototipos en Figma | 2 h | 2 h | 1 h | 5 h |
-| Infraestructura y despliegue | 4 h | 1 h | 1 h | 6 h |
-| Manual de usuario y documentación de la Fase de Implementación | — | — | 6 h | 6 h |
-| Ceremonias Scrum | 1 h | 1 h | 1 h | 3 h |
-| **Total** | **20 h** | **20 h** | **15 h** | **55 h** |
+La dedicación comprometida al inicio del proyecto, 20 horas semanales, no alcanza para ese volumen. **El plan supone dedicación a tiempo completo durante los ocho días**, y aun así depende de dos condiciones que se explican en 1.5.1 y 1.7: que las historias reutilicen los patrones ya construidos, y que, si un punto de control muestra atraso, se baje el nivel de detalle de lo que falta.
 
-El Sprint 4 tiene 15 horas porque dura cinco días, hasta la entrega del viernes 16.
+| Actividad | Sprint 2 (08/10–11/10) | Sprint 3 (12/10–15/10) |
+|---|---|---|
+| Historias (backend, frontend y pruebas) | HU-01 a HU-10, 49 puntos | HU-11 a HU-28, 79 puntos |
+| Infraestructura y despliegue | Preparación del servidor, en paralelo | Despliegue el 15/10 |
+| Documentación | — | Manual de usuario y documentación de la Fase de Implementación, el 15/10 |
+| Ceremonias Scrum | Revisión y retrospectiva el 11/10 | Revisión y retrospectiva el 15/10 |
+
+Los prototipos en Figma salen de la tabla: las pantallas que faltan reutilizan los componentes y los patrones ya construidos (tabla, modal, formulario, estado vacío), así que se diseñan directamente en código.
 
 **Registro de horas.** Desde el Sprint 2, cada subtarea registra en Jira el tiempo trabajado. El Sprint 1 no tiene ese registro y por eso su velocidad solo puede medirse en puntos (1.4). Con el registro, la retrospectiva de cada sprint puede comparar las horas reales con las planificadas.
 
@@ -157,35 +157,72 @@ Se priorizaron porque todos los módulos posteriores se construyen sobre la aute
 
 **Backlog pendiente**
 
-| Épica | Historias | Puntos | En el MVP |
-|---|---|---:|---|
-| 1 · Gestión de internos e historial médico | HU-01, HU-02 | 13 | Sí |
-| 2 · Referencias y asignación de citas | HU-03, HU-05, HU-06 | 13 | Sí |
-| | HU-04 (correo al familiar) | 3 | No — versión 1.1 |
-| 3 · Atención médica especializada | HU-07 a HU-11 | 25 | Sí |
-| 4 · Laboratorio | HU-12 a HU-14 | 11 | Sí |
-| 5 · Farmacia | HU-15 a HU-17 | 11 | Sí |
-| 6 · Gestión financiera | HU-18, HU-19 | 13 | Sí |
-| | HU-20 a HU-23 (cuentas por pagar, servicios pendientes, donaciones, gastos) | 14 | No — versión 1.1 |
-| 7 · Reportes | HU-24 a HU-28 | 25 | No — versión 1.1 |
-| 8 · Autenticación y gestión de usuarios | HU-32 (contraseña temporal obligatoria) | sin estimar | Sí |
-| **Pendiente del MVP** | | **86** | |
-| **Versión 1.1** | | **42** | |
+| Épica | Historias | Requerimientos | Puntos |
+|---|---|---|---:|
+| 1 · Gestión de internos e historial médico | HU-01, HU-02 | RF-01, RF-02 | 13 |
+| 2 · Referencias y asignación de citas | HU-03 a HU-06 | RF-03, RF-04, RF-05 | 16 |
+| 3 · Atención médica especializada | HU-07 a HU-11 | RF-06, RF-07, RF-08, RF-10 | 25 |
+| 4 · Laboratorio | HU-12 a HU-14 | RF-08, RF-09 | 11 |
+| 5 · Farmacia | HU-15 a HU-17 | RF-11 | 11 |
+| 6 · Gestión financiera | HU-18 a HU-23 | RF-12 a RF-16 | 27 |
+| 7 · Reportes | HU-24 a HU-28 | RF-17 a RF-21 | 25 |
+| 8 · Autenticación y gestión de usuarios | HU-32 (contraseña temporal obligatoria) | RNF-03 | sin estimar |
+| **Pendiente** | | | **128** |
 
-El alcance del producto mínimo viable (MVP) es el definido en el informe de avance del Sprint 1: las historias que sostienen el flujo clínico completo y el cobro al familiar.
+**El alcance de la entrega son los 21 requerimientos funcionales** de `requerimientos-del-sistema.md`, porque la entrega se evalúa contra ellos. El informe de avance del Sprint 1 definía un producto mínimo viable de 86 puntos que dejaba fuera HU-04 y de HU-20 a HU-28; ese recorte se descartó, porque esas historias son las que cubren el RF-04 y del RF-13 al RF-21. La correspondencia completa entre requerimientos e historias está en `trazabilidad-requerimientos.md`.
 
 ### 1.5 Plan de sprints
 
+> **Re-planificado el 8 de octubre de 2026.** El plan original se incumplió. El alcance no cambia —los 21 requerimientos funcionales—; cambian la fecha de cada historia y, si hace falta, el nivel de detalle con que se construye. El porqué está en 1.5.1; el plan original queda en 1.5.2 para poder comparar.
+
 | Sprint | Fechas | Objetivo del sprint | Historias | Puntos | Otras tareas | Versión |
 |---|---|---|---|---:|---|---|
-| **2** | 28/09 – 04/10 | El médico general registra internos, consulta su historial y los refiere a la fundación, que les asigna cita. El sistema ya corre en el servidor público. | HU-32, HU-01, HU-02, HU-03, HU-05, HU-06 | 26 + HU-32 | Primer despliegue en el servidor; prototipos de referencias y asignación de citas | `v0.2.0` |
-| **3** | 05/10 – 11/10 | El especialista atiende la cita: consulta el historial, diagnostica, receta y ordena exámenes. El laboratorio carga resultados y su costo. | HU-07 a HU-14 | 36 | Prototipos de visita médica, laboratorio y farmacia | `v0.3.0` |
-| **4** | 12/10 – 16/10 | Farmacia despacha y el administrador del asilo consolida la cuenta del familiar con los descuentos de la fundación. | HU-15 a HU-19 | 24 | Prototipo del módulo financiero; manual de usuario; pruebas de regresión; despliegue final | `v1.0.0` (15/10) |
-| 1.1 | Después de la entrega, sin fecha comprometida | Notificación por correo, finanzas complementarias y reportes | HU-04, HU-20 a HU-28 | 42 | Migraciones con Flyway; despliegue automatizado | `v1.1.0` |
+| **2** | 08/10 – 11/10 | Un interno recorre el flujo clínico completo: se registra, el médico general lo refiere a una especialidad con un enfermero acompañante, la fundación le asigna cita y el familiar se entera por correo, el especialista lo atiende y le receta, y su historial reúne lo ocurrido. | HU-01 a HU-10 | 49 | Preparación del servidor | `v0.2.0` (11/10) |
+| **3** | 12/10 – 15/10 | El laboratorio y la farmacia atienden lo que ordenó el especialista, sus costos llegan a la cuenta del familiar, y la administración lleva sus finanzas y consulta los reportes. | HU-11 a HU-28 | 79 | Despliegue; prueba en Safari; manual de usuario; pruebas de regresión | `v1.0.0` (15/10) |
 
-**Por qué este orden.** Las historias siguen el recorrido del paciente de los diagramas DS-01 → DS-02 → DS-03. Cada historia consume datos que produce la anterior: no hay visita sin cita, ni resultado sin orden, ni cobro sin costo registrado. Construirlas en ese orden deja, al final de cada sprint, un tramo del flujo que funciona de punta a punta y se puede demostrar. Si el tiempo no alcanza, lo que falta es el final del recorrido, no un hueco en medio.
+**Plan día por día**
 
-**Por qué desplegar en el Sprint 2 y no en la última semana.** El primer despliegue sube solo lo que ya existe: inicio de sesión y usuarios. Los imprevistos de infraestructura (DNS, certificados, imágenes ARM, memoria del servidor) aparecen así cuando todavía hay dos semanas para resolverlos, no el día de la entrega.
+| Fecha | Historias | Requerimientos | Puntos |
+|---|---|---|---:|
+| Jue 08 – Vie 09 | HU-01 Perfil del interno. El backend quedó terminado el 08/10; faltan las pantallas | RF-01 | 5 |
+| Vie 09 – Sáb 10 | HU-03 Solicitud de referencia, HU-04 Correo al familiar, HU-05 Bandeja de solicitudes, HU-06 Asignación de cita | RF-03, RF-04, RF-05 | 16 |
+| Sáb 10 – Dom 11 | HU-07 Visita médica, HU-08 Historial durante la consulta, HU-09 Diagnóstico, HU-10 Receta | RF-06, RF-07, RF-10 | 20 |
+| Dom 11 | HU-02 Historial médico centralizado | RF-02 | 8 |
+| Lun 12 | HU-11 Orden de exámenes, HU-12 Órdenes de laboratorio, HU-13 Resultados, HU-14 Costo del laboratorio | RF-08, RF-09 | 16 |
+| Lun 12 – Mar 13 | HU-15 a HU-17 Farmacia, HU-18 Cuenta del familiar, HU-19 Descuentos | RF-11, RF-12 | 24 |
+| Mar 13 | HU-20 Cuentas por pagar, HU-21 Servicios pendientes, HU-22 Donaciones, HU-23 Gastos operativos | RF-13 a RF-16 | 14 |
+| Mié 14 | HU-24 a HU-28 Reportes | RF-17 a RF-21 | 25 |
+| Jue 15 | Despliegue, prueba en Safari, medición de tiempos de respuesta, manual de usuario, pruebas de regresión | RNF-01, RNF-05, RNF-06 | — |
+| Vie 16 | Entrega | | |
+
+**Por qué este orden.** Las historias siguen el recorrido del paciente de los diagramas DS-01 → DS-02 → DS-03. Cada historia consume datos que produce la anterior: no hay visita sin cita, ni resultado sin orden, ni cobro sin costo registrado. Construirlas en ese orden deja, al final de cada día, un tramo del flujo que funciona de punta a punta y se puede demostrar. Los reportes van al final porque solo leen lo que registran los demás módulos.
+
+**El historial centralizado (HU-02) va después de la visita**, y no junto al perfil del interno como en el plan original. El RF-02 pide consolidar visitas, diagnósticos y padecimientos, y las visitas y los diagnósticos los produce el RF-06. Construido antes, el historial solo habría podido mostrar la ficha médica.
+
+**Alcance del diseño.** Las secciones 3 y 4 detallan el diseño del flujo principal, del registro del interno al cobro al familiar. Los módulos restantes —notificaciones, cuentas por pagar, donaciones, gastos y reportes— son registros y consultas sobre ese mismo modelo; su diseño (entidades, endpoints y roles) está en las subtareas de Jira de cada historia.
+
+#### 1.5.1 Por qué se re-planificó
+
+**El plan original se incumplió.** Al 8 de octubre solo se había cerrado HU-32 de las seis historias del Sprint 2, y quedaban 128 puntos y 8 días. La velocidad medida en el Sprint 1 fue de 15 puntos en 23 días, es decir **0,65 puntos por día**.
+
+**Un primer re-plan, ese mismo día, recortaba el alcance, y se descartó.** Pasaba las épicas 3 a 7 a una versión posterior a la entrega y dejaba 26 puntos: el perfil del interno, el historial, la referencia y la asignación de cita. Cuadraba con el calendario, pero cubría 4 de los 21 requerimientos funcionales, y la entrega se evalúa contra los 21. Un requerimiento sin implementar no se cumple por bien que esté el resto: recortar el alcance no resolvía el problema, lo trasladaba a la evaluación.
+
+**Qué se ajusta en su lugar.** El orden de las historias y, si hace falta, su nivel de detalle. Cada historia tiene una versión completa, la que describen sus subtareas en Jira, y una versión simplificada que sigue cumpliendo sus criterios de aceptación y el requerimiento que la origina (1.7, Nivel 1). Se construye la completa mientras el calendario lo permita; si un punto de control muestra atraso, lo que falta pasa a la simplificada. Ninguna historia sale de la entrega.
+
+Lo que **no** se simplifica en ningún caso es la validación del lado del servidor ni las pruebas automatizadas: son lo que distingue un sistema de una maqueta, y es lo que el Sprint 1 demostró que detecta los errores a tiempo.
+
+#### 1.5.2 Plan original, para comparación
+
+| Sprint | Fechas | Historias | Puntos | Versión |
+|---|---|---|---:|---|
+| 2 | 28/09 – 04/10 | HU-32, HU-01, HU-02, HU-03, HU-05, HU-06 | 26 + HU-32 | `v0.2.0` |
+| 3 | 05/10 – 11/10 | HU-07 a HU-14 | 36 | `v0.3.0` |
+| 4 | 12/10 – 16/10 | HU-15 a HU-19 | 24 | `v1.0.0` (15/10) |
+| 1.1 | Sin fecha | HU-04, HU-20 a HU-28 | 42 | `v1.1.0` |
+
+De ese plan, al 8 de octubre solo se había cumplido HU-32, entregada en `v0.1.2`. El plan original además dejaba fuera de la entrega HU-04 y de HU-20 a HU-28, es decir, el RF-04 y del RF-13 al RF-21; el plan actual los incluye.
+
+**El despliegue.** Estaba previsto para el Sprint 2 y no se hizo. En el plan actual el servidor se prepara en paralelo durante el Sprint 2 y el 15/10 solo se sube la versión final. Los imprevistos de infraestructura (DNS, certificados, imágenes ARM, memoria del servidor) son los que más conviene descubrir con margen: por eso preparar el servidor no espera al último día, aunque la subida final sí.
 
 ### 1.6 Cronograma
 
@@ -205,32 +242,27 @@ gantt
 
     section Sprint 1 (terminado)
     Épica 8 - HU-29, HU-30, HU-31, HU-33   :done, s1, 2026-09-04, 23d
+    HU-32 Contraseña temporal obligatoria  :done, s1b, 2026-10-07, 2d
+    Entrega v0.1.2                         :milestone, done, m1, 2026-10-08, 0d
 
     section Sprint 2
-    Planificación y prototipos de referencias y citas :s2p, 2026-09-28, 1d
-    Primer despliegue en el servidor       :crit, s2d, 2026-09-28, 2d
-    HU-32 Contraseña temporal obligatoria  :s2a, 2026-09-29, 1d
-    HU-01 Perfil del interno               :s2b, 2026-09-29, 2d
-    HU-02 Historial médico                 :s2c, 2026-10-01, 2d
-    HU-03 Solicitud de referencia          :s2e, 2026-10-02, 1d
-    HU-05 y HU-06 Bandeja y asignación de cita :s2f, 2026-10-03, 2d
-    Revisión, v0.2.0 y punto de control    :milestone, crit, m2, 2026-10-04, 0d
+    HU-01 Perfil del interno               :s2a, 2026-10-08, 2d
+    HU-03 a HU-06 Referencia, correo y cita :s2b, 2026-10-09, 2d
+    HU-07 a HU-10 Visita, diagnóstico y receta :s2c, 2026-10-10, 2d
+    HU-02 Historial médico centralizado    :s2d, 2026-10-11, 1d
+    Preparación del servidor               :crit, s2e, 2026-10-09, 3d
+    Revisión y v0.2.0                      :milestone, crit, m2, 2026-10-12, 0d
 
     section Sprint 3
-    Prototipos de visita, laboratorio y farmacia :s3p, 2026-10-05, 1d
-    HU-07 Iniciar visita desde la cita     :s3a, 2026-10-05, 1d
-    HU-08 y HU-09 Historial en consulta y diagnóstico :s3b, 2026-10-06, 2d
-    HU-10 y HU-11 Receta y órdenes de laboratorio :s3c, 2026-10-08, 2d
-    HU-12 a HU-14 Laboratorio              :s3d, 2026-10-09, 3d
-    Revisión y v0.3.0                      :milestone, m3, 2026-10-11, 0d
-
-    section Sprint 4
-    Prototipo del módulo financiero        :s4p, 2026-10-12, 1d
-    HU-15 a HU-17 Farmacia                 :s4a, 2026-10-12, 2d
-    HU-18 y HU-19 Cuenta del familiar y descuentos :s4b, 2026-10-13, 2d
-    Manual de usuario y documentación      :s4m, 2026-10-12, 5d
-    Pruebas de regresión y despliegue v1.0.0 :crit, s4d, 2026-10-15, 1d
+    HU-11 a HU-14 Laboratorio              :s3a, 2026-10-12, 1d
+    HU-15 a HU-19 Farmacia y cuenta del familiar :s3b, 2026-10-12, 2d
+    HU-20 a HU-23 Cuentas por pagar, donaciones y gastos :s3c, 2026-10-13, 1d
+    HU-24 a HU-28 Reportes                 :s3d, 2026-10-14, 1d
+    Despliegue, Safari, manual y regresión :crit, s3e, 2026-10-15, 1d
+    Versión v1.0.0                         :milestone, crit, m3, 2026-10-16, 0d
 ```
+
+El cronograma refleja el plan re-planificado del 8 de octubre: las 24 historias pendientes, en el orden del recorrido del paciente (1.5).
 
 ### 1.7 Riesgos y plan de contingencia
 
@@ -239,41 +271,44 @@ gantt
 | | Velocidad |
 |---|---:|
 | Observada en el Sprint 1 (15 puntos en 23 días) | ~4.6 puntos por semana |
-| Necesaria para el MVP (86 puntos en 19 días) | ~32 puntos por semana |
+| Necesaria para el plan original (86 puntos en 19 días) | ~32 puntos por semana |
+| Necesaria para el plan actual (128 puntos en 8 días) | ~112 puntos por semana |
 
-Es decir, alrededor de **siete veces** lo observado. Hay razones reales para esperar que la velocidad suba:
+Medido en subtareas, que es como se registra el avance diario: el Sprint 1 cerró 27 en 23 días, algo más de una por día. Entre el 7 y el 8 de octubre se cerraron seis —HU-32 completa y el backend de HU-01—, tres por día. El plan actual pide cerrar las 91 subtareas pendientes en siete días, unas trece por día: **cuatro veces el ritmo más reciente**. Es un plan de alto riesgo, y se presenta como tal. Lo que lo sostiene:
 
 - **La base ya está hecha.** El Sprint 1 construyó la infraestructura que las historias restantes reutilizan: seguridad y roles, manejo uniforme de errores, esqueleto de navegación, biblioteca de componentes y la base de pruebas con PostgreSQL real.
-- **El Sprint 1 trabajó más de lo que sus puntos muestran.** Absorbió 13 subtareas no planificadas, y dos de sus historias (HU-32 y HU-33) no tenían estimación.
-- **Las historias restantes son homogéneas.** Casi todas repiten un mismo patrón ya probado: entidad, servicio, controlador y pantalla.
+- **El ritmo ya subió.** Las seis subtareas del 7 y 8 de octubre se cerraron con sus pruebas automatizadas, sobre esa base.
+- **Las historias restantes son homogéneas.** Casi todas repiten un mismo patrón ya probado: entidad, servicio, controlador y pantalla. Las de las épicas 6 y 7 son además registros y consultas sin flujo de estados complejo.
 
-Aun así, el plan supone una velocidad que todavía no se ha observado. Por eso se trata como riesgo, con un punto de control y una contingencia definida de antemano, y no como una certeza.
+Aun así, el plan supone una velocidad que todavía no se ha sostenido. Por eso se trata como riesgo, con puntos de control y contingencias definidas de antemano.
 
 **Puntos de control**
 
-- **Domingo 4 de octubre (revisión del Sprint 2).** Si el sprint cierra menos de 26 puntos, se aplica de inmediato el nivel 1 a las historias que faltan.
-- **Domingo 11 de octubre (revisión del Sprint 3).** Si las Épicas 3 y 4 no están cerradas, se aplica además el nivel 2.
+- **Domingo 11 de octubre (revisión del Sprint 2).** HU-01 a HU-10 cerradas. Si no lo están, el Nivel 1 se aplica desde ese momento a todas las historias del Sprint 3, sin esperar a que el atraso crezca.
+- **Martes 13 de octubre, al cierre del día.** Laboratorio, farmacia y cuenta del familiar (HU-11 a HU-19) cerrados. Si ni con el Nivel 1 lo están, se activa el Nivel 2.
+- **Miércoles 14 de octubre.** Reportes cerrados, para que el jueves 15 quede libre para desplegar, probar y documentar.
 
 **Nivel 1 — simplificar sin retirar historias.** Cada historia conserva sus criterios de aceptación, en una versión más liviana:
 
 | Historia | Versión completa | Versión simplificada |
 |---|---|---|
-| HU-06 Asignar cita | Calendario con las franjas libres según el horario de atención de cada especialista | Fecha y hora escritas por el usuario, más una validación de que el especialista no tenga otra cita a esa hora |
+| HU-06 Asignar cita | Calendario con las franjas libres según el horario de atención de cada especialista | Fecha y hora escritas por el usuario, más una validación en el servidor de que la franja está dentro del horario y libre |
 | HU-13 Resultados de laboratorio | Resultado en texto más archivo adjunto | Solo texto: el criterio de aceptación dice "adjuntar el archivo de resultado si aplica" |
 | HU-18 Cuenta del familiar | Cuenta mensual guardada, con cierre de mes | Consolidación calculada al consultar, por rango de fechas |
 | HU-19 Descuentos | Porcentaje o monto fijo por tipo de servicio | Solo porcentaje por tipo de servicio |
 
-**Nivel 2 — pasar la Épica 6 completa (HU-18 y HU-19) a la versión 1.1.** Los costos se siguen registrando en su origen: la consulta al iniciar la visita, el laboratorio en HU-14 y la farmacia en HU-17. Por eso la consolidación puede construirse después sobre datos que ya existen, sin perder ningún cobro. Se prefiere recortar por aquí porque un flujo clínico completo sin consolidación se puede demostrar, mientras que una consolidación sin el flujo clínico no tendría qué sumar.
+**Nivel 2 — la fecha, no el alcance.** Si al martes 13 ni con el Nivel 1 se llega, el recorte no se hace sobre los requerimientos: la entrega se evalúa contra los 21, y uno sin implementar se pierde entero. La decisión pasa a ser la fecha de entrega, que se plantea al catedrático con el avance de Jira como respaldo.
 
 **Otros riesgos**
 
 | Riesgo | Probabilidad | Impacto | Mitigación |
 |---|---|---|---|
-| Oracle Cloud sin capacidad ARM en la región | Media | Medio | El servidor se crea en el Sprint 2, no en la semana de entrega; alternativa de pago ya identificada (1.2) |
+| Oracle Cloud sin capacidad ARM en la región | Media | Medio | El servidor se prepara durante el Sprint 2, no el día del despliegue; alternativa de pago ya identificada (1.2) |
+| El despliegue final queda para el último día hábil | Media | Alto | El servidor se prepara durante el Sprint 2 (cuenta, Docker, dominio y certificado), así el 15/10 solo se sube la versión final |
 | Pérdida de datos en producción | Baja | Alto | Respaldo diario cifrado fuera del servidor y respaldo manual antes de cada despliegue; prueba de restauración en cada sprint (2.7) |
-| Cambios de esquema en producción con `ddl-auto=update` | Media | Medio | Respaldo antes de cada despliegue; Hibernate con `update` nunca borra columnas. Migraciones versionadas con Flyway en la versión 1.1 |
-| Filtración de datos clínicos al Administrador del Asilo (RNF-03) | Baja | Alto | Datos clínicos en entidades y endpoints separados (3.4 y 4.9), más una prueba automática por rol en cada endpoint nuevo |
-| Enfermedad o imprevisto del único desarrollador | Media | Alto | No hay otra persona que cubra. La única reserva es la contingencia de alcance de esta sección |
+| Cambios de esquema en producción con `ddl-auto=update` | Media | Medio | Respaldo antes de cada despliegue; Hibernate con `update` nunca borra columnas. Migraciones versionadas con Flyway después de la entrega |
+| Filtración de datos clínicos al Administrador del Asilo (RNF-03) | Baja | Alto | Datos clínicos en entidades y endpoints separados (3.4 y 4.9), más una prueba automática por rol en cada endpoint nuevo. Los reportes y el estado de cuenta del Administrador del Asilo se desglosan por tipo de servicio, sin nombrar exámenes ni medicamentos |
+| Enfermedad o imprevisto del único desarrollador | Media | Alto | No hay otra persona que cubra. La única reserva son las contingencias de esta sección |
 | Criterios de aceptación con nombres de estado distintos a los diagramas de estados | Alta | Bajo | Se usan los nombres de DE-01 a DE-04 y se corrige el texto en Jira (sección 5) |
 
 ---
@@ -328,7 +363,7 @@ flowchart LR
     end
 
     DB[("PostgreSQL")]
-    SMTP["Servidor de correo SMTP, versión 1.1"]
+    SMTP["Servidor de correo SMTP; Mailpit en desarrollo"]
 
     S -->|"HTTPS, JSON y token Bearer"| F
     R -->|"JDBC"| DB
@@ -419,7 +454,7 @@ flowchart TB
 
 La configuración CORS del backend se mantiene restringida al dominio como defensa adicional.
 
-**Esquema de los archivos de despliegue (se implementan en el Sprint 2):**
+**Esquema de los archivos de despliegue (se preparan en el Sprint 2 y se usan en el despliegue del 15/10):**
 
 ```yaml
 # docker-compose.prod.yml — versionado; los valores secretos vienen del .env del servidor
@@ -501,7 +536,7 @@ volumes:
 5. Prueba de humo: `GET /api/actuator/health` responde `UP`, y un inicio de sesión real funciona.
 6. **Si algo falla, se revierte:** se vuelve a la etiqueta anterior y, si el esquema de la base cambió, se restaura el respaldo del paso 3.
 
-La automatización de este procedimiento con GitHub Actions queda para la versión 1.1. Con un despliegue por semana, hacerlo a mano cuesta menos que construir y depurar la automatización.
+La automatización de este procedimiento con GitHub Actions queda para después de la entrega. Con un despliegue por semana, hacerlo a mano cuesta menos que construir y depurar la automatización.
 
 ### 2.6 Disponibilidad, rendimiento y respaldos (RNF-05 y RNF-06)
 
@@ -582,7 +617,7 @@ flowchart LR
             M5["laboratorio"]
             M6["farmacia"]
             M7["finanzas: cargos, descuentos, cuentas"]
-            M8["donaciones, gastos, reportes y notificaciones - v1.1"]
+            M8["donaciones, gastos, reportes y notificaciones"]
         end
         EXC["excepciones: manejador global y ErrorResponse"]
         CFG["config: seguridad, CORS, sembradores"]
@@ -608,8 +643,8 @@ flowchart LR
     V --> FI["finanzas"]
     L --> FI
     F --> FI
-    RF -.->|"evento SolicitudCreada"| N["notificaciones, v1.1"]
-    FI -.-> RP["reportes, v1.1: solo lectura"]
+    RF -.->|"evento SolicitudCreada"| N["notificaciones"]
+    FI -.-> RP["reportes: solo lectura"]
 ```
 
 ### 3.2 Plantilla de clases de un módulo
@@ -673,7 +708,7 @@ classDiagram
 | `XRepository` | `repository` | Interfaz de Spring Data; las consultas se derivan del nombre del método |
 | `X` | `models` | Entidad JPA. Nunca sale de la API |
 | `XRequest` / `XResponse` | `dto` | Records inmutables: la única forma en que los datos cruzan la frontera de la API |
-| Excepciones | `exception` | Excepciones de negocio que el manejador global traduce a 400, 403, 404 o 409 con un cuerpo uniforme |
+| Excepciones | `exception` | Excepciones de negocio que el manejador global traduce a 400, 403, 404 o 409 con un cuerpo uniforme; lo no previsto sale como 500 con un mensaje genérico (YS-172) |
 
 ### 3.3 Módulo de acceso y usuarios (implementado)
 
@@ -837,6 +872,7 @@ classDiagram
         +manejarAccesoDenegado() ResponseEntity~ErrorResponse~
         +manejarCorreoDuplicado() ResponseEntity~ErrorResponse~
         +manejarIntegridad() ResponseEntity~ErrorResponse~
+        +manejarNoPrevisto() ResponseEntity~ErrorResponse~
     }
     class SoloAdministradorAsilo {
         <<annotation>>
@@ -876,7 +912,7 @@ Qué hace cada pieza al recibir una petición:
 3. **`@PreAuthorize`** (o `@SoloAdministradorAsilo`) decide si el rol puede usar el endpoint.
 4. **Si no hay token válido, responde `EntryPointNoAutenticado` (401). Si el rol no alcanza, responde `ManejadorAccesoDenegado` (403).** Ambos devuelven el mismo `ErrorResponse`, y `RegistroAccesoDenegado` anota el intento en el registro del servidor.
 
-### 3.4 Modelo de dominio del MVP (diseño)
+### 3.4 Modelo de dominio del flujo principal (diseño)
 
 El diagrama de clases de la Fase de Análisis modela el dominio. Para construirlo, se refina en las entidades JPA siguientes. Las diferencias y su porqué están en la tabla que sigue a los diagramas.
 
@@ -964,6 +1000,8 @@ classDiagram
     class ExamenLaboratorio {
         -Long id
         -String nombre
+        -BigDecimal costoReferencia
+        -boolean activo
     }
     class OrdenLaboratorio {
         -Long id
@@ -972,6 +1010,7 @@ classDiagram
         -String resultado
         -String rutaArchivo
         -BigDecimal costo
+        -LocalDateTime fechaOrden
         -LocalDateTime fechaResultado
         -Long version
         +cambiarEstado(EstadoOrden nuevo) void
@@ -1130,7 +1169,7 @@ classDiagram
 | `CuentaMensual.descuentoFundacion` como un solo valor | `CargoServicio` por cada servicio, con monto original, descuento y monto neto, calculados según `PoliticaDescuento` | HU-19 pide mostrar "el desglose entre costo original y descuento aplicado", y HU-14 y HU-17 piden asociar cada costo a su visita |
 | `Medicamento` con `costoEspecial` y `descontarInventario()` | `DetalleReceta` con medicamento, dosis, cantidad, duración, costo y marca de entregado; sin inventario | Ningún RF pide inventario de farmacia; la farmacia pertenece a la fundación. En CU-005 el farmacéutico marca "agotado" a mano |
 | `FichaMedica` "contiene" `VisitaMedica` | El historial médico no se guarda aparte: se arma consultando las visitas, órdenes y recetas del interno | Guardar el historial dos veces permitiría que las dos versiones discrepen |
-| `TransaccionFinanciera` genérica | `Donacion` y `GastoOperativo` como entidades separadas (versión 1.1) | Tienen campos distintos: tipo de donante (empresa internacional, empresa nacional, gobierno, particular) frente a categoría de gasto (luz, agua…) |
+| `TransaccionFinanciera` genérica | `Donacion` y `GastoOperativo` como entidades separadas | Tienen campos distintos: tipo de donante (empresa internacional, empresa nacional, gobierno, particular) frente a categoría de gasto (luz, agua…) |
 
 ### 3.5 Servicios y reglas de negocio (diseño)
 
@@ -1196,7 +1235,7 @@ classDiagram
         +Long solicitudId
     }
     class NotificacionService {
-        <<v1.1>>
+        <<asíncrono>>
         +alCrearSolicitud(SolicitudCreadaEvent) void
     }
     SolicitudReferenciaService --> InternoService
@@ -1248,19 +1287,19 @@ stateDiagram-v2
 
 | Módulo | Clases principales | Historias | Estado |
 |---|---|---|---|
-| Autenticación | `AuthController`, `AuthService`, `JwtService`, `JwtAuthenticationFilter`, `UsuarioDetailsService`, `UsuarioAutenticado` | HU-30, HU-32 | Implementado; HU-32 en el Sprint 2 |
+| Autenticación | `AuthController`, `AuthService`, `JwtService`, `JwtAuthenticationFilter`, `UsuarioDetailsService`, `UsuarioAutenticado` | HU-30, HU-32 | Implementado |
 | Usuarios y roles | `UsuarioController`, `UsuarioService`, `Usuario`, `Rol`, `RolNombre`, `RolSeeder`, `AdminInicialSeeder` | HU-29, HU-31 | Implementado |
 | Seguridad transversal | `SecurityConfig`, `ManejadorAccesoDenegado`, `EntryPointNoAutenticado`, `RegistroAccesoDenegado`, `SoloAdministradorAsilo` | HU-31 | Implementado |
 | Excepciones | `ManejadorGlobalExcepciones`, `ErrorResponse` y excepciones de negocio | Transversal | Implementado |
-| Internos e historial | `Interno`, `FichaMedica`, `Familiar`, `InternoService`, `HistorialMedicoService` | HU-01, HU-02 | Sprint 2 |
+| Internos e historial | `Interno`, `FichaMedica`, `Familiar`, `InternoService`, `HistorialMedicoService` | HU-01, HU-02 | Sprint 2. Backend de HU-01 implementado (`InternoController`, `InternoService`) |
 | Referencias y citas | `SolicitudReferencia`, `Cita`, `Especialidad`, `MedicoEspecialista`, `HorarioAtencion` y sus servicios | HU-03, HU-05, HU-06 | Sprint 2 |
-| Visitas | `VisitaMedica`, `Receta`, `DetalleReceta`, `VisitaMedicaService` | HU-07 a HU-11 | Sprint 3 |
+| Visitas | `VisitaMedica`, `Receta`, `DetalleReceta`, `VisitaMedicaService` | HU-07 a HU-11 | Sprint 2 (HU-07 a HU-10); Sprint 3 (HU-11) |
 | Laboratorio | `OrdenLaboratorio`, `ExamenLaboratorio`, `LaboratorioService` | HU-12 a HU-14 | Sprint 3 |
-| Farmacia | `FarmaciaService` (sobre `Receta`) | HU-15 a HU-17 | Sprint 4 |
-| Finanzas | `CargoServicio`, `PoliticaDescuento`, `CuentaMensual`, `CargoService`, `CalculadoraDescuento`, `CuentaFamiliarService` | HU-18, HU-19 | Sprint 4 |
-| Notificaciones | `SolicitudCreadaEvent`, `NotificacionService` (Spring Mail, asíncrono) | HU-04 | Versión 1.1 |
-| Donaciones, gastos, cuentas por pagar | `Donacion`, `GastoOperativo`, `PagoFundacion`, `Pago` | HU-20 a HU-23 | Versión 1.1 |
-| Reportes | `ReporteService` y plantillas PDF | HU-24 a HU-28 | Versión 1.1 |
+| Farmacia | `FarmaciaService` (sobre `Receta`) | HU-15 a HU-17 | Sprint 3 |
+| Finanzas | `CargoServicio`, `PoliticaDescuento`, `CuentaMensual`, `CargoService`, `CalculadoraDescuento`, `CuentaFamiliarService` | HU-18, HU-19 | Sprint 3 |
+| Notificaciones | `SolicitudCreadaEvent`, `NotificacionService` (Spring Mail, asíncrono) | HU-04 | Sprint 2 |
+| Donaciones, gastos, cuentas por pagar | `Donacion`, `GastoOperativo`, `PagoFundacion`, `Pago` | HU-20 a HU-23 | Sprint 3 |
+| Reportes | `ReporteService` y plantillas PDF | HU-24 a HU-28 | Sprint 3 |
 
 ---
 
@@ -1309,11 +1348,13 @@ Todos los roles entran a un **Dashboard** común y navegan con un menú lateral 
 |---|---|
 | Médico General | Dashboard · Internos · Historial médico · Solicitudes de referencia |
 | Administrador de la Fundación | Dashboard · Solicitudes entrantes · Agenda y asignación · Médicos y disponibilidad |
-| Médico Especialista | Dashboard · Mi agenda del día · Visitas médicas · Historial médico · Órdenes de laboratorio · Recetas |
+| Médico Especialista | Dashboard · Mi agenda del día · Visitas médicas · Órdenes de laboratorio · Recetas |
 | Administrador del Asilo | Dashboard · Usuarios y roles · Internos (vista administrativa) · Cuentas por cobrar · Cuentas por pagar · Donaciones · Gastos · Reportes · Configuración |
 | Enfermería | Dashboard · Internos · Solicitudes asignadas · Citas |
 | Laboratorio | Dashboard · Órdenes pendientes · Registro de resultados |
 | Farmacia | Dashboard · Recetas pendientes · Despacho de medicamentos |
+
+Decidido el 14/10, con HU-02: el Médico Especialista ya no tiene "Historial médico" en su menú. Por HU-08 ve los antecedentes del paciente solo durante su visita activa, y ahí ya los tiene; un módulo aparte no tendría nada que mostrarle sin contradecir ese criterio. El del Médico General abre la lista de internos, y cada fila lleva al historial de ese interno.
 
 Cada módulo del menú puede estar en tres situaciones, y cada una dice algo distinto:
 
@@ -1429,7 +1470,7 @@ El componente `StatusBadge` es la única fuente de verdad para pintar un estado:
 | Anotación compuesta | `@SoloAdministradorAsilo` | La regla de autorización se escribe una vez y se nombra, en lugar de repetir una expresión en cada método |
 | Sembrador al arranque | `RolSeeder`, `AdminInicialSeeder` | Los catálogos fijos (roles; en el diseño, especialidades y exámenes) existen desde el primer arranque sin intervención manual |
 | Máquina de estados en enumeración (diseño) | `EstadoSolicitud`, `EstadoOrden`, `EstadoReceta` | Las transiciones de DE-01 a DE-04 se validan en un solo lugar |
-| Eventos de dominio / observador (diseño) | `SolicitudCreadaEvent` → `NotificacionService` | HU-04 (correo al familiar) se agrega en la versión 1.1 **sin modificar** `SolicitudReferenciaService` (principio abierto/cerrado). Como es asíncrono, si el correo falla la solicitud igual se guarda (CU-001, excepción E.1) |
+| Eventos de dominio / observador (diseño) | `SolicitudCreadaEvent` → `NotificacionService` | HU-04 (correo al familiar) se agrega **sin modificar** `SolicitudReferenciaService` (principio abierto/cerrado). Como es asíncrono, si el correo falla la solicitud igual se guarda (CU-001, excepción E.1) |
 | Bloqueo optimista (diseño) | `@Version` en `Receta` y `OrdenLaboratorio` | Impide el doble despacho o el doble registro de resultados por dos usuarios simultáneos (HU-16) |
 
 ### 4.8 Clases de interfaz del frontend
@@ -1574,7 +1615,7 @@ classDiagram
     UsuariosPage ..> ToastProvider : useToast
 ```
 
-**Diseñadas para el MVP**
+**Diseñadas para el flujo principal**
 
 ```mermaid
 classDiagram
@@ -1723,12 +1764,12 @@ Son la frontera del frontend con la API. Cada función corresponde a un endpoint
 |---|---|---|
 | `authService.js` | `iniciarSesion(correo, password)`, `cerrarSesion()` | Implementado |
 | `usuarioService.js` | `listarUsuarios()`, `crearUsuario(u)`, `actualizarUsuario(id, u)`, `cambiarEstadoUsuario(id, activo)`, `restablecerPasswordUsuario(id, password)` | Implementado |
-| `internoService.js` | `listarInternos(busqueda, pagina)`, `obtenerInterno(id)`, `obtenerFichaMedica(id)`, `registrarInterno(i)`, `actualizarInterno(id, i)`, `obtenerHistorial(id)` | Sprint 2 |
+| `internoService.js` | `listarInternos(busqueda, pagina)`, `obtenerInterno(id)`, `obtenerFichaMedica(id)`, `registrarInterno(i)`, `actualizarInterno(id, i)`, `obtenerHistorial(id)` | Sprint 2. El backend de las cinco primeras ya existe |
 | `referenciaService.js` | `crearSolicitud(s)`, `listarPendientes()`, `listarAsignadas()`, `consultarDisponibilidad(medicoId, fecha)`, `asignarCita(solicitudId, c)` | Sprint 2 |
-| `visitaService.js` | `miAgenda(fecha)`, `iniciarVisita(citaId)`, `historialDeVisita(id)`, `registrarDiagnostico(id, d)`, `recetar(id, r)`, `ordenarExamenes(id, o)`, `finalizarVisita(id)` | Sprint 3 |
+| `visitaService.js` | `miAgenda(fecha)`, `iniciarVisita(citaId)`, `historialDeVisita(id)`, `registrarDiagnostico(id, d)`, `recetar(id, r)`, `ordenarExamenes(id, o)`, `finalizarVisita(id)` | Sprint 2; `ordenarExamenes` en el Sprint 3 |
 | `laboratorioService.js` | `listarOrdenes(estado, paciente)`, `iniciarOrden(id)`, `registrarResultado(id, datos, archivo)` | Sprint 3 |
-| `farmaciaService.js` | `listarRecetas(estado, paciente)`, `despacharReceta(id, detalle)` | Sprint 4 |
-| `cuentaService.js` | `listarCuentas(periodo)`, `estadoDeCuenta(internoId, desde, hasta)`, `consolidar(periodo)` | Sprint 4 |
+| `farmaciaService.js` | `listarRecetas(estado, paciente)`, `despacharReceta(id, detalle)` | Sprint 3 |
+| `cuentaService.js` | `listarCuentas(periodo)`, `estadoDeCuenta(internoId, desde, hasta)`, `consolidar(periodo)` | Sprint 3 |
 
 ### 4.9 Clases de interfaz del backend
 
@@ -1754,10 +1795,12 @@ La interfaz del backend es su **API REST**: los controladores y los DTO que reci
 |---|---|
 | 200 / 201 / 204 | Éxito / recurso creado / éxito sin cuerpo |
 | 400 | DTO inválido; `errores` trae el mensaje de cada campo |
-| 401 | Sin token, token vencido o sesión invalidada |
+| 401 | Sin token, token vencido o sesión invalidada, y nada más: el frontend lo toma como sesión terminada y saca al usuario (YS-172) |
 | 403 | El rol no puede usar el endpoint (queda anotado en el registro del servidor) |
-| 404 | El recurso no existe |
+| 404 | El recurso o la dirección no existe |
+| 405 | El método HTTP no corresponde a esa dirección; la cabecera `Allow` dice cuáles sí |
 | 409 | Conflicto: correo duplicado, transición de estado inválida, doble despacho |
+| 500 | Falla no prevista del servidor: mensaje genérico, sin el detalle interno, que queda en el log. La sesión sigue valiendo (YS-172) |
 
 **Roles:** MG = Médico General · AF = Administrador de la Fundación · ME = Médico Especialista · AA = Administrador del Asilo · ENF = Enfermería · LAB = Laboratorio · FAR = Farmacia · *todos* = cualquier usuario autenticado.
 
@@ -1838,33 +1881,48 @@ classDiagram
     }
 ```
 
-**Endpoints diseñados para el MVP**
+**Endpoints diseñados para el flujo principal**
 
 | Método | Ruta | Roles | Entrada | Salida | HU |
 |---|---|---|---|---|---|
 | GET | `/api/internos?busqueda=&pagina=` | MG, ME, ENF, AA | — | `Page<InternoResumenResponse>` | HU-01 |
-| POST | `/api/internos` | MG | `InternoRequest` (datos, familiar y ficha) | `InternoResponse` (201) | HU-01 |
+| POST | `/api/internos` | MG | `InternoRequest` (datos personales y familiar; la ficha se escribe después, por su propio endpoint) | `InternoResponse` (201) | HU-01 |
 | GET | `/api/internos/{id}` | MG, ME, ENF, AA | — | `InternoResponse` (sin datos clínicos) | HU-01 |
 | PUT | `/api/internos/{id}` | MG | `InternoRequest` | `InternoResponse` | HU-01 |
 | GET | `/api/internos/{id}/ficha-medica` | MG, ME, ENF | — | `FichaMedicaResponse` | HU-01 |
 | PUT | `/api/internos/{id}/ficha-medica` | MG | `FichaMedicaRequest` | `FichaMedicaResponse` | HU-01 |
-| GET | `/api/internos/{id}/historial` | MG | — | `HistorialMedicoResponse` | HU-02 |
+| GET | `/api/internos/{id}/historial` | MG | — | `HistorialMedicoResponse`: todas las visitas del interno con su diagnóstico, incluida la que esté en curso, de la más reciente a la más antigua, y las recetas y los exámenes, cada uno con el `visitaId` de la consulta de la que salió; 404 si el interno no existe | HU-02 |
 | GET | `/api/especialidades` | MG, AF | — | `List<EspecialidadResponse>` | HU-03 |
+| GET | `/api/especialidades/tarifas` | AF | — | `List<EspecialidadTarifaResponse>` (con la tarifa de consulta, vacía si no tiene) | HU-07 |
+| PUT | `/api/especialidades/{id}/tarifa` | AF | `TarifaRequest` | `EspecialidadTarifaResponse` | HU-07 |
+| GET | `/api/enfermeros` | MG | — | `List<ResumenPersona>` (id y nombre, sin correo) | HU-03 |
+| GET | `/api/solicitudes-referencia/{id}/notificaciones` | MG, AF | — | `List<NotificacionResponse>` (sin el correo ni el error) | HU-04 |
+| POST | `/api/solicitudes-referencia/{id}/notificaciones/reintentar` | MG, AF | — | `List<NotificacionResponse>` | HU-04 |
 | POST | `/api/solicitudes-referencia` | MG | `SolicitudReferenciaRequest` | `SolicitudReferenciaResponse` (201) | HU-03 |
-| GET | `/api/solicitudes-referencia?estado=` | AF, MG | — | `List<SolicitudReferenciaResponse>` | HU-05 |
+| GET | `/api/solicitudes-referencia?estado=&busqueda=&page=&sort=` | AF, MG | — | `Page<SolicitudReferenciaResponse>`; sin `estado`, todas; `busqueda` por número, interno o especialidad, sin importar tildes (YS-166); `sort` solo por `fechaCreacion` o `numero`, cualquier otro campo es 400. Sin `sort`, de la más antigua a la más reciente; la pantalla pide las más recientes primero | HU-05 |
 | GET | `/api/solicitudes-referencia/asignadas` | ENF | — | `List<SolicitudReferenciaResponse>` | HU-03 |
 | PATCH | `/api/solicitudes-referencia/{id}/cancelar` | MG, AF | — | `SolicitudReferenciaResponse` | DE-01 |
-| GET | `/api/medicos?especialidad=` | AF | — | `List<MedicoResponse>` | HU-06 |
-| GET | `/api/medicos/{id}/disponibilidad?fecha=` | AF | — | `List<FranjaHorariaResponse>` | HU-06 |
-| POST | `/api/solicitudes-referencia/{id}/cita` | AF | `AsignacionCitaRequest` | `CitaResponse` (201) | HU-06 |
-| GET | `/api/citas/mi-agenda?fecha=` | ME | — | `List<CitaResponse>` | HU-07 |
+| GET | `/api/especialistas?especialidadId=` | AF | — | `List<EspecialistaResponse>`; sin especialidad, todos; con ella, solo los activos que la atienden | HU-06 |
+| GET | `/api/especialistas/usuarios-disponibles` | AF | — | `List<ResumenPersona>`: cuentas activas de Médico Especialista sin perfil | HU-06 |
+| POST | `/api/especialistas` | AF | `EspecialistaRequest` (cuenta, especialidad, duración de la cita, horario por día) | `EspecialistaResponse` (201); 409 si la cuenta ya tiene perfil | HU-06 |
+| PUT | `/api/especialistas/{id}` | AF | `EspecialistaRequest` (más `activo`) | `EspecialistaResponse` | HU-06 |
+| GET | `/api/especialistas/{id}/disponibilidad?fecha=` | AF | — | `List<LocalTime>`: las horas libres de ese día, ya sin las pasadas ni las ocupadas | HU-06 |
+| POST | `/api/solicitudes-referencia/{id}/cita` | AF | `AsignacionCitaRequest` (especialista, fecha y hora) | `CitaResponse` (201); 400 si la hora no es una franja del horario o ya pasó; 409 si está ocupada o la solicitud ya no está pendiente | HU-06 |
+| GET | `/api/solicitudes-referencia/{id}/cita` | MG, AF | — | `CitaResponse`; 404 si todavía no tiene | HU-06 |
+| GET | `/api/citas/mi-agenda?fecha=` | ME | — | `List<CitaAgendaResponse>` (paciente, hora, motivo, acompañante y la visita si ya se inició); sin fecha, hoy; 404 si la cuenta no tiene perfil de especialista | HU-07 |
 | GET | `/api/citas?desde=&hasta=` | ENF, MG | — | `List<CitaResponse>` | HU-06 |
-| POST | `/api/citas/{id}/visita` | ME (el asignado) | — | `VisitaMedicaResponse` (201) | HU-07 |
-| GET | `/api/visitas/{id}/historial` | ME (visita activa propia) | — | `HistorialMedicoResponse` | HU-08 |
-| PUT | `/api/visitas/{id}/diagnostico` | ME | `DiagnosticoRequest` | `VisitaMedicaResponse` | HU-09 |
-| POST | `/api/visitas/{id}/receta` | ME | `RecetaRequest` | `RecetaResponse` | HU-10 |
-| POST | `/api/visitas/{id}/ordenes-laboratorio` | ME | `OrdenesLaboratorioRequest` | `List<OrdenLaboratorioResponse>` | HU-11 |
-| PATCH | `/api/visitas/{id}/finalizar` | ME | — | `VisitaMedicaResponse` | HU-09 |
+| POST | `/api/citas/{id}/visita` | ME (el asignado) | — | `VisitaMedicaResponse` (201); 403 si la cita es de otro especialista; 409 si ya se inició, si la solicitud no está en `CITA_PROGRAMADA` o si todavía no es el día de la cita | HU-07 |
+| GET | `/api/visitas?estado=` | ME | — | `List<VisitaMedicaResponse>`: las del especialista, la más reciente primero | HU-07 |
+| GET | `/api/visitas/{id}` | ME (el de la visita) | — | `VisitaMedicaResponse` | HU-07 |
+| GET | `/api/visitas/{id}/historial` | ME (visita activa propia) | — | `HistorialMedicoResponse`: las visitas anteriores del interno con su diagnóstico, sin la visita en curso; 403 con la visita finalizada o de otro especialista. HU-10 le agregó las recetas y HU-11 los exámenes ordenados, cada uno con su estado | HU-08 |
+| PUT | `/api/visitas/{id}/diagnostico` | ME (el de la visita) | `DiagnosticoRequest` (diagnóstico obligatorio, observaciones opcionales) | `VisitaMedicaResponse`; 409 con la visita finalizada | HU-09 |
+| POST | `/api/visitas/{id}/receta` | ME (el de la visita) | `RecetaRequest` (medicamentos con nombre, dosis, cantidad y tiempo o forma de aplicación, todos obligatorios; indicaciones generales opcionales) | `RecetaResponse` (201), en `PENDIENTE_DESPACHO`; 400 señalando la fila (`medicamentos[1].dosis`); 409 si la visita ya tiene receta o está finalizada | HU-10 |
+| PUT | `/api/visitas/{id}/receta` | ME (el de la visita) | `RecetaRequest` | `RecetaResponse`; reemplaza los medicamentos mientras la visita siga activa y la receta, pendiente de despacho (409 si no) | HU-10 |
+| GET | `/api/visitas/{id}/receta` | ME (el de la visita) | — | `RecetaResponse`; 404 si la visita no tiene receta | HU-10 |
+| GET | `/api/examenes-laboratorio` | ME | — | `List<ExamenLaboratorioResponse>`: los exámenes activos del catálogo, por nombre, sin el costo | HU-11 |
+| POST | `/api/visitas/{id}/ordenes-laboratorio` | ME (el de la visita) | `OrdenesLaboratorioRequest` (de 1 a 20 exámenes del catálogo, cada uno con indicaciones opcionales) | `List<OrdenLaboratorioResponse>` (201): una orden `PENDIENTE` por examen, con el costo del catálogo guardado en la orden. 400 señalando la fila (`examenes[1].examenId`) si el examen no está en el catálogo o se repite; 409 si la visita está finalizada o el examen ya se ordenó en ella | HU-11 |
+| GET | `/api/visitas/{id}/ordenes-laboratorio` | ME (el de la visita) | — | `List<OrdenLaboratorioResponse>`: las órdenes de la visita, en el orden en que se crearon; también con la visita finalizada | HU-11 |
+| PATCH | `/api/visitas/{id}/finalizar` | ME (el de la visita) | — | `VisitaMedicaResponse`; la solicitud pasa a `ATENDIDA` y se registra el `CargoServicio` de la consulta. 400 sin diagnóstico; 409 si ya está finalizada o si la especialidad no tiene tarifa | HU-09 |
 | GET | `/api/ordenes-laboratorio?estado=&paciente=` | LAB | — | `Page<OrdenLaboratorioResponse>` | HU-12 |
 | PATCH | `/api/ordenes-laboratorio/{id}/iniciar` | LAB | — | `OrdenLaboratorioResponse` | DE-02 |
 | POST | `/api/ordenes-laboratorio/{id}/resultado` | LAB | `multipart`: `ResultadoLaboratorioRequest` y archivo opcional | `OrdenLaboratorioResponse` | HU-13, HU-14 |
@@ -1873,6 +1931,7 @@ classDiagram
 | POST | `/api/recetas/{id}/despacho` | FAR | `DespachoRequest` | `RecetaResponse` | HU-16, HU-17 |
 | GET | `/api/cuentas?periodo=` | AA | — | `List<CuentaMensualResumenResponse>` | HU-18 |
 | POST | `/api/cuentas/consolidar?periodo=` | AA | — | `List<CuentaMensualResumenResponse>` | HU-18 |
+| PUT | `/api/internos/{id}/cuota` | AA | `{ cuotaMensual }` | `InternoResponse` | HU-18 |
 | GET | `/api/internos/{id}/estado-cuenta?desde=&hasta=` | AA | — | `EstadoCuentaResponse` | HU-18, HU-19 |
 | GET | `/api/politicas-descuento` | AA, AF | — | `List<PoliticaDescuentoResponse>` | HU-19 |
 | PUT | `/api/politicas-descuento/{tipoServicio}` | AF | `PoliticaDescuentoRequest` | `PoliticaDescuentoResponse` | HU-19 |
@@ -1953,5 +2012,5 @@ Al diseñar los componentes contra los criterios de aceptación aparecieron tres
    - HU-16 dice que la receta pasa a "Despachada"; el diagrama DE-03 la llama "Entregada".
 
    El diseño usa los nombres de los diagramas de estados, porque son los que ya definió el análisis y los que usa el Manual de Diseño Visual. Se propone ajustar el texto de las dos historias.
-2. **El registro del pago del familiar no tiene historia.** Los pasos 5 a 7 de CU-006 (el familiar paga, el administrador registra el pago y los servicios quedan "Completamente Cancelados") no aparecen en ninguna de las historias HU-18 a HU-23. Sin ellos, la cuenta mensual nunca sale de "Pendiente de Pago". Se propone crear una historia para la versión 1.1, junto con HU-21 (servicios pendientes de cancelar).
-3. **La tarifa de consulta no tiene dueño.** HU-14 y HU-17 definen quién registra el costo del laboratorio y de la farmacia, pero ninguna historia dice de dónde sale el costo de la consulta, que HU-18 necesita sumar. El diseño lo resuelve con una tarifa por especialidad (`Especialidad.tarifaConsulta`), administrada por la fundación. Se propone agregarlo como criterio de aceptación de HU-06 o de HU-07.
+2. **El registro del pago del familiar no tiene historia.** Los pasos 5 a 7 de CU-006 (el familiar paga, el administrador registra el pago y los servicios quedan "Completamente Cancelados") no aparecen en ninguna de las historias HU-18 a HU-23. Sin ellos, la cuenta mensual nunca sale de "Pendiente de Pago". Se resolvió sin una historia nueva: el registro de pagos es la subtarea YS-133 de HU-18, y de ella leen HU-21 (servicios pendientes de cancelar) y los reportes de cobros (HU-26 y HU-27).
+3. **La tarifa de consulta no tiene dueño.** HU-14 y HU-17 definen quién registra el costo del laboratorio y de la farmacia, pero ninguna historia dice de dónde sale el costo de la consulta, que HU-18 necesita sumar. El diseño lo resuelve con una tarifa por especialidad (`Especialidad.tarifaConsulta`), administrada por la fundación. **Resuelto el 09/10 en HU-07** con la subtarea YS-169: la Fundación define la tarifa en "Médicos y disponibilidad" y cada visita la copia al iniciarse (`VisitaMedica.costoConsulta`), así que un cambio de tarifa no altera las visitas ya dadas.

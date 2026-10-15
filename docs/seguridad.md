@@ -362,7 +362,7 @@ El Administrador del Asilo (ACT-04), y nadie más. La matriz de roles del diseñ
 |---|---|
 | Médico General (ACT-01) | Dashboard, Internos, Historial médico, Solicitudes de referencia |
 | Administrador de la Fundación (ACT-02) | Dashboard, Solicitudes entrantes, Agenda y asignación, Médicos y disponibilidad |
-| Médico Especialista (ACT-03) | Dashboard, Mi agenda del día, Visitas médicas, Historial médico, Órdenes de laboratorio, Recetas |
+| Médico Especialista (ACT-03) | Dashboard, Mi agenda del día, Visitas médicas, Órdenes de laboratorio, Recetas (sin "Historial médico" desde HU-02: ver sección 28) |
 | **Administrador del Asilo (ACT-04)** | Dashboard, **Usuarios y roles**, Internos (vista administrativa), Cuentas por cobrar, Cuentas por pagar, Donaciones, Gastos, Reportes, Configuración |
 | Enfermería (ACT-05) | Dashboard, Internos, Solicitudes asignadas, Citas |
 | Laboratorio (ACT-06) | Dashboard, Órdenes pendientes, Registro de resultados |
@@ -636,7 +636,253 @@ La línea se restauró y se verificó contra git que el archivo quedara idéntic
 
 Con esto **HU-32 queda cerrada**.
 
-## 19. Qué falta
+## 19. El expediente del interno y el RNF-03 (HU-01)
+
+El Administrador del Asilo entra al expediente del interno —datos personales y familiar responsable— pero jamás a sus datos clínicos. Es la única restricción del sistema que protege información de salud de una persona, y por eso se aplica en tres capas que no dependen unas de otras.
+
+### Capa 1: la entidad no tiene camino hacia lo clínico (YS-57)
+
+`Interno` no tiene un campo `fichaMedica`: la relación la posee `FichaMedica`, que apunta al interno. Para leer un dato clínico hay que pedirlo explícitamente al `FichaMedicaRepository`. Así no existe un campo que alguien pueda olvidar excluir de un DTO, y `InternoResponse`, que también reciben el Administrador del Asilo y enfermería, no puede contener nada clínico por descuido.
+
+### Capa 2: cada endpoint declara quién lo usa (YS-58)
+
+| Endpoint | Anotación | Roles |
+|---|---|---|
+| `GET /api/internos`, `GET /api/internos/{id}` | `@PersonalConAccesoAInternos` | Médico General, Médico Especialista, Enfermería, Administrador del Asilo |
+| `GET /api/internos/{id}/ficha-medica` | `@PersonalClinico` | Médico General, Médico Especialista, Enfermería |
+| `POST`, `PUT /api/internos/{id}`, `PUT /api/internos/{id}/ficha-medica` | `@SoloMedicoGeneral` | Médico General |
+
+El controlador no lleva una anotación de clase a propósito: una sola regla para todo serviría de más a unos endpoints o de menos a otros.
+
+### Capa 3: la pantalla ni siquiera pide la ficha (YS-61)
+
+Para el Administrador del Asilo, el perfil del interno no llama a `/ficha-medica` y no monta la sección: no se le oculta, simplemente no existe para él, igual que los módulos que no son de su rol (sección 14). La lista de roles clínicos del frontend (`leeDatosClinicos` en `constants/roles.js`) es copia de la de `@PersonalClinico`; si alguna vez discreparan, la autoridad sigue siendo el backend, que respondería 403.
+
+A la inversa, la cuota mensual es un dato financiero: el formulario del Médico General no la muestra (RNF-02) y el perfil solo la enseña al Administrador del Asilo. Como el `PUT` del expediente reemplaza todos los campos, al editar el formulario reenvía la cuota guardada para no borrarla; la vía propia del Administrador del Asilo para fijarla llega con YS-132.
+
+### Verificación realizada
+
+| Caso | Resultado |
+|---|---|
+| El Administrador del Asilo recibe 403 al pedir la ficha (`InternoApiTest`) | Pasa |
+| Ninguno de los seis roles distintos del Médico General registra, edita ni escribe la ficha: 18 combinaciones (`InternoRecorridoTest`) | Pasa |
+| Editar el expediente no toca la ficha médica | Pasa |
+| En el navegador, con la cuenta del Administrador del Asilo: el perfil no muestra la ficha y en la red solo aparece `GET /api/internos/{id}`, nunca `/ficha-medica` | Comprobado a mano |
+| Con la cuenta de enfermería: la ficha se ve, sin botones de edición | Comprobado a mano |
+| Suite completa del backend | 89 pruebas, todas pasan |
+
+## 20. La solicitud de referencia (HU-03)
+
+### El médico sale del token, no del formulario
+
+`SolicitudReferenciaRequest` no tiene campo para el médico que refiere: `SolicitudReferenciaService` lo toma del usuario autenticado. Si viniera en el cuerpo, cualquier Médico General podría crear solicitudes a nombre de otro, y el registro de quién refirió a quién dejaría de valer.
+
+### Cada dato elegido se comprueba contra la base
+
+El DTO valida el formato; el servicio valida el sentido. El interno tiene que existir y estar activo, la especialidad tiene que estar activa y el acompañante tiene que ser un usuario activo **de Enfermería** (RF-03). Si algo no cumple, la respuesta es 400 con el error bajo el nombre de su campo (`CampoInvalidoException`), igual que una validación de formato, para que la pantalla lo pinte junto a él.
+
+### La lista de acompañantes no expone más de lo necesario
+
+El Médico General necesita elegir a un enfermero(a), no administrar usuarios. Por eso `GET /api/enfermeros` es un endpoint propio que devuelve solo id y nombre (`ResumenPersona`), y no un filtro de `/api/usuarios`, que es del Administrador del Asilo y trae correos, roles y estados. El mismo criterio sigue la solicitud: nombra al interno, al médico y al enfermero solo por id y nombre.
+
+### Quién usa cada endpoint
+
+| Endpoint | Anotación | Roles |
+|---|---|---|
+| `POST /api/solicitudes-referencia` | `@SoloMedicoGeneral` | Médico General |
+| `GET /api/especialidades` | `@MedicoGeneralOFundacion` | Médico General, Administrador de la Fundación |
+| `GET /api/enfermeros` | `@SoloMedicoGeneral` | Médico General |
+| `GET /api/solicitudes-referencia` (HU-05) | `@MedicoGeneralOFundacion` | Médico General, Administrador de la Fundación |
+
+`SolicitudReferenciaTest` barre los seis roles restantes contra la creación y los cinco restantes contra las especialidades: todos reciben 403.
+
+### El correlativo no se repite ni con solicitudes simultáneas
+
+El número (`REF-2026-0001`, reiniciado cada año) sale de una fila por año en `contador_solicitud`, que el servicio bloquea con `select … for update` antes de leerla. Calcular "el máximo más uno" habría dejado que dos solicitudes simultáneas leyeran el mismo máximo. Se comprobó que la prueba lo detecta: sin el bloqueo, de cinco solicitudes creadas a la vez una choca contra la restricción única del número y responde 409.
+
+## 21. El aviso por correo al familiar (HU-04)
+
+### Lo que dice el correo, y lo que no
+
+El aviso lleva lo que pide HU-04 —el número de la solicitud, la especialidad, el estado y la fecha— y **no lleva el motivo de la referencia**. El motivo es un dato clínico (RNF-03), y el correo es un canal que el asilo deja de controlar en cuanto lo envía: puede reenviarse, quedar en un teléfono compartido o leerse en otra pantalla. Quien necesite el detalle lo pide en el asilo. `NotificacionFamiliarTest` comprueba que el motivo no aparece.
+
+Todo lo que viene de la base pasa por `HtmlUtils.htmlEscape` antes de entrar al HTML del correo: un nombre con `<` no puede romperlo ni inyectar nada.
+
+### La consulta de avisos no expone el correo del familiar
+
+`GET .../notificaciones` la usan el Médico General y la Fundación, y devuelve solo el estado, los intentos y las fechas. El correo al que se envió y el detalle técnico del error quedan en la base (`destinatario`, `ultimo_error`) y en el registro del servidor, no en la API.
+
+### Un correo caído no afecta a la solicitud
+
+El aviso se registra en la misma transacción que la solicitud, y se envía después de confirmarla, en otro hilo. Si el servidor de correo no responde (espera máxima de 5 segundos), el aviso queda `FALLIDA` y la solicitud no se entera. Se comprobó con el servidor real: con Mailpit detenido, la solicitud se creó con 201 y el aviso quedó fallido; al levantarlo, el reintento manual lo envió.
+
+### Credenciales del servidor de correo
+
+Ninguna en el código ni en el repositorio. Por defecto el backend apunta a Mailpit en `localhost:1025`, que no pide credenciales ni reenvía nada. Para un servidor real se definen `spring.mail.*` en `application.properties` (no versionado) o como variables de entorno; `application-example.properties` muestra cómo.
+
+## 22. Especialistas y asignación de cita (HU-06)
+
+### Quién usa cada endpoint
+
+| Endpoint | Anotación | Roles |
+|---|---|---|
+| `/api/especialistas/**` (listar, cuentas disponibles, registrar, editar, disponibilidad) | `@SoloAdministradorFundacion`, en la clase | Administrador de la Fundación |
+| `POST /api/solicitudes-referencia/{id}/cita` | `@SoloAdministradorFundacion` | Administrador de la Fundación |
+| `GET /api/solicitudes-referencia/{id}/cita` | `@MedicoGeneralOFundacion` | Médico General, Administrador de la Fundación |
+
+`EspecialistaTest` y `CitaTest` barren los seis roles restantes contra el listado y el registro de especialistas y contra la asignación: todos reciben 403. El resto de `/api/especialistas` queda cubierto por la misma anotación de la clase. La pantalla muestra "Asignar cita" solo a la Fundación (`asignaCitas` en `roles.js`), pero eso es comodidad; la autoridad es el backend.
+
+### El servidor valida lo que la pantalla ya filtró
+
+La pantalla solo ofrece como botones las horas libres que le dio el servidor, pero el servidor no confía en eso: la cita tiene que ser futura, caer exactamente en una franja del horario del especialista, con un especialista activo y de la misma especialidad que la solicitud. Las horas que se ofrecen y las que se aceptan salen de la misma clase (`Agenda`), así que la pantalla no puede ofrecer una hora que la asignación después rechace.
+
+### Dos asignaciones a la misma hora no quedan las dos
+
+Asignar bloquea la fila del especialista (`PESSIMISTIC_WRITE`) hasta terminar la transacción: dos asignaciones para el mismo especialista se hacen una tras otra, y la segunda ya ve la cita de la primera y recibe 409. Debajo quedan dos restricciones únicas: una cita por solicitud y una por especialista y hora. `CitaTest` lanza dos asignaciones simultáneas a la misma hora y comprueba que una recibe 201 y la otra 409.
+
+### El correo de la cita no lleva datos clínicos
+
+El segundo aviso al familiar lleva el especialista, la especialidad, la fecha, la hora y el estado. Como el primero, no lleva el motivo de la referencia (RNF-03), y todo lo que viene de la base pasa por `HtmlUtils.htmlEscape`.
+
+### Un orden arbitrario ya no rompe la bandeja
+
+`sort` viene de la URL. Con las consultas `@Query` de la búsqueda (YS-166), un campo inexistente llegaba a Hibernate y respondía 500. Ahora cada listado acepta solo una lista blanca de campos (`OrdenNoPermitidoException`): la bandeja, `fechaCreacion` y `numero`; los internos, `nombreCompleto`, `fechaIngreso` y `dpi`. Cualquier otro campo es 400.
+
+### Las restricciones de los enum siguen al código
+
+Hibernate crea, para cada columna enum, una restricción CHECK con los valores de ese momento, y con `ddl-auto=update` no la vuelve a tocar. Al agregar `CITA_ASIGNADA`, la base de desarrollo siguió aceptando solo `SOLICITUD_CREADA`, y asignar una cita respondía 500 al registrar el aviso. Las pruebas no lo veían porque crean el esquema desde cero. `RestriccionesDeEnum` rehace esas restricciones al arrancar, con los valores que el enum tiene hoy; `RestriccionesDeEnumTest` recrea la restricción vieja y comprueba que queda al día.
+
+## 23. La visita médica (HU-07)
+
+### Quién usa cada endpoint
+
+| Endpoint | Anotación | Roles |
+|---|---|---|
+| `GET /api/citas/mi-agenda`, `POST /api/citas/{id}/visita`, `GET /api/visitas`, `GET /api/visitas/{id}` | `@SoloMedicoEspecialista`, en la clase | Médico Especialista |
+| `GET /api/especialidades/tarifas`, `PUT /api/especialidades/{id}/tarifa` | `@SoloAdministradorFundacion` | Administrador de la Fundación |
+
+La visita es un dato clínico (RNF-03). `VisitaMedicaTest` barre los seis roles restantes, el Administrador del Asilo entre ellos, contra los cuatro endpoints de la visita: todos reciben 403. Contra los de la tarifa barre los seis que no son la Fundación.
+
+### El rol no basta: la cita tiene que ser de quien la pide
+
+Todos los especialistas tienen el mismo rol, así que `@SoloMedicoEspecialista` no distingue a uno de otro. El servicio compara la cuenta del token con la del especialista de la cita: solo quien la tiene asignada inicia la visita, y solo él abre después su detalle. Otro especialista recibe 403 con un mensaje que lo dice (`OperacionNoPermitidaException`), y la solicitud no cambia. La agenda y la lista de visitas se arman a partir de la cuenta del token, nunca de un id que llegue en la petición.
+
+### Una cita, una visita
+
+El servicio rechaza con 409 una cita cuya visita ya se inició, y debajo queda la restricción única de `visita_medica.cita_id` para dos inicios simultáneos. La visita se guarda con `saveAndFlush`, para que ese choque salga dentro de la petición y no al confirmar la transacción.
+
+### Lo que el especialista no ve
+
+`VisitaMedicaResponse` no lleva el costo de la consulta, que es un dato de la cuenta del familiar y de la fundación, no de quien atiende. La tarifa tiene su propio DTO (`EspecialidadTarifaResponse`) y no se agregó a `EspecialidadResponse`, porque esa también la recibe el Médico General al referir.
+
+## 24. Los antecedentes durante la consulta (HU-08)
+
+### Dos permisos distintos para dos lecturas distintas
+
+La ficha médica (alergias, padecimientos, medicamentos habituales) la lee el especialista siempre, con `@PersonalClinico` (YS-58). Los antecedentes, en cambio, se abren **solo al especialista de la visita y solo mientras está activa**, que es lo que pide HU-08. `GET /api/visitas/{id}/historial` comprueba las dos cosas en el servicio:
+
+- Otro especialista recibe 403, aunque tenga el mismo rol.
+- Con la visita finalizada, también 403: el acceso termina con la consulta.
+
+El rol lo filtra antes `@SoloMedicoEspecialista`, así que el Administrador del Asilo no llega ni a esa comprobación (RNF-03). `VisitaMedicaTest` cubre los tres casos y suma el endpoint al barrido de los seis roles.
+
+### Los antecedentes se consultan, no se copian
+
+`HistorialMedicoService` arma los antecedentes a partir de las visitas registradas, en el momento en que se piden. No hay una tabla de historial que pueda quedar desactualizada o contradecir a la visita de la que salió (sección 3.4 del diseño). El servicio no decide quién puede verlos: eso lo hace quien lo llama, para que HU-02 lo reutilice con sus propios permisos.
+
+## 25. El diagnóstico y el cierre de la visita (HU-09)
+
+### Quién escribe y cuándo
+
+`PUT /api/visitas/{id}/diagnostico` y `PATCH /api/visitas/{id}/finalizar` están bajo `@SoloMedicoEspecialista`, como el resto de la visita. Además, el servicio exige que la visita sea de quien la pide (403 para otro especialista) y que siga activa: una visita finalizada responde 409 y ya no acepta cambios. `VisitaMedicaTest` lo comprueba y suma los dos endpoints al barrido de los seis roles, con el Administrador del Asilo entre ellos (RNF-03).
+
+### Un cierre, un cargo
+
+Finalizar lee la visita con bloqueo (`PESSIMISTIC_WRITE`) hasta el final de la transacción. Dos "Finalizar" simultáneos se hacen uno tras otro, y el segundo ya la encuentra finalizada y recibe 409, así que la consulta no se cobra dos veces. El cargo se registra dentro de la misma transacción que el cierre (`CargoService` exige una transacción en curso): si algo falla, no queda una visita finalizada sin cargo ni un cargo de una visita abierta.
+
+### Ningún cargo nace vacío
+
+Decidido el 10/10: sin tarifa de consulta, la visita no se finaliza. El diagnóstico se guarda aparte y no se pierde, y el mensaje le dice al especialista que la Fundación debe definir la tarifa. Si la definen después de iniciar la visita, el cierre toma esa. Así la cuenta del familiar (HU-18) nunca suma un cargo sin monto.
+
+## 26. La receta (HU-10)
+
+### Quién escribe la receta y quién la lee
+
+`POST`, `PUT` y `GET /api/visitas/{id}/receta` están bajo `@SoloMedicoEspecialista`, y el servicio exige además que la visita sea de quien la pide (403 para otro especialista). Registrar y corregir exigen también que la visita siga activa (409 si está finalizada); consultar, no: la receta de una visita finalizada se sigue pudiendo leer. `VisitaMedicaTest` suma los tres endpoints al barrido de los seis roles, con el Administrador del Asilo entre ellos (RNF-03).
+
+`RecetaResponse` no lleva el diagnóstico de la visita. Lo va a recibir también la farmacia (HU-15), que para despachar necesita los medicamentos, las dosis y las cantidades, no la razón clínica (mínimo privilegio, sección 5 del diseño).
+
+### Lo que la farmacia ve no cambia a sus espaldas
+
+La receta se corrige completa y solo mientras está pendiente de despacho: en cuanto la farmacia entrega algo (HU-16), el cambio se rechaza con 409. Además, la receta ya lleva la columna `version` (bloqueo optimista de JPA) que pide el diseño para HU-16: cuando exista el despacho, dos escrituras simultáneas sobre la misma receta, de la farmacia o del especialista, no se pisarán; HU-16 agrega el manejo de ese choque como 409. Hoy dos correcciones del mismo especialista ya se hacen una tras otra, porque cada una bloquea la visita.
+
+## 27. Los exámenes de laboratorio (HU-11)
+
+### Quién ordena y quién ve el costo
+
+`GET /api/examenes-laboratorio` y `POST` y `GET /api/visitas/{id}/ordenes-laboratorio` están bajo `@SoloMedicoEspecialista`, y el servicio exige además que la visita sea de quien la pide (403 para otro especialista). Ordenar exige también que la visita siga activa (409 si está finalizada); consultar las órdenes, no. `VisitaMedicaTest` suma los tres endpoints al barrido de los seis roles, con el Administrador del Asilo entre ellos (RNF-03): el nombre de un examen ya dice algo de lo que se sospecha del paciente.
+
+Cada orden guarda el costo que tenía el examen en el catálogo al ordenarlo (RF-08: "registrando el costo para el asilo"). Si el precio del catálogo cambia después, las órdenes ya hechas conservan el suyo. El costo no viaja en las respuestas: el especialista ordena por criterio clínico, y quien lo usa es el laboratorio, que lo confirma al cargar el resultado y lo pasa a la cuenta del familiar (HU-14).
+
+### Un examen, una orden, una sola vez
+
+Cada examen crea su propia orden en `PENDIENTE`, porque el laboratorio avanza cada uno por separado (DE-02). Un examen repetido en la misma petición se rechaza en su fila (400), y uno que ya tiene una orden vigente en la visita, con 409 y su nombre. Ordenar bloquea la visita (`PESSIMISTIC_WRITE`), igual que la receta y el cierre: dos "Ordenar" simultáneos con el mismo examen se hacen uno tras otro, y el segundo recibe 409, así que el examen no se cobra dos veces. Todas las órdenes de una petición se guardan en la misma transacción: si una fila falla, no se crea ninguna.
+
+### El catálogo
+
+Decidido el 13/10: por ahora, una lista base de 16 exámenes frecuentes en adultos mayores con su costo de referencia en quetzales, que agrega `ExamenLaboratorioSeeder`. El seeder solo agrega los nombres que falten, así que un precio corregido a mano en la base no se pisa al reiniciar. Un examen marcado como inactivo deja de aparecer en el catálogo y ya no se puede ordenar (400), sin perder las órdenes que lo usaron.
+
+## 28. El historial médico centralizado (HU-02)
+
+### Quién lo consulta
+
+`GET /api/internos/{id}/historial` está bajo `@SoloMedicoGeneral`, como lo pedía el diseño. Para cada rol que queda fuera hay una razón:
+
+- **Administrador del Asilo:** el RNF-03. El historial es todo dato clínico: diagnósticos, medicamentos y exámenes.
+- **Médico Especialista:** HU-08. Ve los antecedentes del paciente solo durante su visita activa, por `GET /api/visitas/{id}/historial`. Un historial abierto fuera de la visita le daría justo lo que ese criterio le niega. Por la misma razón, "Historial médico" salió de su menú (decidido el 14/10).
+- **Enfermería:** sigue leyendo la ficha médica (alergias, padecimientos, medicamentos habituales), que es lo que necesita para administrar. El historial de consultas no.
+
+`VisitaMedicaTest` barre los seis roles restantes, con el Administrador del Asilo entre ellos: todos reciben 403.
+
+### Lo mismo que los antecedentes, sin la exclusión
+
+`HistorialMedicoService` arma las dos cosas a partir de lo registrado en las visitas, sin una copia aparte que pueda contradecirlas (sección 24). Los antecedentes de HU-08 dejan fuera la visita en curso, que el especialista está registrando. El historial no deja fuera nada, porque el Médico General no está registrando ninguna: la consulta en curso aparece marcada como tal. Un interno que no existe responde 404, y uno sin consultas, con las listas vacías.
+
+Los padecimientos y los medicamentos habituales no se duplican en el historial: la pantalla pide aparte la ficha médica, con el permiso que ya tenía (`@PersonalClinico`).
+
+### En la pantalla
+
+El guardia de rutas del frontend resuelve los permisos con la misma matriz del menú. Como "Historial médico" ya no está en el menú del especialista ni en el de enfermería, si escriben a mano `/historial-medico/15` ven "No tiene permiso para ver esta página" sin que la pantalla llegue a pedir nada. La autoridad sigue siendo el backend: aunque el guardia se equivocara, el endpoint respondería 403.
+
+## 29. Un error inesperado no cierra la sesión (YS-172)
+
+### El defecto
+
+Encontrado el 13/10 al verificar HU-11 en el navegador. Una clase que el IDE compiló con errores hizo fallar al servidor al ordenar exámenes, y en vez de un mensaje de error la pantalla volvió al login con "Su sesión terminó". Lo escrito en el formulario se perdió.
+
+La cadena era esta:
+
+1. Ningún manejador atendía la falla, así que salía del controlador sin traducir y el contenedor la reenviaba internamente a `/error`.
+2. Ese reenvío no pasa por el filtro JWT: como todo `OncePerRequestFilter`, se salta los reenvíos de error. Llegaba sin usuario, y `anyRequest().authenticated()` lo rechazaba con 401.
+3. El frontend trata todo 401 como sesión terminada: borra el token y saca al usuario.
+
+Al reproducirlo con una prueba apareció lo mismo en dos casos más, con la sesión válida. Una dirección que no existe (debía ser 404) y un método que no corresponde (405) también salían como 401, porque Spring los resuelve con el mismo reenvío.
+
+### La corrección
+
+- **`ManejadorGlobalExcepciones.manejarNoPrevisto`.** Lo que ningún otro método atiende sale como 500, con el formato de error de la API y un mensaje genérico, sin el detalle de la excepción. La traza completa queda en el log del servidor. Atiende también los `Error` de Java, como el de una clase compilada con errores, porque Spring MVC los entrega envueltos en una excepción. Las excepciones de Spring que ya traen su estado lo conservan: 404 para una dirección que no existe, y 405 con su cabecera `Allow`.
+- **`SecurityConfig` deja pasar el reenvío interno a `/error`** (`dispatcherTypeMatchers(DispatcherType.ERROR)`), no la ruta: una petición que alguien escriba a `/error` sigue exigiendo token, porque no es un reenvío. Así, lo que falle fuera de Spring MVC sale con su estado real y no como 401. Por ejemplo, el filtro JWT cuando la base de datos no responde: con la regla anterior, una caída momentánea de la base habría sacado del sistema a cualquiera que hiciera una petición en ese momento.
+- **`AtributosDeError`** da al reenvío el mismo formato de error que al resto de la API, para que el frontend encuentre el mensaje también ahí.
+
+El 401 queda para lo que significa: sin token, token inválido o vencido, o sesión cerrada.
+
+### Cómo se prueba
+
+`ErrorInesperadoTest` corre contra un servidor de verdad, en un puerto al azar. El reenvío a `/error` lo hace el contenedor, y MockMvc no lo reproduce: con MockMvc, estas mismas peticiones respondían bien y la prueba no habría visto el defecto.
+
+Un controlador que solo existe en la prueba falla de tres maneras: una excepción, un `Error` de Java y una respuesta de error armada por el contenedor. Para cada una se comprueba el estado, que el mensaje no lleve el detalle interno, que la traza sí quede en el log y que el mismo token siga funcionando en la petición siguiente. También se comprueba que sin token, o con uno inventado, la respuesta siga siendo 401. Antes de la corrección, la prueba fallaba en cuatro de sus cinco casos, todos con 401.
+
+## 30. Qué falta
 
 Nada pendiente de HU-30, HU-31 ni HU-32. Lo que queda abierto, sin historia asignada todavía:
 

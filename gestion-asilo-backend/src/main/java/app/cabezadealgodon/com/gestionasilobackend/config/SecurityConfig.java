@@ -17,6 +17,7 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import jakarta.servlet.DispatcherType;
 import tools.jackson.databind.ObjectMapper;
 
 import app.cabezadealgodon.com.gestionasilobackend.security.CambioPasswordObligatorioFilter;
@@ -71,6 +72,16 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .sessionManagement(sesion -> sesion.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(rutas -> rutas
+                        /*
+                         * YS-172. El reenvío interno a /error que hace el
+                         * contenedor después de una falla. Ese reenvío no
+                         * pasa por el filtro JWT, así que llegaba sin usuario y
+                         * se respondía 401: el frontend daba por cerrada una
+                         * sesión que seguía valiendo. Se abre solo el reenvío:
+                         * una petición que alguien escriba a /error sigue
+                         * exigiendo token, porque no es de este tipo.
+                         */
+                        .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
                         // Solo el login es público: exigir autenticación para
                         // obtener un token sería un círculo sin salida. Cerrar
                         // sesión sí requiere token, porque cierra el del propio

@@ -3,9 +3,18 @@ import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { puedeEntrar } from "./constants/modulos";
 import { useAuth } from "./hooks/useAuth";
 import { DashboardPage } from "./pages/DashboardPage";
+import { HistorialMedicoPage } from "./pages/HistorialMedicoPage";
+import { InternoPerfilPage } from "./pages/InternoPerfilPage";
+import { InternosPage } from "./pages/InternosPage";
 import { LoginPage } from "./pages/LoginPage";
+import { MedicosDisponibilidadPage } from "./pages/MedicosDisponibilidadPage";
+import { MiAgendaPage } from "./pages/MiAgendaPage";
 import { SinPermisoPage } from "./pages/SinPermisoPage";
+import { SolicitudesEntrantesPage } from "./pages/SolicitudesEntrantesPage";
+import { SolicitudesReferenciaPage } from "./pages/SolicitudesReferenciaPage";
 import { UsuariosPage } from "./pages/UsuariosPage";
+import { VisitaMedicaPage } from "./pages/VisitaMedicaPage";
+import { VisitasMedicasPage } from "./pages/VisitasMedicasPage";
 
 /**
  * Tres guardias, en este orden: si hay sesión, si falta cambiar la contraseña,
@@ -73,6 +82,89 @@ function App() {
         element={
           <RutaPrivada>
             <UsuariosPage />
+          </RutaPrivada>
+        }
+      />
+      <Route
+        path="/internos"
+        element={
+          <RutaPrivada>
+            <InternosPage />
+          </RutaPrivada>
+        }
+      />
+      <Route
+        path="/internos/:id"
+        element={
+          <RutaPrivada>
+            <InternoPerfilPage />
+          </RutaPrivada>
+        }
+      />
+      {/* HU-02 (YS-66). La misma lista que "/internos", con otro destino por
+          fila. La key la remonta al cambiar de módulo: sin ella, React
+          reutilizaría la de Internos con la búsqueda escrita allá. */}
+      <Route
+        path="/historial-medico"
+        element={
+          <RutaPrivada>
+            <InternosPage key="historial" modo="historial" />
+          </RutaPrivada>
+        }
+      />
+      <Route
+        path="/historial-medico/:id"
+        element={
+          <RutaPrivada>
+            <HistorialMedicoPage />
+          </RutaPrivada>
+        }
+      />
+      <Route
+        path="/solicitudes-referencia"
+        element={
+          <RutaPrivada>
+            <SolicitudesReferenciaPage />
+          </RutaPrivada>
+        }
+      />
+      <Route
+        path="/solicitudes-entrantes"
+        element={
+          <RutaPrivada>
+            <SolicitudesEntrantesPage />
+          </RutaPrivada>
+        }
+      />
+      <Route
+        path="/medicos-disponibilidad"
+        element={
+          <RutaPrivada>
+            <MedicosDisponibilidadPage />
+          </RutaPrivada>
+        }
+      />
+      <Route
+        path="/mi-agenda"
+        element={
+          <RutaPrivada>
+            <MiAgendaPage />
+          </RutaPrivada>
+        }
+      />
+      <Route
+        path="/visitas"
+        element={
+          <RutaPrivada>
+            <VisitasMedicasPage />
+          </RutaPrivada>
+        }
+      />
+      <Route
+        path="/visitas/:id"
+        element={
+          <RutaPrivada>
+            <VisitaMedicaPage />
           </RutaPrivada>
         }
       />

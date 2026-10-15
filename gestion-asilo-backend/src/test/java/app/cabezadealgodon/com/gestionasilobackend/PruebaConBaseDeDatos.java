@@ -1,8 +1,16 @@
 package app.cabezadealgodon.com.gestionasilobackend;
 
+import static org.mockito.Mockito.when;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.testcontainers.postgresql.PostgreSQLContainer;
+
+import jakarta.mail.Session;
+import jakarta.mail.internet.MimeMessage;
 
 /**
  * Base de las pruebas que necesitan base de datos (YS-51).
@@ -23,10 +31,36 @@ public abstract class PruebaConBaseDeDatos {
         POSTGRES.start();
     }
 
+    /**
+     * YS-97. El servidor de correo es un simulacro en todas las pruebas: crear
+     * una solicitud dispara un aviso al familiar, y ninguna prueba debe
+     * depender de que Mailpit esté encendido ni mandar correos reales.
+     *
+     * <p>
+     * Vive aquí y no en la prueba de notificaciones porque así todas las
+     * clases comparten un mismo contexto de Spring. Si solo una lo declarara,
+     * Spring levantaría un segundo contexto para ella, con su propio arranque.
+     */
+    @MockitoBean
+    protected JavaMailSender correo;
+
+    /**
+     * El simulacro devuelve null por defecto, y sobre null no se puede armar
+     * un mensaje. Se rehace antes de cada prueba porque Spring limpia el
+     * simulacro después de cada una.
+     */
+    @BeforeEach
+    void prepararCorreo() {
+        when(correo.createMimeMessage()).thenAnswer(invocacion -> new MimeMessage((Session) null));
+    }
+
     @DynamicPropertySource
     static void conexion(DynamicPropertyRegistry registro) {
         registro.add("spring.datasource.url", POSTGRES::getJdbcUrl);
         registro.add("spring.datasource.username", POSTGRES::getUsername);
         registro.add("spring.datasource.password", POSTGRES::getPassword);
+        // YS-97. Sin reintentos en segundo plano: una prueba que mira el
+        // estado de un aviso no puede tener a otro hilo cambiándolo.
+        registro.add("app.notificaciones.reintento-automatico", () -> "false");
     }
 }
