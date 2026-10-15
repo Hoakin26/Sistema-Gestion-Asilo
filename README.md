@@ -152,6 +152,30 @@ cd gestion-asilo-frontend
 npm run lint
 ```
 
+## Despliegue en producción
+
+El sistema se publica en un servidor con Docker, con los tres contenedores de [`docker-compose.prod.yml`](docker-compose.prod.yml): Caddy sirve la aplicación y obtiene el certificado HTTPS, el backend corre con el perfil `prod` y PostgreSQL queda sin puerto hacia afuera. La arquitectura, los respaldos y la reversión están en la [Fase de diseño](docs/fase-diseno.md) (2.5 y 2.6).
+
+Requisitos del servidor: Docker con Compose, los puertos 80 y 443 abiertos, y un subdominio que apunte a su IP pública.
+
+```bash
+git clone https://github.com/Hoakin26/Sistema-Gestion-Asilo.git
+cd Sistema-Gestion-Asilo
+git checkout <etiqueta>                   # la última entrega, por ejemplo v0.2.1
+cp .env.prod.example .env.prod            # y complete los valores (ver los comentarios)
+docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --build
+```
+
+Prueba de humo: `https://<dominio>/api/actuator/health` responde `{"status":"UP"}`, y el inicio de sesión funciona con el administrador inicial de `.env.prod`. Si su contraseña quedó en blanco, se genera una al azar y aparece una sola vez en el registro:
+
+```bash
+docker compose --env-file .env.prod -f docker-compose.prod.yml logs backend
+```
+
+Para desplegar una versión nueva: respalde la base, cambie a la etiqueta nueva (`git fetch --tags && git checkout <etiqueta>`) y repita el `up -d --build`.
+
+`.env.prod` existe solo en el servidor y no se versiona. Use secretos nuevos, distintos de los de desarrollo.
+
 ## Problemas frecuentes
 
 **`docker compose` dice `Falta POSTGRES_PASSWORD`.** No existe el `.env` de la raíz, o `POSTGRES_PASSWORD` está vacía. Vea el paso 2.
@@ -172,8 +196,10 @@ npm run lint
 
 ```
 .
-├── docker-compose.yml         PostgreSQL y Mailpit
+├── docker-compose.yml         PostgreSQL y Mailpit (desarrollo)
 ├── .env.example               Plantilla de credenciales de la base de datos
+├── docker-compose.prod.yml    Producción: Caddy, backend y PostgreSQL
+├── .env.prod.example          Plantilla de las variables de producción
 ├── docs/                      Requerimientos, trazabilidad, diseño y seguridad
 ├── gestion-asilo-backend/     API REST en Spring Boot
 │   └── src/main/java/.../     controllers, services, repository, models, dto,
@@ -183,7 +209,7 @@ npm run lint
                                services, constants, utils
 ```
 
-Ningún archivo con credenciales se versiona: `.env`, `gestion-asilo-frontend/.env` y `application.properties` se crean a partir de sus plantillas.
+Ningún archivo con credenciales se versiona: `.env`, `.env.prod`, `gestion-asilo-frontend/.env` y `application.properties` se crean a partir de sus plantillas.
 
 ## Documentación
 

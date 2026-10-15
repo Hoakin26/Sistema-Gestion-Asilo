@@ -454,7 +454,16 @@ flowchart TB
 
 La configuración CORS del backend se mantiene restringida al dominio como defensa adicional.
 
-**Esquema de los archivos de despliegue (se preparan en el Sprint 2 y se usan en el despliegue del 15/10):**
+**Esquema de los archivos de despliegue.** Los archivos reales están en el repositorio desde YS-174: [`docker-compose.prod.yml`](../docker-compose.prod.yml), [`Caddyfile`](../gestion-asilo-frontend/Caddyfile), un `Dockerfile` en cada proyecto y [`.env.prod.example`](../.env.prod.example). Parten de este esquema y le agregan:
+
+- las variables del correo (`SPRING_MAIL_*`, `APP_CORREO_REMITENTE`) y del administrador inicial (`APP_ADMININICIAL_*`);
+- un `healthcheck` en `db`, con el que el backend espera a que la base acepte conexiones (`depends_on: condition: service_healthy`);
+- la rotación de los registros de cada contenedor (3 archivos de 10 MB);
+- el volumen `caddy_config`, que Caddy recomienda conservar junto a `caddy_data`;
+- en el `Caddyfile`, `defer` en las cabeceras de seguridad: el backend manda algunas de las mismas (Spring Security), y sin `defer` las respuestas de `/api` las llevarían repetidas. También quita la cabecera `Server`;
+- en la imagen del backend, un usuario sin privilegios en lugar de root.
+
+Las variables salen de `.env.prod` y no de `.env`, para que en una misma computadora no se mezclen con las de desarrollo.
 
 ```yaml
 # docker-compose.prod.yml — versionado; los valores secretos vienen del .env del servidor
@@ -526,13 +535,14 @@ volumes:
 | `APP_CORS_ORIGENFRONTEND` | `app.cors.origen-frontend` | El guion de `origen-frontend` desaparece en la variable |
 | `APP_ADMININICIAL_CORREO` y `APP_ADMININICIAL_PASSWORD` | `app.admin-inicial.*` | Solo para el primer arranque; la contraseña se cambia al primer ingreso (HU-32) |
 | `SPRING_DATASOURCE_*` | `spring.datasource.*` | Apuntan al servicio `db`, no a `localhost` |
+| `SPRING_MAIL_*` y `APP_CORREO_REMITENTE` | `spring.mail.*` y `app.correo.remitente` | El servidor SMTP real del correo al familiar (RF-04), en lugar de Mailpit |
 
 **Procedimiento de despliegue**
 
 1. Al cerrar el sprint, se fusiona `develop` en `main` y se crea la etiqueta (por ejemplo `v0.2.0`).
 2. En el servidor, se descarga la etiqueta: `git fetch --tags && git checkout v0.2.0`.
 3. Se hace un respaldo manual de la base (2.6).
-4. Se reconstruye y reinicia: `docker compose -f docker-compose.prod.yml up -d --build`. La caída es de menos de un minuto; se hace de noche.
+4. Se reconstruye y reinicia: `docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --build`. La caída es de menos de un minuto; se hace de noche.
 5. Prueba de humo: `GET /api/actuator/health` responde `UP`, y un inicio de sesión real funciona.
 6. **Si algo falla, se revierte:** se vuelve a la etiqueta anterior y, si el esquema de la base cambió, se restaura el respaldo del paso 3.
 
