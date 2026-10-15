@@ -5,6 +5,7 @@ import java.util.List;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -87,6 +88,13 @@ public class SecurityConfig {
                         // sesión sí requiere token, porque cierra el del propio
                         // solicitante.
                         .requestMatchers("/api/auth/login").permitAll()
+                        /*
+                         * YS-174. La salud del sistema, para que UptimeRobot la
+                         * revise sin credenciales (RNF-05). Solo esa ruta y
+                         * solo para leer: en producción Actuator no expone nada
+                         * más y no muestra detalles (application-prod.properties).
+                         */
+                        .requestMatchers(HttpMethod.GET, "/api/actuator/health").permitAll()
                         .anyRequest().authenticated())
                 // YS-54. Sin el manejador de acceso denegado, una denegación
                 // que ocurra en la cadena de filtros sale como 403 sin cuerpo.

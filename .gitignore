@@ -33,6 +33,8 @@ yarn-error.log*
 # Otros
 .env.local
 .env.*.local
+# YS-174. Variables de producción: existen solo en el servidor.
+.env.prod
 *.pem
 *.key
 .docker/

@@ -1,0 +1,12 @@
+# YS-174. Lo que no entra al contexto de construcción de la imagen.
+target/
+.idea/
+.vscode/
+*.iml
+*.log
+
+# La configuración de desarrollo, con las credenciales locales. En producción
+# todo llega de application-prod.properties y de las variables de entorno: si
+# este archivo entrara al .jar, la imagen llevaría la contraseña de la base de
+# desarrollo y el secreto JWT de desarrollo.
+src/main/resources/application.properties
