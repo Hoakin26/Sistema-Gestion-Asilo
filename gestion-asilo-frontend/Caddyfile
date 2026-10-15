@@ -1,0 +1,37 @@
+# YS-174. El Caddyfile del diseño (docs/fase-diseno.md, 2.5).
+#
+# {$DOMINIO} sale de la variable de entorno del contenedor. Con un dominio real,
+# Caddy obtiene y renueva solo el certificado de Let's Encrypt, y el puerto 80
+# redirige a HTTPS. Con "localhost" usa un certificado propio, para probar la
+# imagen en una computadora sin dominio.
+{$DOMINIO} {
+	encode zstd gzip
+
+	# La API: todo lo que empieza por /api va al backend, por la red interna de
+	# Docker. El backend no tiene puerto propio hacia internet.
+	handle /api/* {
+		reverse_proxy backend:8080
+	}
+
+	# La aplicación React. Una ruta que no es un archivo (/internos/15) recibe
+	# index.html, y React Router decide qué pantalla mostrar: recargar la página
+	# en cualquier ruta no da 404.
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+
+	# "defer" aplica las cabeceras al final, sobre la respuesta ya armada. El
+	# backend manda algunas de estas mismas (Spring Security), y sin "defer" las
+	# respuestas de /api las llevarían repetidas. "-Server" no anuncia qué
+	# servidor web atiende.
+	header {
+		defer
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "no-referrer"
+		-Server
+	}
+}
