@@ -854,7 +854,35 @@ Los padecimientos y los medicamentos habituales no se duplican en el historial: 
 
 El guardia de rutas del frontend resuelve los permisos con la misma matriz del menú. Como "Historial médico" ya no está en el menú del especialista ni en el de enfermería, si escriben a mano `/historial-medico/15` ven "No tiene permiso para ver esta página" sin que la pantalla llegue a pedir nada. La autoridad sigue siendo el backend: aunque el guardia se equivocara, el endpoint respondería 403.
 
-## 29. Qué falta
+## 29. Un error inesperado no cierra la sesión (YS-172)
+
+### El defecto
+
+Encontrado el 13/10 al verificar HU-11 en el navegador. Una clase que el IDE compiló con errores hizo fallar al servidor al ordenar exámenes, y en vez de un mensaje de error la pantalla volvió al login con "Su sesión terminó". Lo escrito en el formulario se perdió.
+
+La cadena era esta:
+
+1. Ningún manejador atendía la falla, así que salía del controlador sin traducir y el contenedor la reenviaba internamente a `/error`.
+2. Ese reenvío no pasa por el filtro JWT: como todo `OncePerRequestFilter`, se salta los reenvíos de error. Llegaba sin usuario, y `anyRequest().authenticated()` lo rechazaba con 401.
+3. El frontend trata todo 401 como sesión terminada: borra el token y saca al usuario.
+
+Al reproducirlo con una prueba apareció lo mismo en dos casos más, con la sesión válida. Una dirección que no existe (debía ser 404) y un método que no corresponde (405) también salían como 401, porque Spring los resuelve con el mismo reenvío.
+
+### La corrección
+
+- **`ManejadorGlobalExcepciones.manejarNoPrevisto`.** Lo que ningún otro método atiende sale como 500, con el formato de error de la API y un mensaje genérico, sin el detalle de la excepción. La traza completa queda en el log del servidor. Atiende también los `Error` de Java, como el de una clase compilada con errores, porque Spring MVC los entrega envueltos en una excepción. Las excepciones de Spring que ya traen su estado lo conservan: 404 para una dirección que no existe, y 405 con su cabecera `Allow`.
+- **`SecurityConfig` deja pasar el reenvío interno a `/error`** (`dispatcherTypeMatchers(DispatcherType.ERROR)`), no la ruta: una petición que alguien escriba a `/error` sigue exigiendo token, porque no es un reenvío. Así, lo que falle fuera de Spring MVC sale con su estado real y no como 401. Por ejemplo, el filtro JWT cuando la base de datos no responde: con la regla anterior, una caída momentánea de la base habría sacado del sistema a cualquiera que hiciera una petición en ese momento.
+- **`AtributosDeError`** da al reenvío el mismo formato de error que al resto de la API, para que el frontend encuentre el mensaje también ahí.
+
+El 401 queda para lo que significa: sin token, token inválido o vencido, o sesión cerrada.
+
+### Cómo se prueba
+
+`ErrorInesperadoTest` corre contra un servidor de verdad, en un puerto al azar. El reenvío a `/error` lo hace el contenedor, y MockMvc no lo reproduce: con MockMvc, estas mismas peticiones respondían bien y la prueba no habría visto el defecto.
+
+Un controlador que solo existe en la prueba falla de tres maneras: una excepción, un `Error` de Java y una respuesta de error armada por el contenedor. Para cada una se comprueba el estado, que el mensaje no lleve el detalle interno, que la traza sí quede en el log y que el mismo token siga funcionando en la petición siguiente. También se comprueba que sin token, o con uno inventado, la respuesta siga siendo 401. Antes de la corrección, la prueba fallaba en cuatro de sus cinco casos, todos con 401.
+
+## 30. Qué falta
 
 Nada pendiente de HU-30, HU-31 ni HU-32. Lo que queda abierto, sin historia asignada todavía:
 
