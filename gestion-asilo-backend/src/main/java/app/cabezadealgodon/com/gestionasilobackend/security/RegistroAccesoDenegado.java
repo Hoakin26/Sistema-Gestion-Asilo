@@ -53,8 +53,15 @@ public class RegistroAccesoDenegado {
     /**
      * Se usa la dirección de la conexión y no la cabecera {@code X-Forwarded-For},
      * que el propio cliente puede escribir: un atacante elegiría qué origen queda
-     * anotado. Si algún día el sistema queda detrás de un proxy inverso, habrá
-     * que leer esa cabecera, pero solo confiando en la que agregue el proxy.
+     * anotado.
+     *
+     * <p>
+     * YS-174. En producción el sistema está detrás de Caddy, así que la conexión
+     * siempre viene del proxy. Con {@code server.forward-headers-strategy=native}
+     * (application-prod.properties), Tomcat pone aquí la dirección del cliente,
+     * pero solo si la petición llega desde la red interna, que es donde está
+     * Caddy; y Caddy descarta la cabecera que mande el cliente y escribe la
+     * suya. Por eso este método no cambia: sigue leyendo la conexión.
      */
     private String origen(HttpServletRequest peticion) {
         return peticion.getRemoteAddr();
