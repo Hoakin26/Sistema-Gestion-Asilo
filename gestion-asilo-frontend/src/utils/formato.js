@@ -9,3 +9,11 @@ const QUETZALES = new Intl.NumberFormat("es-GT", { style: "currency", currency: 
 export function formatearQuetzales(monto) {
   return QUETZALES.format(monto);
 }
+
+const DECIMAL = new Intl.NumberFormat("es-GT", { maximumFractionDigits: 1 });
+
+/** YS-118. "850 KB", "2.4 MB": el tamaño de un archivo, como lo lee una persona. */
+export function formatearTamano(bytes) {
+  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  return `${DECIMAL.format(bytes / (1024 * 1024))} MB`;
+}
