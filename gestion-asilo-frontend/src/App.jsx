@@ -10,6 +10,7 @@ import { LoginPage } from "./pages/LoginPage";
 import { MedicosDisponibilidadPage } from "./pages/MedicosDisponibilidadPage";
 import { MiAgendaPage } from "./pages/MiAgendaPage";
 import { OrdenesLaboratorioPage } from "./pages/OrdenesLaboratorioPage";
+import { RecetasPendientesPage } from "./pages/RecetasPendientesPage";
 import { SinPermisoPage } from "./pages/SinPermisoPage";
 import { SolicitudesEntrantesPage } from "./pages/SolicitudesEntrantesPage";
 import { SolicitudesReferenciaPage } from "./pages/SolicitudesReferenciaPage";
@@ -184,6 +185,14 @@ function App() {
         element={
           <RutaPrivada>
             <OrdenesLaboratorioPage key="resultados" modo="resultados" />
+          </RutaPrivada>
+        }
+      />
+      <Route
+        path="/recetas-pendientes"
+        element={
+          <RutaPrivada>
+            <RecetasPendientesPage />
           </RutaPrivada>
         }
       />

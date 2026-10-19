@@ -77,7 +77,8 @@ import tools.jackson.databind.ObjectMapper;
  * con su cargo de consulta. Desde HU-10 (YS-110), la receta, y desde HU-11
  * (YS-113), los exámenes de laboratorio, y desde HU-12 (YS-116), la bandeja
  * donde el laboratorio los recibe, desde HU-13 (YS-119) su resultado y
- * desde HU-14 (YS-122) su costo.
+ * desde HU-14 (YS-122) su costo. Desde HU-15 (YS-125), la bandeja donde la
+ * farmacia recibe las recetas.
  * Desde HU-02 (YS-67), el historial médico centralizado del Médico General,
  * que se arma con todo lo anterior.
  *
@@ -975,6 +976,111 @@ class VisitaMedicaTest extends PruebaConBaseDeDatos {
                         .value(anterior.usuario().getNombreCompleto()));
     }
 
+    // ---- YS-125: la bandeja de la farmacia (HU-15) ----
+
+    /** Lo que pide HU-15 de cada receta: el paciente, y cada medicamento con su dosis y cantidad. */
+    @Test
+    @DisplayName("La bandeja trae cada receta con el paciente, el médico, la fecha y los medicamentos con dosis y cantidad, sin diagnóstico")
+    void laBandejaDeFarmaciaTraeLoQuePideHu15() throws Exception {
+        Especialista especialista = nuevoEspecialista(0);
+        Cita cita = citaEl(especialista, HOY.atTime(8, 0));
+        long visita = idDe(iniciar(cita.getId(), especialista));
+        diagnosticar(visita, especialista, "Hipertensión arterial", null).andExpect(status().isOk());
+        recetar(visita, especialista, "Tomar con alimentos",
+                medicamento("Losartán", "50 mg", 30, "Cada 24 horas, vía oral"),
+                medicamento("Amlodipino", "5 mg", 15, "Cada 24 horas por la mañana"))
+                .andExpect(status().isCreated());
+
+        mvc.perform(get("/api/recetas").param("paciente", dpiDe(cita))
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(RolNombre.FARMACIA)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(1))
+                .andExpect(jsonPath("$.content[0].visitaId").value(visita))
+                .andExpect(jsonPath("$.content[0].paciente.nombreCompleto").value("Interno con visita"))
+                .andExpect(jsonPath("$.content[0].medico.nombreCompleto")
+                        .value(especialista.usuario().getNombreCompleto()))
+                .andExpect(jsonPath("$.content[0].fechaEmision").isNotEmpty())
+                .andExpect(jsonPath("$.content[0].estado").value("PENDIENTE_DESPACHO"))
+                .andExpect(jsonPath("$.content[0].indicacionesGenerales").value("Tomar con alimentos"))
+                .andExpect(jsonPath("$.content[0].medicamentos.length()").value(2))
+                .andExpect(jsonPath("$.content[0].medicamentos[0].medicamento").value("Losartán"))
+                .andExpect(jsonPath("$.content[0].medicamentos[0].dosis").value("50 mg"))
+                .andExpect(jsonPath("$.content[0].medicamentos[0].cantidad").value(30))
+                .andExpect(jsonPath("$.content[0].medicamentos[1].medicamento").value("Amlodipino"))
+                .andExpect(jsonPath("$.content[0].medicamentos[1].cantidad").value(15))
+                // Mínimo privilegio (sección 4.9 del diseño): ni el diagnóstico ni el DPI.
+                .andExpect(jsonPath("$.content[0].diagnostico").doesNotExist())
+                .andExpect(jsonPath("$.content[0].paciente.dpi").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("El filtro por estado devuelve solo las de ese estado, y repetido junta varios")
+    void filtraLasRecetasPorEstado() throws Exception {
+        Especialista especialista = nuevoEspecialista(0);
+        Cita primera = citaEl(especialista, HOY.atTime(8, 30));
+        Cita segunda = citaEl(especialista, HOY.atTime(9, 0), primera.getSolicitud().getInterno().getId());
+        long visitaPrimera = idDe(iniciar(primera.getId(), especialista));
+        recetar(visitaPrimera, especialista, null, medicamento("Losartán", "50 mg", 30, "Cada 24 horas"))
+                .andExpect(status().isCreated());
+        cerrar(visitaPrimera, "Hipertensión arterial", HOY.atTime(8, 30));
+        long visitaSegunda = idDe(iniciar(segunda.getId(), especialista));
+        recetar(visitaSegunda, especialista, null, medicamento("Metformina", "850 mg", 60, "Cada 12 horas"))
+                .andExpect(status().isCreated());
+
+        // El despacho llega con HU-16: aquí se marca a mano.
+        Receta entregada = recetaRepository.findByVisitaId(visitaPrimera).orElseThrow();
+        entregada.setEstado(EstadoReceta.ENTREGADA);
+        recetaRepository.save(entregada);
+        int deLaPrimera = entregada.getId().intValue();
+        int deLaSegunda = recetaRepository.findByVisitaId(visitaSegunda).orElseThrow().getId().intValue();
+
+        String dpi = dpiDe(primera);
+        assertThat(idsDeRecetas(dpi, "PENDIENTE_DESPACHO")).containsExactly(deLaSegunda);
+        assertThat(idsDeRecetas(dpi, "ENTREGADA")).containsExactly(deLaPrimera);
+        assertThat(idsDeRecetas(dpi, "PARCIALMENTE_ENTREGADA")).isEmpty();
+        // De la más antigua a la más reciente.
+        assertThat(idsDeRecetas(dpi, "PENDIENTE_DESPACHO", "ENTREGADA")).containsExactly(deLaPrimera, deLaSegunda);
+        assertThat(idsDeRecetas(dpi)).containsExactly(deLaPrimera, deLaSegunda);
+    }
+
+    /** Como se busca en la farmacia: por el DPI del documento, o por el nombre como salga escrito. */
+    @Test
+    @DisplayName("La búsqueda encuentra al paciente por DPI y por nombre, sin mayúsculas ni tildes, y un comodín cuenta como texto")
+    void buscaLasRecetasPorPaciente() throws Exception {
+        Especialista especialista = nuevoEspecialista(0);
+        Cita cita = citaEl(especialista, HOY.atTime(9, 30));
+        long visita = idDe(iniciar(cita.getId(), especialista));
+        recetar(visita, especialista, null, medicamento("Omeprazol", "20 mg", 14, "En ayunas"))
+                .andExpect(status().isCreated());
+        int receta = recetaRepository.findByVisitaId(visita).orElseThrow().getId().intValue();
+
+        assertThat(idsDeRecetas(dpiDe(cita))).containsExactly(receta);
+        assertThat(idsDeRecetas("INTERNO CON VÍSITA")).contains(receta);
+        assertThat(idsDeRecetas("zzz-no-existe")).isEmpty();
+        assertThat(idsDeRecetas("%")).isEmpty();
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @EnumSource(value = RolNombre.class, names = "FARMACIA", mode = EnumSource.Mode.EXCLUDE)
+    @DisplayName("Los otros seis roles no consultan la bandeja de la farmacia: 403")
+    void soloLaFarmaciaVeLasRecetas(RolNombre rol) throws Exception {
+        mvc.perform(get("/api/recetas").header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(rol)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("Las recetas sin token son 401; ordenarlas por un campo que no existe o filtrar por un estado que no está en DE-03, 400")
+    void recetasSinTokenYParametrosInvalidos() throws Exception {
+        mvc.perform(get("/api/recetas")).andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/recetas").param("sort", "campoInventado")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(RolNombre.FARMACIA)))
+                .andExpect(status().isBadRequest());
+        // HU-16 dice "Despachada"; DE-03 la llama Entregada (hallazgo 1 del diseño).
+        mvc.perform(get("/api/recetas").param("estado", "DESPACHADA")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(RolNombre.FARMACIA)))
+                .andExpect(status().isBadRequest());
+    }
+
     // ---- YS-107: el diagnóstico y el cierre de la visita (HU-09) ----
 
     @Test
@@ -1382,6 +1488,20 @@ class VisitaMedicaTest extends PruebaConBaseDeDatos {
 
     private static String dpiDe(Cita cita) {
         return cita.getSolicitud().getInterno().getDpi();
+    }
+
+    /** YS-125. Lo mismo que {@link #idsEnBandeja}, en la bandeja de la farmacia. */
+    private List<Integer> idsDeRecetas(String paciente, String... estados) throws Exception {
+        MockHttpServletRequestBuilder peticion = get("/api/recetas")
+                .param("paciente", paciente).param("size", "1000")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(RolNombre.FARMACIA));
+        if (estados.length > 0) {
+            peticion.param("estado", estados);
+        }
+        String respuesta = mvc.perform(peticion)
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
+        return JsonPath.read(respuesta, "$.content[*].id");
     }
 
     /** YS-119. El laboratorio carga el resultado con un costo cualquiera; {@code archivo} puede ser {@code null}. */
