@@ -185,7 +185,9 @@ export function TarifasConsulta() {
           <TablaSkeleton etiqueta="Cargando tarifas…" filas={3} />
         ) : (
           tarifas.length > 0 && (
-            <div className="overflow-x-auto rounded-tarjeta border border-divisor bg-superficie shadow-tarjeta">
+            <div className="relative overflow-x-auto rounded-tarjeta border border-divisor bg-superficie shadow-tarjeta">
+              {/* relative: los sr-only de la tabla son absolutos; sin él escapan del
+                  recorte, estiran la página y el teléfono la achica a una esquina (YS-175). */}
               <table className="w-full border-collapse text-left">
                 <caption className="sr-only">Tarifa de consulta de cada especialidad</caption>
                 <thead>
