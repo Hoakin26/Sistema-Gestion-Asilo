@@ -2,9 +2,11 @@ package app.cabezadealgodon.com.gestionasilobackend.services;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.EnumSet;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
@@ -17,6 +19,7 @@ import org.springframework.util.unit.DataSize;
 import org.springframework.web.multipart.MultipartFile;
 
 import app.cabezadealgodon.com.gestionasilobackend.dto.ArchivoDescargable;
+import app.cabezadealgodon.com.gestionasilobackend.dto.CostoOrdenResponse;
 import app.cabezadealgodon.com.gestionasilobackend.dto.OrdenLaboratorioResponse;
 import app.cabezadealgodon.com.gestionasilobackend.exception.CampoInvalidoException;
 import app.cabezadealgodon.com.gestionasilobackend.exception.OperacionNoPermitidaException;
@@ -26,6 +29,7 @@ import app.cabezadealgodon.com.gestionasilobackend.models.EstadoVisita;
 import app.cabezadealgodon.com.gestionasilobackend.models.OrdenLaboratorio;
 import app.cabezadealgodon.com.gestionasilobackend.models.RolNombre;
 import app.cabezadealgodon.com.gestionasilobackend.models.TipoArchivoResultado;
+import app.cabezadealgodon.com.gestionasilobackend.models.TipoServicio;
 import app.cabezadealgodon.com.gestionasilobackend.models.Usuario;
 import app.cabezadealgodon.com.gestionasilobackend.models.VisitaMedica;
 import app.cabezadealgodon.com.gestionasilobackend.repository.OrdenLaboratorioRepository;
@@ -42,17 +46,27 @@ public class LaboratorioService {
     /** YS-117. El largo del resultado en texto; un informe más largo va en el archivo. */
     static final int LARGO_MAXIMO_RESULTADO = 4000;
 
+    /**
+     * YS-120. Un monto como lo escribe una persona: hasta 8 enteros y 2
+     * decimales, lo que cabe en la columna (precisión 10, escala 2). Sin
+     * notación científica ni signos: "1e3" sería un costo válido para
+     * {@code BigDecimal}, pero nadie lo escribe así por querer decir 1000.
+     */
+    private static final Pattern MONTO = Pattern.compile("\\d{1,8}(\\.\\d{1,2})?");
+
     private final OrdenLaboratorioRepository ordenRepository;
     private final VisitaMedicaRepository visitaRepository;
     private final AlmacenArchivos almacen;
+    private final CargoService cargoService;
     private final DataSize tamanoMaximo;
 
     public LaboratorioService(OrdenLaboratorioRepository ordenRepository, VisitaMedicaRepository visitaRepository,
-            AlmacenArchivos almacen,
+            AlmacenArchivos almacen, CargoService cargoService,
             @Value("${spring.servlet.multipart.max-file-size:10MB}") String tamanoMaximo) {
         this.ordenRepository = ordenRepository;
         this.visitaRepository = visitaRepository;
         this.almacen = almacen;
+        this.cargoService = cargoService;
         this.tamanoMaximo = DataSize.parse(tamanoMaximo);
     }
 
@@ -106,10 +120,18 @@ public class LaboratorioService {
      * El archivo se guarda antes que la orden. Si la orden no se puede guardar
      * (por ejemplo, otra persona cargó el resultado al mismo tiempo), el
      * archivo se borra: no queda ninguno sin orden que lo mencione.
+     *
+     * <p>
+     * HU-14 (YS-120). Con el resultado llega el costo del examen, que registra
+     * el laboratorio (RF-08 v1.1): mayor que cero, y se guarda en la orden y
+     * como cargo de laboratorio de la visita, que es lo que suma la cuenta del
+     * familiar (HU-18). Se cobra una sola vez porque el resultado se carga una
+     * sola vez: la segunda carga es un 409 antes de llegar al cargo. Si algo
+     * falla, la transacción deshace el cargo junto con la orden.
      */
     @Transactional
-    public OrdenLaboratorioResponse registrarResultado(Long ordenId, String resultado, MultipartFile archivo,
-            Usuario laboratorista) {
+    public OrdenLaboratorioResponse registrarResultado(Long ordenId, String resultado, String costo,
+            MultipartFile archivo, Usuario laboratorista) {
         String texto = resultado == null ? "" : resultado.strip();
         if (texto.isEmpty()) {
             throw new CampoInvalidoException("resultado", "Escriba el resultado del examen");
@@ -118,6 +140,7 @@ public class LaboratorioService {
             throw new CampoInvalidoException("resultado",
                     "El resultado no puede exceder " + LARGO_MAXIMO_RESULTADO + " caracteres; adjunte el informe completo como archivo");
         }
+        BigDecimal monto = validarCosto(costo);
         ArchivoValidado adjunto = validar(archivo);
 
         OrdenLaboratorio orden = buscar(ordenId);
@@ -127,6 +150,7 @@ public class LaboratorioService {
         }
         orden.setResultado(texto);
         orden.setFechaResultado(LocalDateTime.now());
+        orden.setCosto(monto);
 
         String guardado = null;
         if (adjunto != null) {
@@ -137,7 +161,9 @@ public class LaboratorioService {
             orden.setTamanoArchivo((long) adjunto.contenido().length);
         }
         try {
-            return VisitaMedicaService.orden(ordenRepository.saveAndFlush(orden));
+            OrdenLaboratorio guardada = ordenRepository.saveAndFlush(orden);
+            cargoService.registrar(guardada.getVisita(), TipoServicio.LABORATORIO, monto);
+            return VisitaMedicaService.orden(guardada);
         } catch (RuntimeException e) {
             if (guardado != null) {
                 almacen.borrar(guardado);
@@ -171,6 +197,35 @@ public class LaboratorioService {
         }
         return new ArchivoDescargable(almacen.leer(orden.getRutaArchivo()), orden.getNombreArchivo(),
                 orden.getTipoArchivo().tipoMime(), orden.getTamanoArchivo());
+    }
+
+    /**
+     * HU-14 (YS-120). El costo para el formulario del laboratorio: el sugerido
+     * mientras la orden espera su resultado, el registrado después.
+     */
+    @Transactional(readOnly = true)
+    public CostoOrdenResponse costo(Long ordenId) {
+        OrdenLaboratorio orden = buscar(ordenId);
+        return new CostoOrdenResponse(orden.getCosto(), orden.getEstado() == EstadoOrden.RESULTADOS_CARGADOS);
+    }
+
+    /** Mayor que cero y como lo escribe una persona; la coma se acepta como punto. */
+    private static BigDecimal validarCosto(String texto) {
+        String limpio = texto == null ? "" : texto.strip().replace(',', '.');
+        if (limpio.isEmpty()) {
+            throw new CampoInvalidoException("costo", "Indique el costo del examen");
+        }
+        if (limpio.startsWith("-")) {
+            throw new CampoInvalidoException("costo", "El costo tiene que ser mayor que cero");
+        }
+        if (!MONTO.matcher(limpio).matches()) {
+            throw new CampoInvalidoException("costo", "Escriba un monto como 75 o 75.50");
+        }
+        BigDecimal monto = new BigDecimal(limpio).setScale(2);
+        if (monto.signum() == 0) {
+            throw new CampoInvalidoException("costo", "El costo tiene que ser mayor que cero");
+        }
+        return monto;
     }
 
     private boolean puedeVerElEspecialista(OrdenLaboratorio orden, Usuario especialista) {

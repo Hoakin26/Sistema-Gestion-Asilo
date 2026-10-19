@@ -24,6 +24,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import app.cabezadealgodon.com.gestionasilobackend.dto.ArchivoDescargable;
+import app.cabezadealgodon.com.gestionasilobackend.dto.CostoOrdenResponse;
 import app.cabezadealgodon.com.gestionasilobackend.dto.OrdenLaboratorioResponse;
 import app.cabezadealgodon.com.gestionasilobackend.exception.OrdenNoPermitidoException;
 import app.cabezadealgodon.com.gestionasilobackend.models.EstadoOrden;
@@ -81,14 +82,25 @@ public class LaboratorioController {
     /**
      * HU-13 (YS-117). El resultado del examen: {@code resultado} en texto,
      * obligatorio, y {@code archivo} opcional (PDF, JPG o PNG, hasta 10 MB).
-     * La orden pasa a Resultados Cargados.
+     * La orden pasa a Resultados Cargados. HU-14 (YS-120): con {@code costo},
+     * obligatorio y mayor que cero, que queda como cargo de la visita.
      */
     @PostMapping(path = "/{id}/resultado", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public OrdenLaboratorioResponse registrarResultado(@PathVariable Long id,
             @RequestParam(required = false) String resultado,
+            @RequestParam(required = false) String costo,
             @RequestPart(name = "archivo", required = false) MultipartFile archivo,
             @AuthenticationPrincipal UsuarioAutenticado laboratorista) {
-        return laboratorioService.registrarResultado(id, resultado, archivo, laboratorista.getUsuario());
+        return laboratorioService.registrarResultado(id, resultado, costo, archivo, laboratorista.getUsuario());
+    }
+
+    /**
+     * HU-14 (YS-120). El costo de la orden, para el formulario del resultado:
+     * el sugerido del catálogo o, ya cargado el resultado, el registrado.
+     */
+    @GetMapping("/{id}/costo")
+    public CostoOrdenResponse costo(@PathVariable Long id) {
+        return laboratorioService.costo(id);
     }
 
     /**
