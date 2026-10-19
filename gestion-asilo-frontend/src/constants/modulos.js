@@ -70,7 +70,12 @@ const CATALOGO = {
     Icono: FlaskConical,
     ruta: "/ordenes-pendientes",
   },
-  registroResultados: { etiqueta: "Registro de resultados", Icono: FileCheck, ruta: null },
+  // HU-13 (YS-118). Los resultados que el laboratorio ya entregó (decidido el 19/10).
+  registroResultados: {
+    etiqueta: "Registro de resultados",
+    Icono: FileCheck,
+    ruta: "/registro-resultados",
+  },
 
   recetasPendientes: { etiqueta: "Recetas pendientes", Icono: Pill, ruta: null },
   despachoMedicamentos: {
