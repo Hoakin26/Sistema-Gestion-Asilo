@@ -11,6 +11,7 @@ import org.springframework.data.core.PropertyReferenceException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -196,6 +197,20 @@ public class ManejadorGlobalExcepciones {
             HttpServletRequest peticion) {
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(ErrorResponse.de(HttpStatus.CONFLICT, ex.getMessage(), peticion.getRequestURI()));
+    }
+
+    /**
+     * YS-114. Dos personas cambiaron el mismo registro a la vez, y la columna
+     * {@code version} (bloqueo optimista) detuvo a la segunda para que no
+     * pisara a la primera: por ejemplo, dos laboratoristas que toman la misma
+     * orden. Es un conflicto con el estado actual (409), no un error del
+     * servidor; volviendo a cargar se ve lo que hizo la otra persona.
+     */
+    @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
+    public ResponseEntity<ErrorResponse> manejarEdicionSimultanea(HttpServletRequest peticion) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(ErrorResponse.de(HttpStatus.CONFLICT,
+                "Otra persona modificó este registro al mismo tiempo. Vuelva a cargar para ver su estado actual",
+                peticion.getRequestURI()));
     }
 
     /**
