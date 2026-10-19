@@ -4,6 +4,8 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.hibernate.annotations.BatchSize;
+
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -74,9 +76,17 @@ public class Receta {
     @Version
     private Long version;
 
-    /** En el orden en que el especialista los escribió. */
+    /**
+     * En el orden en que el especialista los escribió.
+     *
+     * <p>
+     * YS-123. {@code @BatchSize}: la bandeja de la farmacia (HU-15) es una
+     * página de recetas, y sin esto cada una pediría sus medicamentos en una
+     * consulta aparte. Así, los de toda la página llegan en una sola.
+     */
     @OneToMany(mappedBy = "receta", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("id")
+    @BatchSize(size = 50)
     private List<DetalleReceta> medicamentos = new ArrayList<>();
 
     public void agregarMedicamento(DetalleReceta detalle) {
