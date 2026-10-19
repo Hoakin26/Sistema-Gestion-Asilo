@@ -77,5 +77,5 @@ Ninguno de estos archivos debe llegar a git. Tener la regla en `.gitignore` no b
 - **`arquitectura-backend`** — convenciones de capas y estructura para el backend Spring Boot.
 
 ## Requerimientos
-Los requerimientos del sistema no se puede modificar y se encuentran en /docs/requerimientos-del-sistema.md.
+Los requerimientos del sistema se encuentran en /docs/requerimientos-del-sistema.md y solo cambian por revisión formal, registrada en su control de cambios (sección 3 del documento). Claude no los modifica por su cuenta.
 Los requerimientos estan transformados en historias que se encuentran en JIRA.
