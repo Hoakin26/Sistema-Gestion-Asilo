@@ -75,9 +75,10 @@ public class OrdenLaboratorio {
     private Usuario laboratorista;
 
     /**
-     * RF-08: el costo para el asilo, copiado del catálogo al ordenar. Si el
-     * catálogo cambia después, la orden conserva el que tenía. El laboratorio
-     * registra el costo real del examen realizado en HU-14.
+     * RF-08 v1.1. Al ordenar, el costo de referencia del catálogo, que es el
+     * que se le sugiere al laboratorio; si el catálogo cambia después, la orden
+     * conserva el que tenía. Al cargar el resultado, el que registra el
+     * laboratorio, que es el que se cobra (HU-14).
      */
     @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal costo;
