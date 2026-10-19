@@ -102,7 +102,9 @@ export function VisitasMedicasPage() {
             <p aria-live="polite" className="pb-3 text-auxiliar text-texto-secundario tabular-nums">
               {visitas.length} {visitas.length === 1 ? "visita" : "visitas"}
             </p>
-            <div className="overflow-x-auto rounded-tarjeta border border-divisor bg-superficie shadow-tarjeta">
+            {/* relative: los sr-only de la tabla son absolutos; sin él escapan del
+                recorte, estiran la página y el teléfono la achica a una esquina (YS-175). */}
+            <div className="relative overflow-x-auto rounded-tarjeta border border-divisor bg-superficie shadow-tarjeta">
               <table className="w-full min-w-xl border-collapse text-left">
                 <caption className="sr-only">Visitas médicas con su paciente, inicio y estado</caption>
                 <thead>
