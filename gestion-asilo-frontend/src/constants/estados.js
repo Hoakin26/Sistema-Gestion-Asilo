@@ -39,6 +39,9 @@ export const ETIQUETAS_ESTADO = {
   MEDICAMENTO_AGOTADO: "Medicamento Agotado",
 };
 
+/** DE-02, en el orden del diagrama: para el filtro de la bandeja del laboratorio (YS-115). */
+export const ESTADOS_ORDEN = ["PENDIENTE", "EN_PROCESO", "RESULTADOS_CARGADOS", "ANULADA"];
+
 /** DE-01, en el orden del diagrama: para los filtros de las bandejas. */
 export const ESTADOS_SOLICITUD = [
   "PENDIENTE_ASIGNACION",

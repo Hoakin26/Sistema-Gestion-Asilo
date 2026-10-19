@@ -3,6 +3,7 @@ package app.cabezadealgodon.com.gestionasilobackend.models;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
+import app.cabezadealgodon.com.gestionasilobackend.exception.TransicionInvalidaException;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -15,6 +16,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
+import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -55,9 +57,22 @@ public class OrdenLaboratorio {
     @Column(length = 500)
     private String indicaciones;
 
+    /**
+     * YS-114. Sin setter público, como en la solicitud: el estado solo cambia
+     * por {@link #cambiarEstado}, que es donde se respeta el diagrama DE-02.
+     */
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
+    @Setter(AccessLevel.NONE)
     private EstadoOrden estado = EstadoOrden.PENDIENTE;
+
+    /**
+     * YS-114. Quien del laboratorio tomó la orden (la relación "laboratorista"
+     * del diseño). Vacío mientras está pendiente.
+     */
+    @ManyToOne
+    @JoinColumn(name = "laboratorista_id")
+    private Usuario laboratorista;
 
     /**
      * RF-08: el costo para el asilo, copiado del catálogo al ordenar. Si el
@@ -72,4 +87,13 @@ public class OrdenLaboratorio {
 
     @Version
     private Long version;
+
+    /** YS-114. Lleva la orden a otro estado, si el diagrama DE-02 lo permite. */
+    public void cambiarEstado(EstadoOrden nuevo) {
+        if (!estado.puedeCambiarA(nuevo)) {
+            throw new TransicionInvalidaException("La orden de «" + examen.getNombre() + "» está en «"
+                    + estado.etiqueta() + "» y no puede pasar a «" + nuevo.etiqueta() + "»");
+        }
+        estado = nuevo;
+    }
 }

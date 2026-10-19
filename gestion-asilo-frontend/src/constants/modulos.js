@@ -64,7 +64,12 @@ const CATALOGO = {
   solicitudesAsignadas: { etiqueta: "Solicitudes asignadas", Icono: ClipboardList, ruta: null },
   citas: { etiqueta: "Citas", Icono: CalendarCheck, ruta: null },
 
-  ordenesPendientes: { etiqueta: "Órdenes pendientes", Icono: FlaskConical, ruta: null },
+  // HU-12 (YS-115). La bandeja del laboratorio.
+  ordenesPendientes: {
+    etiqueta: "Órdenes pendientes",
+    Icono: FlaskConical,
+    ruta: "/ordenes-pendientes",
+  },
   registroResultados: { etiqueta: "Registro de resultados", Icono: FileCheck, ruta: null },
 
   recetasPendientes: { etiqueta: "Recetas pendientes", Icono: Pill, ruta: null },
