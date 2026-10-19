@@ -18,6 +18,7 @@ import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import app.cabezadealgodon.com.gestionasilobackend.dto.ArchivoResultadoResponse;
 import app.cabezadealgodon.com.gestionasilobackend.dto.CitaAgendaResponse;
 import app.cabezadealgodon.com.gestionasilobackend.dto.DiagnosticoRequest;
 import app.cabezadealgodon.com.gestionasilobackend.dto.EspecialidadResponse;
@@ -414,7 +415,17 @@ public class VisitaMedicaService {
                 new ExamenLaboratorioResponse(orden.getExamen().getId(), orden.getExamen().getNombre()),
                 orden.getIndicaciones(),
                 orden.getEstado(),
-                orden.getFechaOrden());
+                orden.getFechaOrden(),
+                orden.getResultado(),
+                orden.getFechaResultado(),
+                archivoDe(orden));
+    }
+
+    /** YS-117. El archivo del resultado, sin su contenido; {@code null} si no tiene. */
+    static ArchivoResultadoResponse archivoDe(OrdenLaboratorio orden) {
+        return orden.getRutaArchivo() == null ? null
+                : new ArchivoResultadoResponse(orden.getNombreArchivo(), orden.getTipoArchivo().tipoMime(),
+                        orden.getTamanoArchivo());
     }
 
     private static void llenar(Receta receta, RecetaRequest request) {

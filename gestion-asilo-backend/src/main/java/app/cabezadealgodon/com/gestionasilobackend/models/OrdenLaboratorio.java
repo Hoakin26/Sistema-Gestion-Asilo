@@ -85,6 +85,32 @@ public class OrdenLaboratorio {
     @Column(name = "fecha_orden", nullable = false)
     private LocalDateTime fechaOrden;
 
+    /** YS-117. El resultado en texto, como lo escribe el laboratorio al cargarlo (HU-13). */
+    @Column(columnDefinition = "text")
+    private String resultado;
+
+    @Column(name = "fecha_resultado")
+    private LocalDateTime fechaResultado;
+
+    /**
+     * YS-117. El archivo del resultado, si se adjuntó. {@code rutaArchivo} es
+     * el nombre con que quedó en el almacén, generado por el sistema; el que
+     * traía el archivo se guarda aparte, solo para mostrarlo y para descargarlo
+     * con su nombre. Así lo que escribe el usuario nunca decide dónde se guarda.
+     */
+    @Column(name = "ruta_archivo", length = 100)
+    private String rutaArchivo;
+
+    @Column(name = "nombre_archivo", length = 255)
+    private String nombreArchivo;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "tipo_archivo", length = 10)
+    private TipoArchivoResultado tipoArchivo;
+
+    @Column(name = "tamano_archivo")
+    private Long tamanoArchivo;
+
     @Version
     private Long version;
 
