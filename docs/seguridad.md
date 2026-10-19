@@ -924,7 +924,16 @@ El texto del resultado viaja en las mismas respuestas que ya llevaban la orden: 
 
 La orden pasa a Resultados Cargados por `cambiarEstado`, que solo lo permite desde Pendiente o En Proceso: una orden que ya tiene resultado, o que se anuló, responde 409. El resultado no se corrige después de cargado; HU-13 no lo pide y el especialista ya pudo haberlo leído.
 
-## 32. Qué falta
+## 32. El costo del laboratorio (HU-14)
+
+Desde RF-08 v1.1, el costo de cada examen lo registra el laboratorio al cargar el resultado, con el costo de referencia del catálogo como sugerencia.
+
+- **Va en la misma petición que el resultado** (`POST .../resultado`) y en la misma transacción: se guarda en la orden y nace el `CargoServicio` de laboratorio de la visita, por `CargoService`, el mismo camino que el cargo de la consulta (HU-09). Si algo falla, no queda ni el resultado ni el cargo.
+- **Se cobra una sola vez.** No hay una regla aparte para eso: el resultado solo se carga sobre una orden pendiente o en proceso, y la segunda carga es un 409 antes de llegar al cargo.
+- **Mayor que cero, y como lo escribe una persona.** Hasta 8 enteros y 2 decimales, con la coma aceptada como punto; ni notación científica ("1e3") ni signos. Cada caso tiene su mensaje en el campo `costo`.
+- **Quién ve el costo.** Decidido el 19/10: solo el laboratorio, y solo en el formulario del resultado y en su detalle, por `GET .../costo` (`@SoloLaboratorio`). La bandeja sigue sin costos, como decidió HU-12, y `OrdenLaboratorioResponse` tampoco los lleva, porque también la recibe el especialista, que ordena por criterio clínico. `VisitaMedicaTest` barre los otros seis roles en `GET .../costo`.
+
+## 33. Qué falta
 
 Nada pendiente de HU-30, HU-31 ni HU-32. Lo que queda abierto, sin historia asignada todavía:
 
