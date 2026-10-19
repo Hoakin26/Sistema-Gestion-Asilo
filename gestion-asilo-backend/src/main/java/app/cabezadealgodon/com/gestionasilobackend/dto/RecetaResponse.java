@@ -9,10 +9,17 @@ import app.cabezadealgodon.com.gestionasilobackend.models.EstadoReceta;
  * YS-108. Una receta con sus medicamentos. No lleva el diagnóstico de la
  * visita: la farmacia (HU-15) también la verá, y para despachar no lo
  * necesita (mínimo privilegio, sección 5 del diseño).
+ *
+ * <p>
+ * YS-123. Con el paciente y el médico que la emitió, que es lo que la bandeja
+ * de la farmacia muestra de cada receta (HU-15). Los dos van como
+ * {@link ResumenPersona}, sin el DPI, igual que en la bandeja del laboratorio.
  */
 public record RecetaResponse(
         Long id,
         Long visitaId,
+        ResumenPersona paciente,
+        ResumenPersona medico,
         EstadoReceta estado,
         LocalDateTime fechaEmision,
         String indicacionesGenerales,
