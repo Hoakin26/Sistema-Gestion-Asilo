@@ -19,6 +19,7 @@ import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import app.cabezadealgodon.com.gestionasilobackend.dto.ErrorResponse;
 import app.cabezadealgodon.com.gestionasilobackend.security.RegistroAccesoDenegado;
@@ -211,6 +212,23 @@ public class ManejadorGlobalExcepciones {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(ErrorResponse.de(HttpStatus.CONFLICT,
                 "Otra persona modificó este registro al mismo tiempo. Vuelva a cargar para ver su estado actual",
                 peticion.getRequestURI()));
+    }
+
+    /**
+     * YS-117. Un archivo más grande que el máximo, que el servidor rechaza al
+     * recibir la petición, antes de que llegue al servicio. 413 y en el campo
+     * {@code archivo}, como los demás errores por campo, para que la pantalla
+     * lo muestre junto al archivo elegido.
+     */
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ErrorResponse> manejarArchivoGrande(MaxUploadSizeExceededException ex,
+            HttpServletRequest peticion) {
+        String maximo = ex.getMaxUploadSize() > 0 ? " (" + ex.getMaxUploadSize() / (1024 * 1024) + " MB)" : "";
+        HttpStatus estado = HttpStatus.valueOf(413);
+        ErrorResponse cuerpo = new ErrorResponse(LocalDateTime.now(), estado.value(), estado.getReasonPhrase(),
+                "Hay campos inválidos", peticion.getRequestURI(), null,
+                Map.of("archivo", "El archivo pesa más que el máximo permitido" + maximo));
+        return ResponseEntity.status(estado).body(cuerpo);
     }
 
     /**

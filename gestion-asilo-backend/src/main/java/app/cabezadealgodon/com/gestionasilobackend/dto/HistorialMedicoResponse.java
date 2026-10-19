@@ -25,7 +25,10 @@ import app.cabezadealgodon.com.gestionasilobackend.models.EstadoVisita;
 public record HistorialMedicoResponse(Long internoId, List<VisitaAnterior> visitas, List<RecetaAnterior> recetas,
         List<ExamenAnterior> examenes) {
 
-    /** YS-111. Un examen ordenado en una visita anterior, con quién lo pidió. HU-13 le agrega el resultado. */
+    /**
+     * YS-111. Un examen ordenado en una visita anterior, con quién lo pidió.
+     * YS-117: con su resultado, desde que el laboratorio lo carga (HU-13).
+     */
     public record ExamenAnterior(
             Long id,
             Long visitaId,
@@ -35,7 +38,10 @@ public record HistorialMedicoResponse(Long internoId, List<VisitaAnterior> visit
             String indicaciones,
             String numeroSolicitud,
             EspecialidadResponse especialidad,
-            ResumenPersona especialista) {
+            ResumenPersona especialista,
+            String resultado,
+            LocalDateTime fechaResultado,
+            ArchivoResultadoResponse archivo) {
     }
 
     /** YS-108. Una receta de una visita anterior, con quién la emitió. */
