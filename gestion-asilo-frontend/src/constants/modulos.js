@@ -77,7 +77,8 @@ const CATALOGO = {
     ruta: "/registro-resultados",
   },
 
-  recetasPendientes: { etiqueta: "Recetas pendientes", Icono: Pill, ruta: null },
+  // HU-15 (YS-124). La bandeja de la farmacia.
+  recetasPendientes: { etiqueta: "Recetas pendientes", Icono: Pill, ruta: "/recetas-pendientes" },
   despachoMedicamentos: {
     etiqueta: "Despacho de medicamentos",
     Icono: PackageOpen,
