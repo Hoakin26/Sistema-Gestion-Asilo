@@ -38,13 +38,25 @@ export async function iniciarOrden(ordenId) {
  * archivo se perdía y el backend respondía 415. Declarado multiparte, Axios
  * deja que el navegador ponga el separador.
  */
-export async function registrarResultado(ordenId, { resultado, archivo }) {
+export async function registrarResultado(ordenId, { resultado, costo, archivo }) {
   const datos = new FormData();
   datos.append("resultado", resultado);
+  // HU-14. Como texto: el backend lo lee como BigDecimal, sin redondeos de JavaScript.
+  datos.append("costo", costo);
   if (archivo) datos.append("archivo", archivo);
   const { data } = await api.post(`/ordenes-laboratorio/${ordenId}/resultado`, datos, {
     headers: { "Content-Type": "multipart/form-data" },
   });
+  return data;
+}
+
+/**
+ * HU-14 (YS-121). El costo de la orden para el laboratorio: `{ costo, registrado }`.
+ * Sin resultado todavía es el sugerido del catálogo; con resultado, el que se
+ * registró y se cargó a la cuenta.
+ */
+export async function obtenerCostoOrden(ordenId) {
+  const { data } = await api.get(`/ordenes-laboratorio/${ordenId}/costo`);
   return data;
 }
 

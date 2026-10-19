@@ -1,14 +1,15 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { useConfirmarDescarte } from "../../hooks/useConfirmarDescarte";
 import { useToast } from "../../hooks/useToast";
 import { erroresPorCampo, mensajeDeError } from "../../services/api";
-import { registrarResultado } from "../../services/laboratorioService";
+import { obtenerCostoOrden, registrarResultado } from "../../services/laboratorioService";
 import { formatearFechaHora } from "../../utils/fechas";
 import { enfocarPrimerError } from "../../utils/formularios";
 import { Alert } from "../ui/Alert";
 import { Button } from "../ui/Button";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
+import { CurrencyInput } from "../ui/CurrencyInput";
 import { FileUpload } from "../ui/FileUpload";
 import { FormField } from "../ui/FormField";
 import { Textarea } from "../ui/Input";
@@ -19,6 +20,18 @@ const TIPOS_PERMITIDOS = ["application/pdf", "image/jpeg", "image/png"];
 const EXTENSIONES = /\.(pdf|jpe?g|png)$/i;
 const TAMANO_MAXIMO = 10 * 1024 * 1024;
 const LARGO_MAXIMO = 4000;
+/* HU-14: hasta 8 enteros y 2 decimales, como el backend (LaboratorioService). */
+const MONTO = /^\d{1,8}(\.\d{1,2})?$/;
+
+/** Mismas reglas y mensajes que el backend, con la coma aceptada como punto. */
+function errorDeCosto(texto) {
+  const limpio = texto.trim().replace(",", ".");
+  if (!limpio) return "Indique el costo del examen";
+  if (limpio.startsWith("-")) return "El costo tiene que ser mayor que cero";
+  if (!MONTO.test(limpio)) return "Escriba un monto como 75 o 75.50";
+  if (Number(limpio) === 0) return "El costo tiene que ser mayor que cero";
+  return undefined;
+}
 
 /*
  * Se avisa al elegir el archivo, no al enviar: así quien lo eligió mal lo ve
@@ -39,10 +52,28 @@ function FormularioResultado({ orden, alCambiar, alCerrar, alGuardar }) {
   const { mostrar } = useToast();
   const refFormulario = useRef(null);
   const [resultado, setResultado] = useState("");
+  const [costo, setCosto] = useState("");
   const [archivo, setArchivo] = useState(null);
   const [errores, setErrores] = useState({});
   const [errorGeneral, setErrorGeneral] = useState(null);
   const [guardando, setGuardando] = useState(false);
+
+  /*
+   * HU-14. El costo de referencia del catálogo, ya escrito: el laboratorista
+   * lo confirma o lo corrige (RF-08 v1.1). Si no llega, el campo queda vacío y
+   * se escribe a mano; no impide cargar el resultado.
+   */
+  useEffect(() => {
+    let vigente = true;
+    obtenerCostoOrden(orden.id)
+      .then(({ costo: sugerido }) => {
+        if (vigente && sugerido != null) setCosto((actual) => actual || Number(sugerido).toFixed(2));
+      })
+      .catch(() => {});
+    return () => {
+      vigente = false;
+    };
+  }, [orden.id]);
 
   const fallar = (encontrados) => {
     setErrores(encontrados);
@@ -53,6 +84,8 @@ function FormularioResultado({ orden, alCambiar, alCerrar, alGuardar }) {
     evento.preventDefault();
     const encontrados = {};
     if (!resultado.trim()) encontrados.resultado = "Escriba el resultado del examen";
+    const deCosto = errorDeCosto(costo);
+    if (deCosto) encontrados.costo = deCosto;
     const deArchivo = errorDeArchivo(archivo);
     if (deArchivo) encontrados.archivo = deArchivo;
     if (Object.keys(encontrados).length > 0) {
@@ -63,7 +96,11 @@ function FormularioResultado({ orden, alCambiar, alCerrar, alGuardar }) {
     setGuardando(true);
     setErrorGeneral(null);
     try {
-      const actualizada = await registrarResultado(orden.id, { resultado: resultado.trim(), archivo });
+      const actualizada = await registrarResultado(orden.id, {
+        resultado: resultado.trim(),
+        costo: costo.trim().replace(",", "."),
+        archivo,
+      });
       mostrar(`Se cargó el resultado de «${orden.examen.nombre}» de ${orden.paciente.nombreCompleto}.`);
       alGuardar(actualizada);
     } catch (fallo) {
@@ -120,6 +157,28 @@ function FormularioResultado({ orden, alCambiar, alCerrar, alGuardar }) {
           )}
         </FormField>
 
+        {/* HU-14 (YS-121). Lo que se carga a la cuenta del familiar. */}
+        <FormField
+          etiqueta="Costo del examen"
+          obligatorio
+          error={errores.costo}
+          ayuda="En quetzales. Viene el costo de referencia del catálogo; corríjalo si el examen costó otro monto. Se carga a la cuenta del familiar."
+        >
+          {(campo) => (
+            <CurrencyInput
+              {...campo}
+              className="sm:w-56"
+              value={costo}
+              onChange={(evento) => {
+                setCosto(evento.target.value);
+                setErrores((previos) => ({ ...previos, costo: undefined }));
+                alCambiar();
+              }}
+              placeholder="75.00"
+            />
+          )}
+        </FormField>
+
         {/* El tipo y el tamaño permitidos se ven antes de elegir (YS-118). */}
         <FormField
           etiqueta="Archivo del resultado"
@@ -158,6 +217,9 @@ function FormularioResultado({ orden, alCambiar, alCerrar, alGuardar }) {
  * HU-13 (YS-118). La carga del resultado de una orden desde la bandeja del
  * laboratorio: el texto, obligatorio, y el archivo, si lo hay. Al guardar, la
  * orden pasa a Resultados Cargados y el especialista ya la ve en su visita.
+ *
+ * HU-14 (YS-121). Con el costo del examen, que el laboratorio registra al
+ * cargar el resultado y queda como cargo de la visita.
  */
 export function ResultadoFormModal({ abierto, orden, claveFormulario, alCerrar, alGuardar }) {
   const { marcarCambios, olvidarCambios, intentarCerrar, dialogo } = useConfirmarDescarte(alCerrar);

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { ChevronLeft, ChevronRight, Eye, FileUp, Filter, FlaskConical, Inbox, Search } from "lucide-react";
 
+import { CostoRegistrado } from "../components/laboratorio/CostoRegistrado";
 import { ResultadoExamen } from "../components/laboratorio/ResultadoExamen";
 import { ResultadoFormModal } from "../components/laboratorio/ResultadoFormModal";
 import { Alert } from "../components/ui/Alert";
@@ -373,6 +374,7 @@ export function OrdenesLaboratorioPage({ modo = "bandeja" }) {
               Solicitado por {enConsulta.medicoSolicitante.nombreCompleto}
             </p>
             <ResultadoExamen orden={enConsulta} />
+            <CostoRegistrado ordenId={enConsulta.id} />
           </div>
         )}
       </Modal>
