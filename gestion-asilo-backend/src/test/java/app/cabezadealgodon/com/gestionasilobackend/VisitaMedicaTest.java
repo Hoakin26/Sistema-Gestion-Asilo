@@ -3,9 +3,11 @@ package app.cabezadealgodon.com.gestionasilobackend;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -30,16 +32,19 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import org.springframework.test.web.servlet.request.MockMultipartHttpServletRequestBuilder;
 
 import com.jayway.jsonpath.JsonPath;
 
 import app.cabezadealgodon.com.gestionasilobackend.models.CargoServicio;
 import app.cabezadealgodon.com.gestionasilobackend.models.Cita;
 import app.cabezadealgodon.com.gestionasilobackend.models.Especialidad;
+import app.cabezadealgodon.com.gestionasilobackend.models.EstadoOrden;
 import app.cabezadealgodon.com.gestionasilobackend.models.EstadoReceta;
 import app.cabezadealgodon.com.gestionasilobackend.models.OrdenLaboratorio;
 import app.cabezadealgodon.com.gestionasilobackend.models.EstadoSolicitud;
@@ -71,8 +76,9 @@ import tools.jackson.databind.ObjectMapper;
  * Desde HU-09 (YS-107), el diagnóstico obligatorio y el cierre de la visita
  * con su cargo de consulta. Desde HU-10 (YS-110), la receta, y desde HU-11
  * (YS-113), los exámenes de laboratorio, y desde HU-12 (YS-116), la bandeja
- * donde el laboratorio los recibe. Desde HU-02 (YS-67), el historial médico
- * centralizado del Médico General, que se arma con todo lo anterior.
+ * donde el laboratorio los recibe, y desde HU-13 (YS-119), su resultado.
+ * Desde HU-02 (YS-67), el historial médico centralizado del Médico General,
+ * que se arma con todo lo anterior.
  *
  * <p>
  * La asignación solo acepta horas futuras, así que las citas "de hoy" se
@@ -563,6 +569,184 @@ class VisitaMedicaTest extends PruebaConBaseDeDatos {
         mvc.perform(get("/api/ordenes-laboratorio").param("sort", "campoInventado")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(RolNombre.LABORATORIO)))
                 .andExpect(status().isBadRequest());
+    }
+
+    // ---- YS-119: el resultado de laboratorio (HU-13) ----
+
+    /** Un PDF mínimo: lo que lo identifica son sus primeros bytes, "%PDF-". */
+    private static final byte[] PDF = "%PDF-1.4\n% resultado de prueba\n".getBytes(StandardCharsets.US_ASCII);
+    private static final byte[] PNG = { (byte) 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 13 };
+
+    @Test
+    @DisplayName("Cargar el resultado con un PDF pasa la orden a Resultados Cargados, y el especialista lo ve en su visita y descarga el archivo")
+    void cargaElResultado() throws Exception {
+        Especialista especialista = nuevoEspecialista(0);
+        long visita = idDe(iniciar(citaEl(especialista, HOY.atTime(8, 0)).getId(), especialista));
+        ordenar(visita, especialista, examen("Hematología completa", null)).andExpect(status().isCreated());
+        Long orden = ordenRepository.findByVisitaIdOrderByIdAsc(visita).get(0).getId();
+        iniciarOrden(orden).andExpect(status().isOk());
+
+        cargarResultado(orden, "Hemoglobina 13.2 g/dL. Sin alteraciones.", archivo("informe.pdf", "application/pdf", PDF))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.estado").value("RESULTADOS_CARGADOS"))
+                .andExpect(jsonPath("$.resultado").value("Hemoglobina 13.2 g/dL. Sin alteraciones."))
+                .andExpect(jsonPath("$.fechaResultado").isNotEmpty())
+                .andExpect(jsonPath("$.archivo.nombre").value("informe.pdf"))
+                .andExpect(jsonPath("$.archivo.tipo").value("application/pdf"))
+                .andExpect(jsonPath("$.archivo.tamano").value(PDF.length));
+
+        // "Dejar el resultado visible para el médico solicitante."
+        mvc.perform(get("/api/visitas/{id}/ordenes-laboratorio", visita)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(especialista)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].resultado").value("Hemoglobina 13.2 g/dL. Sin alteraciones."))
+                .andExpect(jsonPath("$[0].archivo.nombre").value("informe.pdf"));
+
+        byte[] descargado = descargar(orden, tokenDe(especialista))
+                .andExpect(status().isOk())
+                .andExpect(header().string(HttpHeaders.CONTENT_TYPE, "application/pdf"))
+                .andExpect(header().string(HttpHeaders.CONTENT_DISPOSITION, containsString("attachment")))
+                .andExpect(header().string(HttpHeaders.CONTENT_DISPOSITION, containsString("informe.pdf")))
+                .andReturn().getResponse().getContentAsByteArray();
+        assertThat(descargado).isEqualTo(PDF);
+    }
+
+    @Test
+    @DisplayName("Una orden pendiente acepta el resultado sin archivo, y quien lo carga queda como quien la atendió")
+    void resultadoSinArchivoDesdePendiente() throws Exception {
+        Especialista especialista = nuevoEspecialista(0);
+        long visita = idDe(iniciar(citaEl(especialista, HOY.atTime(8, 30)).getId(), especialista));
+        ordenar(visita, especialista, examen("Glucosa en ayunas", null)).andExpect(status().isCreated());
+        Long orden = ordenRepository.findByVisitaIdOrderByIdAsc(visita).get(0).getId();
+
+        cargarResultado(orden, "Glucosa 92 mg/dL", null)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.estado").value("RESULTADOS_CARGADOS"))
+                .andExpect(jsonPath("$.archivo").doesNotExist());
+        assertThat(ordenRepository.findById(orden).orElseThrow().getLaboratorista().getId())
+                .isEqualTo(usuarioDe(RolNombre.LABORATORIO).getId());
+
+        descargar(orden, tokenDe(RolNombre.LABORATORIO))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.mensaje").value("Este resultado no tiene archivo adjunto"));
+    }
+
+    @Test
+    @DisplayName("Una orden con resultado no acepta otro (409); el resultado vacío se rechaza en su campo, y una orden inexistente es 404")
+    void resultadoRepetidoOVacio() throws Exception {
+        Especialista especialista = nuevoEspecialista(0);
+        long visita = idDe(iniciar(citaEl(especialista, HOY.atTime(9, 0)).getId(), especialista));
+        ordenar(visita, especialista, examen("Creatinina", null)).andExpect(status().isCreated());
+        Long orden = ordenRepository.findByVisitaIdOrderByIdAsc(visita).get(0).getId();
+
+        cargarResultado(orden, "   ", null)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errores.resultado").value("Escriba el resultado del examen"));
+        cargarResultado(orden, "Creatinina 0.9 mg/dL", null).andExpect(status().isOk());
+        cargarResultado(orden, "Otro resultado", null)
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.mensaje").value(containsString("está en «Resultados Cargados»")));
+        cargarResultado(999_999L, "Sin orden", null).andExpect(status().isNotFound());
+
+        assertThat(ordenRepository.findById(orden).orElseThrow().getResultado()).isEqualTo("Creatinina 0.9 mg/dL");
+    }
+
+    /** Lo que identifica el tipo es el contenido: un ejecutable renombrado a .pdf no pasa. */
+    @Test
+    @DisplayName("Un archivo de otro tipo, aunque se llame .pdf, o de más de 10 MB, se rechaza en su campo y la orden sigue sin resultado")
+    void archivoNoPermitido() throws Exception {
+        Especialista especialista = nuevoEspecialista(0);
+        long visita = idDe(iniciar(citaEl(especialista, HOY.atTime(9, 30)).getId(), especialista));
+        ordenar(visita, especialista, examen("Urocultivo", null)).andExpect(status().isCreated());
+        Long orden = ordenRepository.findByVisitaIdOrderByIdAsc(visita).get(0).getId();
+
+        byte[] ejecutable = "MZ\u0090 no soy un PDF".getBytes(StandardCharsets.ISO_8859_1);
+        cargarResultado(orden, "Negativo", archivo("resultado.pdf", "application/pdf", ejecutable))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errores.archivo").value("Solo se aceptan archivos PDF, JPG o PNG"));
+
+        byte[] grande = new byte[10 * 1024 * 1024 + 1];
+        System.arraycopy(PDF, 0, grande, 0, PDF.length);
+        cargarResultado(orden, "Negativo", archivo("escaneo.pdf", "application/pdf", grande))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errores.archivo").value(containsString("10 MB")));
+
+        OrdenLaboratorio sinResultado = ordenRepository.findById(orden).orElseThrow();
+        assertThat(sinResultado.getEstado()).isEqualTo(EstadoOrden.PENDIENTE);
+        assertThat(sinResultado.getResultado()).isNull();
+    }
+
+    /** Decidido el 19/10: los médicos ven el resultado; el especialista, el de sus pacientes. */
+    @Test
+    @DisplayName("El archivo lo descargan el laboratorio, el Médico General y el especialista que lo pidió; otro especialista, solo con una visita activa del mismo paciente")
+    void quienDescargaElArchivo() throws Exception {
+        Especialista propio = nuevoEspecialista(0);
+        Especialista ajeno = nuevoEspecialista(1);
+        Especialista conVisita = nuevoEspecialista(1);
+        Cita cita = citaEl(propio, HOY.atTime(10, 0), null);
+        Long interno = cita.getSolicitud().getInterno().getId();
+        long visita = idDe(iniciar(cita.getId(), propio));
+        ordenar(visita, propio, examen("Perfil lipídico", null)).andExpect(status().isCreated());
+        Long orden = ordenRepository.findByVisitaIdOrderByIdAsc(visita).get(0).getId();
+        cargarResultado(orden, "Colesterol total 180 mg/dL", archivo("foto.png", "image/png", PNG))
+                .andExpect(status().isOk());
+
+        descargar(orden, tokenDe(RolNombre.LABORATORIO)).andExpect(status().isOk())
+                .andExpect(header().string(HttpHeaders.CONTENT_TYPE, "image/png"));
+        descargar(orden, tokenDe(RolNombre.MEDICO_GENERAL)).andExpect(status().isOk());
+        descargar(orden, tokenDe(propio)).andExpect(status().isOk());
+        descargar(orden, tokenDe(ajeno)).andExpect(status().isForbidden());
+
+        // Con una visita activa con el mismo paciente, el resultado es parte de sus antecedentes.
+        idDe(iniciar(citaEl(conVisita, HOY.atTime(10, 30), interno).getId(), conVisita));
+        descargar(orden, tokenDe(conVisita)).andExpect(status().isOk());
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @EnumSource(value = RolNombre.class, names = { "ADMINISTRADOR_ASILO", "ADMINISTRADOR_FUNDACION", "ENFERMERIA", "FARMACIA" })
+    @DisplayName("El Administrador del Asilo y los demás roles que no son médicos ni laboratorio no descargan el archivo: 403")
+    void archivoSoloParaLaboratorioYMedicos(RolNombre rol) throws Exception {
+        // El rol se revisa antes de buscar la orden: no hace falta que exista.
+        descargar(999_999L, tokenDe(rol)).andExpect(status().isForbidden());
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @EnumSource(value = RolNombre.class, names = "LABORATORIO", mode = EnumSource.Mode.EXCLUDE)
+    @DisplayName("Solo el laboratorio carga resultados: los otros seis roles reciben 403")
+    void soloElLaboratorioCargaResultados(RolNombre rol) throws Exception {
+        mvc.perform(multipart("/api/ordenes-laboratorio/{id}/resultado", 999_999).param("resultado", "Negativo")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(rol)))
+                .andExpect(status().isForbidden());
+    }
+
+    /** HU-08 y HU-02 ya traían los exámenes anteriores; desde HU-13, con su resultado. */
+    @Test
+    @DisplayName("Los antecedentes de la visita y el historial centralizado muestran el resultado de los exámenes anteriores")
+    void losAntecedentesTraenElResultado() throws Exception {
+        Especialista anterior = nuevoEspecialista(0);
+        Especialista actual = nuevoEspecialista(0);
+        Cita antigua = citaEl(anterior, HOY.minusDays(3).atTime(8, 0), null);
+        Long interno = antigua.getSolicitud().getInterno().getId();
+        long visitaAntigua = idDe(iniciar(antigua.getId(), anterior));
+        ordenar(visitaAntigua, anterior, examen("Ácido úrico", null)).andExpect(status().isCreated());
+        cerrar(visitaAntigua, "Gota en estudio", HOY.minusDays(3).atTime(8, 5));
+        // Lo normal: el laboratorio entrega después de que la consulta terminó.
+        Long orden = ordenRepository.findByVisitaIdOrderByIdAsc(visitaAntigua).get(0).getId();
+        cargarResultado(orden, "Ácido úrico 7.9 mg/dL, elevado", archivo("acido-urico.pdf", "application/pdf", PDF))
+                .andExpect(status().isOk());
+
+        long enCurso = idDe(iniciar(citaEl(actual, HOY.atTime(11, 0), interno).getId(), actual));
+        mvc.perform(get("/api/visitas/{id}/historial", enCurso)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(actual)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.examenes[0].resultado").value("Ácido úrico 7.9 mg/dL, elevado"))
+                .andExpect(jsonPath("$.examenes[0].archivo.nombre").value("acido-urico.pdf"));
+
+        mvc.perform(get("/api/internos/{id}/historial", interno)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(RolNombre.MEDICO_GENERAL)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.examenes[0].resultado").value("Ácido úrico 7.9 mg/dL, elevado"))
+                .andExpect(jsonPath("$.examenes[0].estado").value("RESULTADOS_CARGADOS"));
     }
 
     // ---- YS-110: la receta (HU-10) ----
@@ -1120,6 +1304,26 @@ class VisitaMedicaTest extends PruebaConBaseDeDatos {
 
     private static String dpiDe(Cita cita) {
         return cita.getSolicitud().getInterno().getDpi();
+    }
+
+    /** YS-119. El laboratorio carga el resultado; {@code archivo} puede ser {@code null}. */
+    private ResultActions cargarResultado(Long ordenId, String resultado, MockMultipartFile archivo)
+            throws Exception {
+        MockMultipartHttpServletRequestBuilder peticion = multipart("/api/ordenes-laboratorio/{id}/resultado", ordenId);
+        if (archivo != null) {
+            peticion.file(archivo);
+        }
+        return mvc.perform(peticion.param("resultado", resultado)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(RolNombre.LABORATORIO)));
+    }
+
+    private static MockMultipartFile archivo(String nombre, String tipo, byte[] contenido) {
+        return new MockMultipartFile("archivo", nombre, tipo, contenido);
+    }
+
+    private ResultActions descargar(Long ordenId, String token) throws Exception {
+        return mvc.perform(get("/api/ordenes-laboratorio/{id}/archivo", ordenId)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token));
     }
 
     @SafeVarargs
