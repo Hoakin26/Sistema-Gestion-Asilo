@@ -182,7 +182,9 @@ export function InternosPage({ modo = "expediente" }) {
                 : `${total} ${total === 1 ? "interno registrado" : "internos registrados"}`}
             </p>
 
-            <div className="overflow-x-auto rounded-tarjeta border border-divisor bg-superficie shadow-tarjeta">
+            {/* relative: los sr-only de la tabla son absolutos; sin él escapan del
+                recorte, estiran la página y el teléfono la achica a una esquina (YS-175). */}
+            <div className="relative overflow-x-auto rounded-tarjeta border border-divisor bg-superficie shadow-tarjeta">
               <table className="w-full min-w-xl border-collapse text-left">
                 <caption className="sr-only">
                   {enHistorial
