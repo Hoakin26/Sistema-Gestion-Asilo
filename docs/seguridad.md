@@ -882,7 +882,25 @@ El 401 queda para lo que significa: sin token, token inválido o vencido, o sesi
 
 Un controlador que solo existe en la prueba falla de tres maneras: una excepción, un `Error` de Java y una respuesta de error armada por el contenedor. Para cada una se comprueba el estado, que el mensaje no lleve el detalle interno, que la traza sí quede en el log y que el mismo token siga funcionando en la petición siguiente. También se comprueba que sin token, o con uno inventado, la respuesta siga siendo 401. Antes de la corrección, la prueba fallaba en cuatro de sus cinco casos, todos con 401.
 
-## 30. Qué falta
+## 30. La bandeja del laboratorio (HU-12)
+
+### Quién la usa y qué ve
+
+`GET /api/ordenes-laboratorio` y `PATCH /api/ordenes-laboratorio/{id}/iniciar` están bajo `@SoloLaboratorio`, puesto sobre todo el controlador. Los especialistas ya ven sus órdenes por la visita (HU-11), y ningún otro rol tiene por qué saber qué exámenes se le piden a un paciente: el nombre de un examen ya dice algo de lo que se sospecha. `VisitaMedicaTest` barre los seis roles restantes en los dos endpoints, con el Administrador del Asilo entre ellos (RNF-03), y todos reciben 403. El rol se revisa antes de buscar la orden, así que un 403 no revela si una orden existe.
+
+Cada orden lleva el paciente, el examen, las indicaciones y el médico que la solicitó, que es lo que pide HU-12. No lleva el diagnóstico ni el costo (mínimo privilegio, `fase-diseno.md` 4.9). El paciente y el médico van como `ResumenPersona`, con el id y el nombre: el DPI sirve para buscar, pero la respuesta no lo devuelve.
+
+### Tomar una orden
+
+DE-02 ya está en `EstadoOrden`, como DE-01 en `EstadoSolicitud`. La orden solo cambia de estado por `OrdenLaboratorio.cambiarEstado`, que rechaza con 409 cualquier paso que el diagrama no contemple. Tomarla la pasa de Pendiente a En Proceso y anota al laboratorista. Tomarla otra vez es 409.
+
+Si dos personas la toman a la vez, la columna `version` que la orden ya tenía desde HU-11 hace que la segunda falle al guardar en vez de pisar a la primera. Ese choque salía como 500; ahora `ManejadorGlobalExcepciones` lo traduce a 409 para cualquier registro con bloqueo optimista, y la receta (HU-16) también se beneficia.
+
+### La búsqueda
+
+Por nombre, sin mayúsculas ni tildes, con el mismo `PatronBusqueda` de las otras listas, o por DPI. Los comodines que escriba el usuario cuentan como texto. El orden por defecto va de la más antigua a la más reciente, con desempate por id: las órdenes de una misma visita comparten la fecha, y sin desempate una orden podía repetirse o perderse al cambiar de página.
+
+## 31. Qué falta
 
 Nada pendiente de HU-30, HU-31 ni HU-32. Lo que queda abierto, sin historia asignada todavía:
 
