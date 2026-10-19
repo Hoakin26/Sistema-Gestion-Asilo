@@ -33,6 +33,7 @@ import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
 import com.jayway.jsonpath.JsonPath;
 
@@ -69,8 +70,9 @@ import tools.jackson.databind.ObjectMapper;
  * también que los antecedentes del paciente solo se vean con la visita activa.
  * Desde HU-09 (YS-107), el diagnóstico obligatorio y el cierre de la visita
  * con su cargo de consulta. Desde HU-10 (YS-110), la receta, y desde HU-11
- * (YS-113), los exámenes de laboratorio. Desde HU-02 (YS-67), el historial
- * médico centralizado del Médico General, que se arma con todo lo anterior.
+ * (YS-113), los exámenes de laboratorio, y desde HU-12 (YS-116), la bandeja
+ * donde el laboratorio los recibe. Desde HU-02 (YS-67), el historial médico
+ * centralizado del Médico General, que se arma con todo lo anterior.
  *
  * <p>
  * La asignación solo acepta horas futuras, así que las citas "de hoy" se
@@ -455,6 +457,112 @@ class VisitaMedicaTest extends PruebaConBaseDeDatos {
                 .andExpect(jsonPath("$.examenes[0].estado").value("PENDIENTE"))
                 .andExpect(jsonPath("$.examenes[0].especialista.nombreCompleto")
                         .value(anterior.usuario().getNombreCompleto()));
+    }
+
+    // ---- YS-116: la bandeja del laboratorio (HU-12) ----
+
+    /** Lo que pide HU-12 de cada orden: el examen y el médico que lo solicitó, además del paciente. */
+    @Test
+    @DisplayName("La bandeja trae cada orden con el paciente, el examen, las indicaciones y el médico que la pidió, sin diagnóstico ni costo")
+    void laBandejaTraeLoQuePideHu12() throws Exception {
+        Especialista especialista = nuevoEspecialista(0);
+        Cita cita = citaEl(especialista, HOY.atTime(8, 0));
+        long visita = idDe(iniciar(cita.getId(), especialista));
+        diagnosticar(visita, especialista, "Anemia en estudio", null).andExpect(status().isOk());
+        ordenar(visita, especialista, examen("Hematología completa", "En ayunas")).andExpect(status().isCreated());
+
+        mvc.perform(get("/api/ordenes-laboratorio").param("paciente", dpiDe(cita))
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(RolNombre.LABORATORIO)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(1))
+                .andExpect(jsonPath("$.content[0].paciente.nombreCompleto").value("Interno con visita"))
+                .andExpect(jsonPath("$.content[0].medicoSolicitante.nombreCompleto")
+                        .value(especialista.usuario().getNombreCompleto()))
+                .andExpect(jsonPath("$.content[0].examen.nombre").value("Hematología completa"))
+                .andExpect(jsonPath("$.content[0].indicaciones").value("En ayunas"))
+                .andExpect(jsonPath("$.content[0].estado").value("PENDIENTE"))
+                // Mínimo privilegio (sección 4.9 del diseño): ni el diagnóstico ni el costo ni el DPI.
+                .andExpect(jsonPath("$.content[0].diagnostico").doesNotExist())
+                .andExpect(jsonPath("$.content[0].costo").doesNotExist())
+                .andExpect(jsonPath("$.content[0].paciente.dpi").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("El filtro por estado devuelve solo las de ese estado, y repetido junta varios")
+    void filtraLaBandejaPorEstado() throws Exception {
+        Especialista especialista = nuevoEspecialista(0);
+        Cita cita = citaEl(especialista, HOY.atTime(8, 30));
+        long visita = idDe(iniciar(cita.getId(), especialista));
+        ordenar(visita, especialista, examen("Creatinina", null), examen("Glucosa en ayunas", null))
+                .andExpect(status().isCreated());
+        List<OrdenLaboratorio> ordenes = ordenRepository.findByVisitaIdOrderByIdAsc(visita);
+        Long tomada = ordenes.get(0).getId();
+        Long pendiente = ordenes.get(1).getId();
+        iniciarOrden(tomada).andExpect(status().isOk());
+
+        String dpi = dpiDe(cita);
+        assertThat(idsEnBandeja(dpi, "PENDIENTE")).containsExactly(pendiente.intValue());
+        assertThat(idsEnBandeja(dpi, "EN_PROCESO")).containsExactly(tomada.intValue());
+        assertThat(idsEnBandeja(dpi, "RESULTADOS_CARGADOS")).isEmpty();
+        assertThat(idsEnBandeja(dpi, "PENDIENTE", "EN_PROCESO"))
+                .containsExactly(tomada.intValue(), pendiente.intValue());
+        assertThat(idsEnBandeja(dpi)).containsExactly(tomada.intValue(), pendiente.intValue());
+    }
+
+    /** Como se busca al llegar al laboratorio: por el DPI del documento, o por el nombre como salga escrito. */
+    @Test
+    @DisplayName("La búsqueda encuentra al paciente por DPI y por nombre, sin mayúsculas ni tildes")
+    void buscaLaBandejaPorPaciente() throws Exception {
+        Especialista especialista = nuevoEspecialista(0);
+        Cita cita = citaEl(especialista, HOY.atTime(9, 0));
+        long visita = idDe(iniciar(cita.getId(), especialista));
+        ordenar(visita, especialista, examen("Urocultivo", null)).andExpect(status().isCreated());
+        int orden = ordenRepository.findByVisitaIdOrderByIdAsc(visita).get(0).getId().intValue();
+
+        assertThat(idsEnBandeja(dpiDe(cita))).containsExactly(orden);
+        assertThat(idsEnBandeja("INTERNO CON VÍSITA")).contains(orden);
+        assertThat(idsEnBandeja("zzz-no-existe")).isEmpty();
+    }
+
+    @Test
+    @DisplayName("Iniciar una orden pendiente la pasa a En Proceso y anota quién la tomó; una segunda vez es 409")
+    void iniciaUnaOrden() throws Exception {
+        Especialista especialista = nuevoEspecialista(0);
+        long visita = idDe(iniciar(citaEl(especialista, HOY.atTime(9, 30)).getId(), especialista));
+        ordenar(visita, especialista, examen("Perfil lipídico", null)).andExpect(status().isCreated());
+        Long orden = ordenRepository.findByVisitaIdOrderByIdAsc(visita).get(0).getId();
+
+        iniciarOrden(orden)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.estado").value("EN_PROCESO"));
+        assertThat(ordenRepository.findById(orden).orElseThrow().getLaboratorista().getId())
+                .isEqualTo(usuarioDe(RolNombre.LABORATORIO).getId());
+
+        iniciarOrden(orden)
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.mensaje").value(containsString("está en «En Proceso»")));
+        iniciarOrden(999_999L).andExpect(status().isNotFound());
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @EnumSource(value = RolNombre.class, names = "LABORATORIO", mode = EnumSource.Mode.EXCLUDE)
+    @DisplayName("Los otros seis roles no consultan la bandeja ni toman órdenes: 403")
+    void soloElLaboratorioUsaLaBandeja(RolNombre rol) throws Exception {
+        mvc.perform(get("/api/ordenes-laboratorio").header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(rol)))
+                .andExpect(status().isForbidden());
+        // El rol se revisa antes de buscar la orden: no hace falta que exista.
+        mvc.perform(patch("/api/ordenes-laboratorio/{id}/iniciar", 999_999)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(rol)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("La bandeja sin token es 401, y ordenarla por un campo que no existe, 400")
+    void bandejaSinTokenYOrdenInvalido() throws Exception {
+        mvc.perform(get("/api/ordenes-laboratorio")).andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/ordenes-laboratorio").param("sort", "campoInventado")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(RolNombre.LABORATORIO)))
+                .andExpect(status().isBadRequest());
     }
 
     // ---- YS-110: la receta (HU-10) ----
@@ -985,6 +1093,33 @@ class VisitaMedicaTest extends PruebaConBaseDeDatos {
         examen.put("examenId", id);
         examen.put("indicaciones", indicaciones);
         return examen;
+    }
+
+    private ResultActions iniciarOrden(Long ordenId) throws Exception {
+        return mvc.perform(patch("/api/ordenes-laboratorio/{id}/iniciar", ordenId)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(RolNombre.LABORATORIO)));
+    }
+
+    /**
+     * Los ids de la bandeja del laboratorio para ese paciente, en los estados
+     * dados (ninguno, todos). En una sola página grande: la base es
+     * compartida y la prueba busca sus propias órdenes en la respuesta.
+     */
+    private List<Integer> idsEnBandeja(String paciente, String... estados) throws Exception {
+        MockHttpServletRequestBuilder peticion = get("/api/ordenes-laboratorio")
+                .param("paciente", paciente).param("size", "1000")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(RolNombre.LABORATORIO));
+        if (estados.length > 0) {
+            peticion.param("estado", estados);
+        }
+        String respuesta = mvc.perform(peticion)
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
+        return JsonPath.read(respuesta, "$.content[*].id");
+    }
+
+    private static String dpiDe(Cita cita) {
+        return cita.getSolicitud().getInterno().getDpi();
     }
 
     @SafeVarargs
