@@ -76,7 +76,8 @@ import tools.jackson.databind.ObjectMapper;
  * Desde HU-09 (YS-107), el diagnóstico obligatorio y el cierre de la visita
  * con su cargo de consulta. Desde HU-10 (YS-110), la receta, y desde HU-11
  * (YS-113), los exámenes de laboratorio, y desde HU-12 (YS-116), la bandeja
- * donde el laboratorio los recibe, y desde HU-13 (YS-119), su resultado.
+ * donde el laboratorio los recibe, desde HU-13 (YS-119) su resultado y
+ * desde HU-14 (YS-122) su costo.
  * Desde HU-02 (YS-67), el historial médico centralizado del Médico General,
  * que se arma con todo lo anterior.
  *
@@ -749,6 +750,83 @@ class VisitaMedicaTest extends PruebaConBaseDeDatos {
                 .andExpect(jsonPath("$.examenes[0].estado").value("RESULTADOS_CARGADOS"));
     }
 
+    // ---- YS-122: el costo del laboratorio (HU-14) ----
+
+    @Test
+    @DisplayName("El costo que registra el laboratorio queda en la orden y como cargo de laboratorio de la visita, una sola vez")
+    void elCostoQuedaComoCargo() throws Exception {
+        Especialista especialista = nuevoEspecialista(0);
+        Cita cita = citaEl(especialista, HOY.atTime(11, 0));
+        long visita = idDe(iniciar(cita.getId(), especialista));
+        ordenar(visita, especialista, examen("Hematología completa", null)).andExpect(status().isCreated());
+        Long orden = ordenRepository.findByVisitaIdOrderByIdAsc(visita).get(0).getId();
+
+        // Antes del resultado, el sugerido: el costo de referencia del catálogo (RF-08 v1.1).
+        costoDe(orden)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.costo").value(75.00))
+                .andExpect(jsonPath("$.registrado").value(false));
+
+        cargarResultado(orden, "Hemoglobina 12.9 g/dL", "80,50", null).andExpect(status().isOk());
+
+        List<CargoServicio> cargos = cargosDeLaboratorio(visita);
+        assertThat(cargos).hasSize(1);
+        assertThat(cargos.get(0).getMontoOriginal()).isEqualByComparingTo("80.50");
+        assertThat(cargos.get(0).getDescuento()).isEqualByComparingTo("0");
+        assertThat(cargos.get(0).getMontoNeto()).isEqualByComparingTo("80.50");
+        assertThat(cargos.get(0).getInterno().getId()).isEqualTo(cita.getSolicitud().getInterno().getId());
+        assertThat(ordenRepository.findById(orden).orElseThrow().getCosto()).isEqualByComparingTo("80.50");
+
+        costoDe(orden)
+                .andExpect(jsonPath("$.costo").value(80.50))
+                .andExpect(jsonPath("$.registrado").value(true));
+
+        // "El costo se registra una sola vez": otro resultado es 409 y no hay segundo cargo.
+        cargarResultado(orden, "Otro resultado", "90", null).andExpect(status().isConflict());
+        assertThat(cargosDeLaboratorio(visita)).hasSize(1);
+
+        // El especialista sigue sin ver costos (decidido el 19/10).
+        mvc.perform(get("/api/visitas/{id}/ordenes-laboratorio", visita)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(especialista)))
+                .andExpect(jsonPath("$[0].resultado").value("Hemoglobina 12.9 g/dL"))
+                .andExpect(jsonPath("$[0].costo").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("Un costo vacío, en cero, negativo o mal escrito se rechaza en su campo, y la orden queda sin resultado ni cargo")
+    void costoInvalido() throws Exception {
+        Especialista especialista = nuevoEspecialista(0);
+        long visita = idDe(iniciar(citaEl(especialista, HOY.atTime(11, 30)).getId(), especialista));
+        ordenar(visita, especialista, examen("Glucosa en ayunas", null)).andExpect(status().isCreated());
+        Long orden = ordenRepository.findByVisitaIdOrderByIdAsc(visita).get(0).getId();
+
+        Map<String, String> esperados = new LinkedHashMap<>();
+        esperados.put("", "Indique el costo del examen");
+        esperados.put("0", "El costo tiene que ser mayor que cero");
+        esperados.put("0.00", "El costo tiene que ser mayor que cero");
+        esperados.put("-30", "El costo tiene que ser mayor que cero");
+        esperados.put("treinta", "Escriba un monto como 75 o 75.50");
+        esperados.put("30.555", "Escriba un monto como 75 o 75.50");
+        esperados.put("1e3", "Escriba un monto como 75 o 75.50");
+        for (Map.Entry<String, String> caso : esperados.entrySet()) {
+            cargarResultado(orden, "Glucosa 90 mg/dL", caso.getKey(), null)
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.errores.costo").value(caso.getValue()));
+        }
+
+        assertThat(ordenRepository.findById(orden).orElseThrow().getEstado()).isEqualTo(EstadoOrden.PENDIENTE);
+        assertThat(cargosDeLaboratorio(visita)).isEmpty();
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @EnumSource(value = RolNombre.class, names = "LABORATORIO", mode = EnumSource.Mode.EXCLUDE)
+    @DisplayName("El costo de una orden solo lo consulta el laboratorio: los otros seis roles reciben 403")
+    void soloElLaboratorioVeElCosto(RolNombre rol) throws Exception {
+        mvc.perform(get("/api/ordenes-laboratorio/{id}/costo", 999_999)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(rol)))
+                .andExpect(status().isForbidden());
+    }
+
     // ---- YS-110: la receta (HU-10) ----
 
     @Test
@@ -1306,15 +1384,32 @@ class VisitaMedicaTest extends PruebaConBaseDeDatos {
         return cita.getSolicitud().getInterno().getDpi();
     }
 
-    /** YS-119. El laboratorio carga el resultado; {@code archivo} puede ser {@code null}. */
+    /** YS-119. El laboratorio carga el resultado con un costo cualquiera; {@code archivo} puede ser {@code null}. */
     private ResultActions cargarResultado(Long ordenId, String resultado, MockMultipartFile archivo)
+            throws Exception {
+        return cargarResultado(ordenId, resultado, "120.00", archivo);
+    }
+
+    /** YS-122. Lo mismo, con el costo que registra el laboratorio (HU-14). */
+    private ResultActions cargarResultado(Long ordenId, String resultado, String costo, MockMultipartFile archivo)
             throws Exception {
         MockMultipartHttpServletRequestBuilder peticion = multipart("/api/ordenes-laboratorio/{id}/resultado", ordenId);
         if (archivo != null) {
             peticion.file(archivo);
         }
-        return mvc.perform(peticion.param("resultado", resultado)
+        return mvc.perform(peticion.param("resultado", resultado).param("costo", costo)
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(RolNombre.LABORATORIO)));
+    }
+
+    private ResultActions costoDe(Long ordenId) throws Exception {
+        return mvc.perform(get("/api/ordenes-laboratorio/{id}/costo", ordenId)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(RolNombre.LABORATORIO)));
+    }
+
+    private List<CargoServicio> cargosDeLaboratorio(long visitaId) {
+        return cargoRepository.findByVisitaIdOrderByIdAsc(visitaId).stream()
+                .filter(cargo -> cargo.getTipo() == TipoServicio.LABORATORIO)
+                .toList();
     }
 
     private static MockMultipartFile archivo(String nombre, String tipo, byte[] contenido) {
