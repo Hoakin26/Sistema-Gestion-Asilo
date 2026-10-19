@@ -383,7 +383,6 @@ public class VisitaMedicaService {
             orden.setExamen(examenes.get(i));
             orden.setIndicaciones(opcional(request.examenes().get(i).indicaciones()));
             orden.setCosto(examenes.get(i).getCostoReferencia());
-            orden.setEstado(EstadoOrden.PENDIENTE);
             orden.setFechaOrden(ahora);
             ordenes.add(orden);
         }
@@ -403,10 +402,15 @@ public class VisitaMedicaService {
 
     // ---- apoyo ----
 
+    /** YS-114. La comparten el especialista (HU-11) y la bandeja del laboratorio (HU-12). */
     static OrdenLaboratorioResponse orden(OrdenLaboratorio orden) {
+        VisitaMedica visita = orden.getVisita();
+        Usuario medico = visita.getEspecialista().getUsuario();
         return new OrdenLaboratorioResponse(
                 orden.getId(),
-                orden.getVisita().getId(),
+                visita.getId(),
+                new ResumenPersona(visita.getInterno().getId(), visita.getInterno().getNombreCompleto()),
+                new ResumenPersona(medico.getId(), medico.getNombreCompleto()),
                 new ExamenLaboratorioResponse(orden.getExamen().getId(), orden.getExamen().getNombre()),
                 orden.getIndicaciones(),
                 orden.getEstado(),
