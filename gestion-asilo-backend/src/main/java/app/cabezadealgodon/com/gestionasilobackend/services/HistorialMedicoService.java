@@ -101,7 +101,10 @@ public class HistorialMedicoService {
                 orden.getIndicaciones(),
                 solicitud.getNumero(),
                 especialidad(solicitud.getEspecialidad()),
-                persona(visita.getEspecialista().getUsuario()));
+                persona(visita.getEspecialista().getUsuario()),
+                orden.getResultado(),
+                orden.getFechaResultado(),
+                VisitaMedicaService.archivoDe(orden));
     }
 
     private HistorialMedicoResponse.VisitaAnterior anterior(VisitaMedica visita) {

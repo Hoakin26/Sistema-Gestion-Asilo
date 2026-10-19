@@ -177,6 +177,16 @@ function App() {
           </RutaPrivada>
         }
       />
+      {/* HU-13 (YS-118). La misma bandeja, solo con los resultados entregados.
+          La key la remonta al cambiar de módulo, con su propio filtro. */}
+      <Route
+        path="/registro-resultados"
+        element={
+          <RutaPrivada>
+            <OrdenesLaboratorioPage key="resultados" modo="resultados" />
+          </RutaPrivada>
+        }
+      />
       {/* Al dashboard y no a un módulo concreto: es la única ruta que los
           siete roles tienen en común. */}
       <Route path="*" element={<Navigate to="/dashboard" replace />} />

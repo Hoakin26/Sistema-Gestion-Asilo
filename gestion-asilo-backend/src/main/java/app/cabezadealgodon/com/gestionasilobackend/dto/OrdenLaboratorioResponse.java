@@ -13,6 +13,10 @@ import app.cabezadealgodon.com.gestionasilobackend.models.EstadoOrden;
  * bandeja del laboratorio muestra de cada orden (HU-12). Nada del diagnóstico:
  * el laboratorio ve la orden, no la consulta (mínimo privilegio, sección 4.9
  * del diseño). Los dos van como {@link ResumenPersona}, sin el DPI.
+ *
+ * <p>
+ * YS-117. Con el resultado, desde que el laboratorio lo carga (HU-13): el
+ * texto, la fecha y el archivo adjunto, si lo hay. Antes, los tres van vacíos.
  */
 public record OrdenLaboratorioResponse(
         Long id,
@@ -22,5 +26,8 @@ public record OrdenLaboratorioResponse(
         ExamenLaboratorioResponse examen,
         String indicaciones,
         EstadoOrden estado,
-        LocalDateTime fechaOrden) {
+        LocalDateTime fechaOrden,
+        String resultado,
+        LocalDateTime fechaResultado,
+        ArchivoResultadoResponse archivo) {
 }

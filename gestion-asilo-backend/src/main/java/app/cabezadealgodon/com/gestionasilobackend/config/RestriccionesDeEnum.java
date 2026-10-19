@@ -10,7 +10,9 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
 import app.cabezadealgodon.com.gestionasilobackend.models.EstadoNotificacion;
+import app.cabezadealgodon.com.gestionasilobackend.models.EstadoOrden;
 import app.cabezadealgodon.com.gestionasilobackend.models.EstadoSolicitud;
+import app.cabezadealgodon.com.gestionasilobackend.models.TipoArchivoResultado;
 import app.cabezadealgodon.com.gestionasilobackend.models.TipoNotificacion;
 
 /**
@@ -44,7 +46,10 @@ public class RestriccionesDeEnum implements CommandLineRunner {
     static final List<Restriccion> RESTRICCIONES = List.of(
             new Restriccion("notificacion_familiar", "tipo", TipoNotificacion.class),
             new Restriccion("notificacion_familiar", "estado", EstadoNotificacion.class),
-            new Restriccion("solicitud_referencia", "estado", EstadoSolicitud.class));
+            new Restriccion("solicitud_referencia", "estado", EstadoSolicitud.class),
+            // HU-13 (YS-117): el estado de la orden y el tipo de archivo de su resultado.
+            new Restriccion("orden_laboratorio", "estado", EstadoOrden.class),
+            new Restriccion("orden_laboratorio", "tipo_archivo", TipoArchivoResultado.class));
 
     private final JdbcTemplate jdbc;
 

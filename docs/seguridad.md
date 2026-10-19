@@ -900,7 +900,31 @@ Si dos personas la toman a la vez, la columna `version` que la orden ya tenía d
 
 Por nombre, sin mayúsculas ni tildes, con el mismo `PatronBusqueda` de las otras listas, o por DPI. Los comodines que escriba el usuario cuentan como texto. El orden por defecto va de la más antigua a la más reciente, con desempate por id: las órdenes de una misma visita comparten la fecha, y sin desempate una orden podía repetirse o perderse al cambiar de página.
 
-## 31. Qué falta
+## 31. El resultado de laboratorio (HU-13)
+
+### Quién lo carga y quién lo ve
+
+`POST /api/ordenes-laboratorio/{id}/resultado` queda bajo el `@SoloLaboratorio` del controlador. La descarga del archivo, `GET /api/ordenes-laboratorio/{id}/archivo`, lleva su propia anotación, `@LaboratorioOMedico`: decidido el 19/10, el resultado lo ven los médicos además del laboratorio. Esa es la primera barrera; la segunda está en `LaboratorioService`:
+
+- **El Laboratorio y el Médico General** descargan el de cualquier orden: uno lo cargó y el otro lo consulta en el historial centralizado (HU-02).
+- **Un especialista**, el de las órdenes que dio él y, mientras tiene una visita activa con el mismo paciente, el de los antecedentes de ese paciente, con la misma regla que HU-08. Fuera de eso, 403.
+- **El Administrador del Asilo, Enfermería, la Fundación y Farmacia** reciben 403 antes de que se busque la orden (RNF-03: un resultado de laboratorio es un dato clínico).
+
+El texto del resultado viaja en las mismas respuestas que ya llevaban la orden: la visita del especialista (HU-11), los antecedentes (HU-08) y el historial (HU-02). Ninguna de ellas la recibe un rol que no sea médico.
+
+### El archivo
+
+- **El tipo se reconoce por el contenido.** `TipoArchivoResultado` compara los primeros bytes con las firmas de PDF, PNG y JPEG. La extensión y el tipo que declara el navegador los escribe quien sube el archivo, así que un ejecutable renombrado a `.pdf` se rechaza.
+- **10 MB por archivo, en todos los entornos.** Spring Boot usa 1 MB si no se le dice otra cosa, y el `application.properties` de desarrollo no se versiona; `ArchivosConfig` lee las mismas propiedades que `application-prod.properties`, con 10 MB por defecto. El servicio vuelve a revisar el tamaño, y lo que el servidor rechaza antes de llegar a él sale como 413 en el campo `archivo`.
+- **Se guarda fuera de la aplicación y con un nombre propio.** `AlmacenArchivos` escribe en una carpeta del disco (en producción, el volumen `asilo_archivos`, que se respalda con la base) con un nombre aleatorio. El nombre original solo se muestra y se usa al descargar; nunca decide dónde se guarda, así que un `../../` no sale de la carpeta.
+- **Se descarga, no se abre dentro del sistema.** La respuesta va como `attachment`, y Spring Security agrega `X-Content-Type-Options: nosniff`: el navegador no lo interpreta como parte de la página.
+- **Sin archivos huérfanos.** El archivo se guarda antes que la orden; si la orden no se puede guardar (por ejemplo, porque otra persona cargó el resultado al mismo tiempo y el bloqueo optimista lo detuvo), el archivo se borra.
+
+### Un resultado, una vez
+
+La orden pasa a Resultados Cargados por `cambiarEstado`, que solo lo permite desde Pendiente o En Proceso: una orden que ya tiene resultado, o que se anuló, responde 409. El resultado no se corrige después de cargado; HU-13 no lo pide y el especialista ya pudo haberlo leído.
+
+## 32. Qué falta
 
 Nada pendiente de HU-30, HU-31 ni HU-32. Lo que queda abierto, sin historia asignada todavía:
 

@@ -6,6 +6,7 @@ import { Alert } from "../ui/Alert";
 import { StatusBadge } from "../ui/StatusBadge";
 import { Barra } from "../ui/TablaSkeleton";
 import { Timeline, TimelineItem } from "../ui/Timeline";
+import { ResultadoExamen } from "../laboratorio/ResultadoExamen";
 import { ListaMedicamentos } from "./RecetaVisita";
 
 const TARJETA = "rounded-tarjeta border border-divisor bg-superficie p-4 shadow-tarjeta sm:p-6";
@@ -87,6 +88,7 @@ function ExamenAnterior({ examen }) {
       </p>
       <p className="mt-2 font-medium text-texto">{examen.examen.nombre}</p>
       {examen.indicaciones && <p className="text-texto">{examen.indicaciones}</p>}
+      <ResultadoExamen orden={examen} />
     </TimelineItem>
   );
 }
