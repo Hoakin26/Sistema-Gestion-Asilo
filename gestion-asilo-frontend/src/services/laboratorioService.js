@@ -9,12 +9,14 @@ import { api } from "./api";
  * que es lo que entiende Spring; con el formato por defecto de Axios
  * (`estado[]=...`) el filtro se ignoraría.
  */
-export async function listarOrdenes({ estados = [], paciente = "", pagina = 0 } = {}) {
+export async function listarOrdenes({ estados = [], paciente = "", pagina = 0, orden } = {}) {
   const { data } = await api.get("/ordenes-laboratorio", {
     params: {
       estado: estados.length > 0 ? estados : undefined,
       paciente: paciente || undefined,
       page: pagina,
+      // YS-118. "fechaResultado,desc" para el registro de resultados.
+      sort: orden,
     },
     paramsSerializer: { indexes: null },
   });
@@ -25,4 +27,42 @@ export async function listarOrdenes({ estados = [], paciente = "", pagina = 0 } 
 export async function iniciarOrden(ordenId) {
   const { data } = await api.patch(`/ordenes-laboratorio/${ordenId}/iniciar`);
   return data;
+}
+
+/**
+ * HU-13 (YS-118). Carga el resultado de una orden: el texto y, si lo hay, el
+ * archivo, como formulario multiparte.
+ *
+ * El Content-Type se declara aquí porque la instancia `api` fija JSON para
+ * todas las peticiones, y con eso Axios convierte el FormData a JSON: el
+ * archivo se perdía y el backend respondía 415. Declarado multiparte, Axios
+ * deja que el navegador ponga el separador.
+ */
+export async function registrarResultado(ordenId, { resultado, archivo }) {
+  const datos = new FormData();
+  datos.append("resultado", resultado);
+  if (archivo) datos.append("archivo", archivo);
+  const { data } = await api.post(`/ordenes-laboratorio/${ordenId}/resultado`, datos, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+  return data;
+}
+
+/**
+ * HU-13 (YS-118). Descarga el archivo de un resultado. Se pide con Axios y no
+ * con un enlace común porque la descarga exige el token, que un enlace no
+ * manda; después se entrega al navegador como cualquier descarga, con el
+ * nombre con que se subió.
+ */
+export async function descargarArchivoResultado(ordenId, nombre) {
+  const { data } = await api.get(`/ordenes-laboratorio/${ordenId}/archivo`, { responseType: "blob" });
+  const url = URL.createObjectURL(data);
+  const enlace = document.createElement("a");
+  enlace.href = url;
+  enlace.download = nombre;
+  document.body.append(enlace);
+  enlace.click();
+  enlace.remove();
+  // Un momento después, cuando el navegador ya tomó el archivo.
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }

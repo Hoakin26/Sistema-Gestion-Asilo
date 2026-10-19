@@ -1,9 +1,12 @@
 import { useEffect, useState } from "react";
-import { ChevronLeft, ChevronRight, Filter, FlaskConical, Inbox, Search } from "lucide-react";
+import { ChevronLeft, ChevronRight, Eye, FileUp, Filter, FlaskConical, Inbox, Search } from "lucide-react";
 
+import { ResultadoExamen } from "../components/laboratorio/ResultadoExamen";
+import { ResultadoFormModal } from "../components/laboratorio/ResultadoFormModal";
 import { Alert } from "../components/ui/Alert";
 import { Button } from "../components/ui/Button";
 import { Input, Select } from "../components/ui/Input";
+import { Modal } from "../components/ui/Modal";
 import { StatusBadge } from "../components/ui/StatusBadge";
 import { TablaSkeleton } from "../components/ui/TablaSkeleton";
 import { ESTADOS_ORDEN, ETIQUETAS_ESTADO } from "../constants/estados";
@@ -39,11 +42,18 @@ function estadosDelFiltro(filtro) {
  *
  * El diagnóstico no aparece en ninguna parte, a propósito: el laboratorio ve
  * la orden, no la consulta, y el backend tampoco lo manda.
+ *
+ * HU-13 (YS-118). Desde cada orden pendiente o en proceso se carga el
+ * resultado, y desde las que ya lo tienen se consulta. Con
+ * `modo="resultados"` es el módulo "Registro de resultados": la misma
+ * bandeja, solo con lo que el laboratorio ya entregó, del más reciente al más
+ * antiguo (decidido el 19/10).
  */
-export function OrdenesLaboratorioPage() {
+export function OrdenesLaboratorioPage({ modo = "bandeja" }) {
   const { mostrar } = useToast();
+  const enResultados = modo === "resultados";
 
-  const [filtro, setFiltro] = useState(POR_ATENDER);
+  const [filtro, setFiltro] = useState(enResultados ? "RESULTADOS_CARGADOS" : POR_ATENDER);
   const [busqueda, setBusqueda] = useState("");
   // Lo que de verdad se consulta: la búsqueda, una vez que dejó de escribir.
   const [termino, setTermino] = useState("");
@@ -54,6 +64,10 @@ export function OrdenesLaboratorioPage() {
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState(null);
   const [iniciando, setIniciando] = useState(null);
+  // La orden cuyo resultado se carga o se consulta; las aperturas remontan el formulario limpio.
+  const [enCarga, setEnCarga] = useState(null);
+  const [aperturasCarga, setAperturasCarga] = useState(0);
+  const [enConsulta, setEnConsulta] = useState(null);
 
   useEffect(() => {
     const espera = setTimeout(() => {
@@ -67,7 +81,12 @@ export function OrdenesLaboratorioPage() {
   useEffect(() => {
     // Una respuesta vieja que llega tarde no pisa a la del filtro actual.
     let vigente = true;
-    listarOrdenes({ estados: estadosDelFiltro(filtro), paciente: termino, pagina })
+    listarOrdenes({
+      estados: estadosDelFiltro(filtro),
+      paciente: termino,
+      pagina,
+      orden: enResultados ? "fechaResultado,desc" : undefined,
+    })
       .then((datos) => {
         if (!vigente) return;
         setResultado(datos);
@@ -82,7 +101,7 @@ export function OrdenesLaboratorioPage() {
     return () => {
       vigente = false;
     };
-  }, [filtro, termino, pagina, recargas]);
+  }, [filtro, termino, pagina, recargas, enResultados]);
 
   const cambiarFiltro = (evento) => {
     setFiltro(evento.target.value);
@@ -90,7 +109,7 @@ export function OrdenesLaboratorioPage() {
   };
 
   const quitarFiltros = () => {
-    setFiltro("");
+    setFiltro(enResultados ? "RESULTADOS_CARGADOS" : "");
     setBusqueda("");
     setTermino("");
     setPagina(0);
@@ -110,15 +129,22 @@ export function OrdenesLaboratorioPage() {
     }
   };
 
+  const abrirCarga = (orden) => {
+    setAperturasCarga((valor) => valor + 1);
+    setEnCarga(orden);
+  };
+
   const ordenes = resultado?.content ?? [];
   const total = resultado?.totalElements ?? 0;
   const totalPaginas = resultado?.totalPages ?? 0;
 
   return (
-    <AppLayout migas={["Inicio", "Órdenes pendientes"]}>
-      <h1 className="text-h1 font-bold">Órdenes de laboratorio</h1>
+    <AppLayout migas={["Inicio", enResultados ? "Registro de resultados" : "Órdenes pendientes"]}>
+      <h1 className="text-h1 font-bold">{enResultados ? "Registro de resultados" : "Órdenes de laboratorio"}</h1>
       <p className="mt-2 text-texto-secundario">
-        Exámenes que solicitaron los especialistas, de la orden más antigua a la más reciente.
+        {enResultados
+          ? "Resultados que entregó el laboratorio, del más reciente al más antiguo."
+          : "Exámenes que solicitaron los especialistas, de la orden más antigua a la más reciente."}
       </p>
 
       <div className="mt-6 flex flex-wrap gap-4">
@@ -138,7 +164,7 @@ export function OrdenesLaboratorioPage() {
           />
         </div>
 
-        <div className="relative w-full sm:w-64">
+        <div className={`relative w-full sm:w-64 ${enResultados ? "hidden" : ""}`}>
           <Filter
             aria-hidden="true"
             size={20}
@@ -176,14 +202,16 @@ export function OrdenesLaboratorioPage() {
             <p className="max-w-md text-texto-secundario">
               {termino
                 ? "Ninguna orden coincide con el paciente que buscó."
-                : filtro === POR_ATENDER
+                : enResultados
+                  ? "Todavía no hay resultados cargados."
+                  : filtro === POR_ATENDER
                   ? "No hay órdenes por atender."
                   : filtro
                     ? `No hay órdenes en estado "${ETIQUETAS_ESTADO[filtro]}".`
                     : "Todavía no hay órdenes de laboratorio."}
             </p>
             {/* Vacío por el filtro ≠ vacío de verdad, como en las otras bandejas. */}
-            {(filtro || termino) && (
+            {(termino || (filtro && !enResultados)) && (
               <Button variante="secundario" onClick={quitarFiltros}>
                 Ver todas las órdenes
               </Button>
@@ -248,8 +276,8 @@ export function OrdenesLaboratorioPage() {
                         <StatusBadge estado={orden.estado} />
                       </td>
                       <td className="px-4 py-4 xl:px-6">
-                        {orden.estado === "PENDIENTE" && (
-                          <div className="flex justify-end">
+                        <div className="flex flex-wrap justify-end gap-2 whitespace-nowrap">
+                          {orden.estado === "PENDIENTE" && (
                             <Button
                               variante="secundario"
                               cargando={iniciando === orden.id}
@@ -260,8 +288,31 @@ export function OrdenesLaboratorioPage() {
                               {iniciando !== orden.id && <FlaskConical aria-hidden="true" size={20} />}
                               Iniciar
                             </Button>
-                          </div>
-                        )}
+                          )}
+                          {/* HU-13: también desde Pendiente, para un examen rápido que
+                              se toma y se registra sin pasar por En Proceso. */}
+                          {(orden.estado === "PENDIENTE" || orden.estado === "EN_PROCESO") && (
+                            <Button
+                              variante={orden.estado === "EN_PROCESO" ? "primario" : "secundario"}
+                              disabled={iniciando !== null}
+                              onClick={() => abrirCarga(orden)}
+                              aria-label={`Cargar el resultado de «${orden.examen.nombre}» de ${orden.paciente.nombreCompleto}`}
+                            >
+                              <FileUp aria-hidden="true" size={20} />
+                              Cargar resultado
+                            </Button>
+                          )}
+                          {orden.estado === "RESULTADOS_CARGADOS" && (
+                            <Button
+                              variante="secundario"
+                              onClick={() => setEnConsulta(orden)}
+                              aria-label={`Ver el resultado de «${orden.examen.nombre}» de ${orden.paciente.nombreCompleto}`}
+                            >
+                              <Eye aria-hidden="true" size={20} />
+                              Ver resultado
+                            </Button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -298,6 +349,33 @@ export function OrdenesLaboratorioPage() {
           </>
         )}
       </div>
+
+      <ResultadoFormModal
+        abierto={enCarga !== null}
+        orden={enCarga}
+        claveFormulario={aperturasCarga}
+        alCerrar={() => setEnCarga(null)}
+        alGuardar={() => {
+          setEnCarga(null);
+          setRecargas((valor) => valor + 1);
+        }}
+      />
+
+      <Modal
+        abierto={enConsulta !== null}
+        alCerrar={() => setEnConsulta(null)}
+        titulo="Resultado"
+        descripcion={enConsulta ? `${enConsulta.examen.nombre} · ${enConsulta.paciente.nombreCompleto}` : undefined}
+      >
+        {enConsulta && (
+          <div className="px-4 py-6 sm:px-6">
+            <p className="text-auxiliar text-texto-secundario">
+              Solicitado por {enConsulta.medicoSolicitante.nombreCompleto}
+            </p>
+            <ResultadoExamen orden={enConsulta} />
+          </div>
+        )}
+      </Modal>
     </AppLayout>
   );
 }
