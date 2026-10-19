@@ -933,7 +933,21 @@ Desde RF-08 v1.1, el costo de cada examen lo registra el laboratorio al cargar e
 - **Mayor que cero, y como lo escribe una persona.** Hasta 8 enteros y 2 decimales, con la coma aceptada como punto; ni notación científica ("1e3") ni signos. Cada caso tiene su mensaje en el campo `costo`.
 - **Quién ve el costo.** Decidido el 19/10: solo el laboratorio, y solo en el formulario del resultado y en su detalle, por `GET .../costo` (`@SoloLaboratorio`). La bandeja sigue sin costos, como decidió HU-12, y `OrdenLaboratorioResponse` tampoco los lleva, porque también la recibe el especialista, que ordena por criterio clínico. `VisitaMedicaTest` barre los otros seis roles en `GET .../costo`.
 
-## 33. Qué falta
+## 33. La bandeja de la farmacia (HU-15)
+
+### Quién la usa y qué ve
+
+`GET /api/recetas` está bajo `@SoloFarmacia`, puesto sobre todo el controlador, como la bandeja del laboratorio. Los especialistas ya ven sus recetas por la visita (HU-10), y ningún otro rol tiene por qué saber qué medicamentos se le recetan a un paciente: el nombre de un medicamento dice tanto como un diagnóstico (RNF-03). `VisitaMedicaTest` barre los seis roles restantes, con el Administrador del Asilo entre ellos, y todos reciben 403.
+
+Cada receta lleva el paciente, el médico que la emitió, la fecha, el estado y los medicamentos con su dosis, cantidad y forma de aplicación, que es lo que la farmacia necesita para despachar. No lleva el diagnóstico de la visita: la farmacia despacha la receta, no la consulta (`fase-diseno.md` 4.9). El paciente y el médico van como `ResumenPersona`, sin el DPI, que sirve para buscar pero no se devuelve. `RecetaResponse` es el mismo DTO que recibe el especialista; ganó esos dos campos y nada más.
+
+### La búsqueda y el filtro
+
+Por nombre, sin mayúsculas ni tildes, o por DPI, con el mismo `PatronBusqueda` de las otras bandejas: un comodín que escriba el usuario cuenta como texto, y la prueba lo comprueba con "%". El filtro solo acepta los estados de DE-03; cualquier otro, como "DESPACHADA", que es como lo llama HU-16 (hallazgo 1 del diseño), es 400. El orden por defecto va de la más antigua a la más reciente, con desempate por id.
+
+Los medicamentos no se traen en la misma consulta que la página: con una colección, Hibernate tendría que traer todas las recetas para cortar la página en memoria. Llegan por lotes (`@BatchSize`), en una consulta más para toda la página.
+
+## 34. Qué falta
 
 Nada pendiente de HU-30, HU-31 ni HU-32. Lo que queda abierto, sin historia asignada todavía:
 
