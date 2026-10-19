@@ -8,8 +8,8 @@ import { formatearQuetzales } from "../../utils/formato";
 import { enfocarPrimerError } from "../../utils/formularios";
 import { Alert } from "../ui/Alert";
 import { Button, IconButton } from "../ui/Button";
+import { CurrencyInput } from "../ui/CurrencyInput";
 import { FormField } from "../ui/FormField";
-import { Input } from "../ui/Input";
 import { Modal } from "../ui/Modal";
 import { TablaSkeleton } from "../ui/TablaSkeleton";
 
@@ -77,25 +77,16 @@ function FormularioTarifa({ especialidad, alCerrar, alGuardar }) {
           ayuda="En quetzales. Las visitas que ya empezaron conservan la tarifa que tenían."
         >
           {(campo) => (
-            <div className="relative sm:w-56">
-              <span
-                aria-hidden="true"
-                className="pointer-events-none absolute top-1/2 left-4 -translate-y-1/2 text-texto-secundario"
-              >
-                Q
-              </span>
-              <Input
-                {...campo}
-                inputMode="decimal"
-                value={texto}
-                onChange={(evento) => {
-                  setTexto(evento.target.value);
-                  setError(null);
-                }}
-                placeholder="350.00"
-                className="pl-10 text-right tabular-nums slashed-zero"
-              />
-            </div>
+            <CurrencyInput
+              {...campo}
+              className="sm:w-56"
+              value={texto}
+              onChange={(evento) => {
+                setTexto(evento.target.value);
+                setError(null);
+              }}
+              placeholder="350.00"
+            />
           )}
         </FormField>
       </div>
