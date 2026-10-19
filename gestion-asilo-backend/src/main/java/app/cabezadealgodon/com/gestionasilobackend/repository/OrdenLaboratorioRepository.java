@@ -1,7 +1,10 @@
 package app.cabezadealgodon.com.gestionasilobackend.repository;
 
+import java.util.Collection;
 import java.util.List;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -31,4 +34,26 @@ public interface OrdenLaboratorioRepository extends JpaRepository<OrdenLaborator
             order by o.fechaOrden desc, o.id desc
             """)
     List<OrdenLaboratorio> delInterno(@Param("internoId") Long internoId);
+
+    /**
+     * YS-114. La bandeja del laboratorio (HU-12): las órdenes en alguno de
+     * {@code estados}, cuyo paciente coincide por nombre o DPI. El nombre se
+     * compara sin mayúsculas ni tildes, como en la bandeja de solicitudes; el
+     * DPI, tal cual. Con la búsqueda vacía el patrón es "%%" y trae todas.
+     *
+     * <p>
+     * Trae de una vez lo que muestra cada fila; sin el {@code @EntityGraph},
+     * veinte órdenes serían más de ochenta consultas.
+     */
+    @EntityGraph(attributePaths = { "examen", "visita", "visita.interno", "visita.especialista",
+            "visita.especialista.usuario" })
+    @Query("""
+            select o from OrdenLaboratorio o
+            where o.estado in :estados
+              and (lower(function('translate', o.visita.interno.nombreCompleto,
+                        'áéíóúüñÁÉÍÓÚÜÑ', 'aeiouunAEIOUUN')) like :patron escape '\\'
+                   or o.visita.interno.dpi like :patron escape '\\')
+            """)
+    Page<OrdenLaboratorio> bandeja(@Param("estados") Collection<EstadoOrden> estados,
+            @Param("patron") String patron, Pageable paginado);
 }
