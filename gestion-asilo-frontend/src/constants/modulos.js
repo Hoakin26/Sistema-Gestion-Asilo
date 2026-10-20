@@ -79,10 +79,11 @@ const CATALOGO = {
 
   // HU-15 (YS-124). La bandeja de la farmacia.
   recetasPendientes: { etiqueta: "Recetas pendientes", Icono: Pill, ruta: "/recetas-pendientes" },
+  // HU-16 (YS-127). Las recetas que la farmacia ya despachó (decidido el 19/10).
   despachoMedicamentos: {
     etiqueta: "Despacho de medicamentos",
     Icono: PackageOpen,
-    ruta: null,
+    ruta: "/despacho-medicamentos",
   },
 
   /*
