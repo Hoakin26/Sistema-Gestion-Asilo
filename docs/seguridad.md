@@ -965,7 +965,14 @@ Es el criterio de HU-16 ("que no se despache dos veces la misma receta") y se ap
 
 Un medicamento que no va en la lista queda pendiente; así se marca uno sin existencias (CU-005, E.1). Si en el primer despacho no se entrega ninguno, la receta queda en Medicamento Agotado, sin fecha de despacho, y sigue en la bandeja de la farmacia. Un despacho posterior sin entregas no cambiaría nada y se rechaza (400). HU-17 cobra solo lo entregado (CU-005, E.2).
 
-## 35. Qué falta
+## 35. El costo de la farmacia (HU-17)
+
+- **Va en la misma petición que el despacho** y en la misma transacción: cada medicamento entregado guarda su costo y genera su `CargoServicio` de farmacia por `CargoService`, el camino del cargo de la consulta (HU-09) y del laboratorio (HU-14). Si algo falla, no queda ni la entrega ni el cargo.
+- **Un cargo por medicamento entregado**, como el laboratorio tiene uno por examen. Lo pendiente no se cobra (CU-005, E.2), y como nada se entrega dos veces (sección 34), nada se cobra dos veces.
+- **Las mismas reglas que el costo del laboratorio.** Mayor que cero, hasta 8 enteros y 2 decimales, con la coma aceptada como punto, sin notación científica ni signos. Las dos validaciones viven en un solo lugar (`Montos`), con los mismos mensajes, y un error sale en la fila del medicamento.
+- **Quién ve el costo.** Solo la farmacia, al despachar y en el detalle de la receta, por `GET /api/recetas/{id}/costos` (`@SoloFarmacia`). `RecetaResponse` no lo lleva porque también la recibe el especialista, que receta por criterio clínico, como se decidió para el laboratorio el 19/10. `VisitaMedicaTest` barre los otros seis roles en `GET .../costos`. El cargo del familiar dice "farmacia" y el monto, nunca el nombre del medicamento (`fase-diseno.md` 4.9).
+
+## 36. Qué falta
 
 Nada pendiente de HU-30, HU-31 ni HU-32. Lo que queda abierto, sin historia asignada todavía:
 
