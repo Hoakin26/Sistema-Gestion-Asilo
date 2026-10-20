@@ -6,7 +6,6 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.EnumSet;
 import java.util.Set;
-import java.util.regex.Pattern;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
@@ -45,14 +44,6 @@ public class LaboratorioService {
 
     /** YS-117. El largo del resultado en texto; un informe más largo va en el archivo. */
     static final int LARGO_MAXIMO_RESULTADO = 4000;
-
-    /**
-     * YS-120. Un monto como lo escribe una persona: hasta 8 enteros y 2
-     * decimales, lo que cabe en la columna (precisión 10, escala 2). Sin
-     * notación científica ni signos: "1e3" sería un costo válido para
-     * {@code BigDecimal}, pero nadie lo escribe así por querer decir 1000.
-     */
-    private static final Pattern MONTO = Pattern.compile("\\d{1,8}(\\.\\d{1,2})?");
 
     private final OrdenLaboratorioRepository ordenRepository;
     private final VisitaMedicaRepository visitaRepository;
@@ -140,7 +131,8 @@ public class LaboratorioService {
             throw new CampoInvalidoException("resultado",
                     "El resultado no puede exceder " + LARGO_MAXIMO_RESULTADO + " caracteres; adjunte el informe completo como archivo");
         }
-        BigDecimal monto = validarCosto(costo);
+        // Mayor que cero y como lo escribe una persona; las mismas reglas que la farmacia (YS-129).
+        BigDecimal monto = Montos.costo(costo, "costo", "Indique el costo del examen");
         ArchivoValidado adjunto = validar(archivo);
 
         OrdenLaboratorio orden = buscar(ordenId);
@@ -207,25 +199,6 @@ public class LaboratorioService {
     public CostoOrdenResponse costo(Long ordenId) {
         OrdenLaboratorio orden = buscar(ordenId);
         return new CostoOrdenResponse(orden.getCosto(), orden.getEstado() == EstadoOrden.RESULTADOS_CARGADOS);
-    }
-
-    /** Mayor que cero y como lo escribe una persona; la coma se acepta como punto. */
-    private static BigDecimal validarCosto(String texto) {
-        String limpio = texto == null ? "" : texto.strip().replace(',', '.');
-        if (limpio.isEmpty()) {
-            throw new CampoInvalidoException("costo", "Indique el costo del examen");
-        }
-        if (limpio.startsWith("-")) {
-            throw new CampoInvalidoException("costo", "El costo tiene que ser mayor que cero");
-        }
-        if (!MONTO.matcher(limpio).matches()) {
-            throw new CampoInvalidoException("costo", "Escriba un monto como 75 o 75.50");
-        }
-        BigDecimal monto = new BigDecimal(limpio).setScale(2);
-        if (monto.signum() == 0) {
-            throw new CampoInvalidoException("costo", "El costo tiene que ser mayor que cero");
-        }
-        return monto;
     }
 
     private boolean puedeVerElEspecialista(OrdenLaboratorio orden, Usuario especialista) {
