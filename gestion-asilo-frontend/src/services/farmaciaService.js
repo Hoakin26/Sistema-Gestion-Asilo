@@ -24,13 +24,23 @@ export async function listarRecetas({ estados = [], paciente = "", pagina = 0, o
 }
 
 /**
- * HU-16 (YS-127). Despacha la receta: `entregados` son los ids de los
- * medicamentos que se entregan ahora; los demás quedan pendientes. Devuelve la
+ * HU-16 (YS-127). Despacha la receta: `entregados` son los medicamentos que se
+ * entregan ahora, `{ id, costo }`; los demás quedan pendientes. Devuelve la
  * receta con su nuevo estado (DE-03).
+ *
+ * HU-17 (YS-130). El costo va como texto, igual que el del laboratorio: el
+ * backend lo lee como BigDecimal, sin redondeos de JavaScript.
  */
 export async function despacharReceta(recetaId, entregados) {
-  const { data } = await api.post(`/recetas/${recetaId}/despacho`, {
-    entregados: entregados.map((id) => ({ id })),
-  });
+  const { data } = await api.post(`/recetas/${recetaId}/despacho`, { entregados });
+  return data;
+}
+
+/**
+ * HU-17 (YS-130). Lo que se cobró de la receta: `{ entregados: [{ id, costo }], total }`.
+ * Solo para la farmacia; la receta que ve el especialista no lleva costos.
+ */
+export async function obtenerCostosReceta(recetaId) {
+  const { data } = await api.get(`/recetas/${recetaId}/costos`);
   return data;
 }
