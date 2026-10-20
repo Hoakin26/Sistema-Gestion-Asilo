@@ -79,7 +79,8 @@ import tools.jackson.databind.ObjectMapper;
  * (YS-113), los exámenes de laboratorio, y desde HU-12 (YS-116), la bandeja
  * donde el laboratorio los recibe, desde HU-13 (YS-119) su resultado y
  * desde HU-14 (YS-122) su costo. Desde HU-15 (YS-125), la bandeja donde la
- * farmacia recibe las recetas, y desde HU-16 (YS-128) su despacho.
+ * farmacia recibe las recetas, desde HU-16 (YS-128) su despacho y desde
+ * HU-17 (YS-131) su costo.
  * Desde HU-02 (YS-67), el historial médico centralizado del Médico General,
  * que se arma con todo lo anterior.
  *
@@ -1164,6 +1165,8 @@ class VisitaMedicaTest extends PruebaConBaseDeDatos {
                 .andExpect(jsonPath("$.estado").value("MEDICAMENTO_AGOTADO"))
                 .andExpect(jsonPath("$.fechaDespacho").isEmpty())
                 .andExpect(jsonPath("$.medicamentos[0].entregado").value(false));
+        // YS-131: lo que no se entrega no se cobra (CU-005, E.2).
+        assertThat(cargosDeFarmacia(visita)).isEmpty();
         // Sigue entre las que la farmacia tiene que despachar.
         assertThat(idsDeRecetas(dpiDe(cita), "PENDIENTE_DESPACHO", "PARCIALMENTE_ENTREGADA", "MEDICAMENTO_AGOTADO"))
                 .containsExactly(receta.getId().intValue());
@@ -1173,6 +1176,7 @@ class VisitaMedicaTest extends PruebaConBaseDeDatos {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.estado").value("ENTREGADA"))
                 .andExpect(jsonPath("$.fechaDespacho").isNotEmpty());
+        assertThat(cargosDeFarmacia(visita)).hasSize(1);
     }
 
     @Test
@@ -1252,6 +1256,97 @@ class VisitaMedicaTest extends PruebaConBaseDeDatos {
                 .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
         List<Integer> historial = JsonPath.read(respuesta, "$.content[*].id");
         assertThat(historial).containsExactly(deLaPrimera.getId().intValue(), deLaSegunda.getId().intValue());
+    }
+
+    // ---- YS-131: el costo de los medicamentos (HU-17) ----
+
+    @Test
+    @DisplayName("Cada medicamento entregado queda con su costo y como un cargo de farmacia de la visita; lo pendiente no se cobra y nada se cobra dos veces")
+    void elCostoDeCadaMedicamentoEsUnCargo() throws Exception {
+        Especialista especialista = nuevoEspecialista(0);
+        Cita cita = citaEl(especialista, HOY.atTime(9, 0));
+        long visita = idDe(iniciar(cita.getId(), especialista));
+        recetar(visita, especialista, null,
+                medicamento("Losartán", "50 mg", 30, "Cada 24 horas"),
+                medicamento("Amlodipino", "5 mg", 30, "Cada 24 horas"),
+                medicamento("Metformina", "850 mg", 60, "Cada 12 horas")).andExpect(status().isCreated());
+        Receta receta = recetaRepository.findByVisitaId(visita).orElseThrow();
+        Long[] ids = idsDe(receta);
+
+        despacharEntregas(receta.getId(), entrega(ids[0], "35"), entrega(ids[1], "20,50"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.estado").value("PARCIALMENTE_ENTREGADA"))
+                // RecetaResponse también la recibe el especialista: no lleva costos.
+                .andExpect(jsonPath("$.medicamentos[0].costo").doesNotExist());
+
+        List<CargoServicio> cargos = cargosDeFarmacia(visita);
+        assertThat(cargos).extracting(CargoServicio::getMontoOriginal)
+                .containsExactly(new BigDecimal("35.00"), new BigDecimal("20.50"));
+        assertThat(cargos).allSatisfy(cargo -> {
+            assertThat(cargo.getDescuento()).isEqualByComparingTo("0");
+            assertThat(cargo.getMontoNeto()).isEqualByComparingTo(cargo.getMontoOriginal());
+            assertThat(cargo.getInterno().getId()).isEqualTo(cita.getSolicitud().getInterno().getId());
+        });
+        costosDe(receta.getId())
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.entregados.length()").value(2))
+                .andExpect(jsonPath("$.entregados[0].id").value(ids[0]))
+                .andExpect(jsonPath("$.entregados[0].costo").value(35.00))
+                .andExpect(jsonPath("$.entregados[1].costo").value(20.50))
+                .andExpect(jsonPath("$.total").value(55.50));
+
+        // El resto llega en otro despacho: un cargo más por lo nuevo, ninguno por lo ya cobrado.
+        despacharEntregas(receta.getId(), entrega(ids[2], "40"))
+                .andExpect(jsonPath("$.estado").value("ENTREGADA"));
+        assertThat(cargosDeFarmacia(visita)).hasSize(3);
+        costosDe(receta.getId()).andExpect(jsonPath("$.total").value(95.50));
+        costosDe(999_999L).andExpect(status().isNotFound());
+
+        // Ni siquiera en su visita el especialista ve lo que costaron.
+        mvc.perform(get("/api/visitas/{id}/receta", visita).header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(especialista)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.medicamentos[0].costo").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("El costo de cada medicamento entregado es obligatorio y mayor que cero: 400 en su fila, y no se entrega ni se cobra nada")
+    void costoInvalidoDelMedicamento() throws Exception {
+        Especialista especialista = nuevoEspecialista(0);
+        long visita = idDe(iniciar(citaEl(especialista, HOY.atTime(9, 30)).getId(), especialista));
+        recetar(visita, especialista, null,
+                medicamento("Losartán", "50 mg", 30, "Cada 24 horas"),
+                medicamento("Amlodipino", "5 mg", 30, "Cada 24 horas")).andExpect(status().isCreated());
+        Receta receta = recetaRepository.findByVisitaId(visita).orElseThrow();
+        Long[] ids = idsDe(receta);
+
+        Map<String, String> casos = new LinkedHashMap<>();
+        casos.put("", "Indique el costo del medicamento");
+        casos.put("0", "El costo tiene que ser mayor que cero");
+        casos.put("0.00", "El costo tiene que ser mayor que cero");
+        casos.put("-5", "El costo tiene que ser mayor que cero");
+        casos.put("cinco", "Escriba un monto como 75 o 75.50");
+        casos.put("12.345", "Escriba un monto como 75 o 75.50");
+        casos.put("1e3", "Escriba un monto como 75 o 75.50");
+        for (Map.Entry<String, String> caso : casos.entrySet()) {
+            despacharEntregas(receta.getId(), entrega(ids[0], "10.00"), entrega(ids[1], caso.getKey()))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.errores['entregados[1].costo']").value(caso.getValue()));
+        }
+        // Sin el campo, igual que vacío.
+        despacharCon(receta.getId(), "{\"entregados\": [{\"id\": %d}]}".formatted(ids[0]))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errores['entregados[0].costo']").value("Indique el costo del medicamento"));
+
+        assertThat(entregados(visita)).containsExactly(false, false);
+        assertThat(cargosDeFarmacia(visita)).isEmpty();
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @EnumSource(value = RolNombre.class, names = "FARMACIA", mode = EnumSource.Mode.EXCLUDE)
+    @DisplayName("Los otros seis roles no ven lo que cobró la farmacia: 403")
+    void soloLaFarmaciaVeLosCostos(RolNombre rol) throws Exception {
+        mvc.perform(get("/api/recetas/{id}/costos", 999_999).header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(rol)))
+                .andExpect(status().isForbidden());
     }
 
     // ---- YS-107: el diagnóstico y el cierre de la visita (HU-09) ----
@@ -1677,13 +1772,40 @@ class VisitaMedicaTest extends PruebaConBaseDeDatos {
         return JsonPath.read(respuesta, "$.content[*].id");
     }
 
-    /** YS-128. La farmacia despacha la receta entregando esos medicamentos; sin ninguno, sin entregas. */
+    /**
+     * YS-128. La farmacia despacha la receta entregando esos medicamentos; sin
+     * ninguno, sin entregas. YS-131: cada uno con un costo cualquiera.
+     */
     private ResultActions despachar(Long recetaId, Long... entregados) throws Exception {
         List<Map<String, Object>> lista = new ArrayList<>();
         for (Long id : entregados) {
-            lista.add(Map.of("id", id));
+            lista.add(entrega(id, "25.00"));
         }
         return despacharCon(recetaId, json.writeValueAsString(Map.of("entregados", lista)));
+    }
+
+    /** YS-131. Lo mismo, con el costo que registra la farmacia para cada uno (HU-17). */
+    @SafeVarargs
+    private ResultActions despacharEntregas(Long recetaId, Map<String, Object>... entregas) throws Exception {
+        return despacharCon(recetaId, json.writeValueAsString(Map.of("entregados", List.of(entregas))));
+    }
+
+    private static Map<String, Object> entrega(Long id, String costo) {
+        Map<String, Object> entrega = new LinkedHashMap<>();
+        entrega.put("id", id);
+        entrega.put("costo", costo);
+        return entrega;
+    }
+
+    private ResultActions costosDe(Long recetaId) throws Exception {
+        return mvc.perform(get("/api/recetas/{id}/costos", recetaId)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(RolNombre.FARMACIA)));
+    }
+
+    private List<CargoServicio> cargosDeFarmacia(long visitaId) {
+        return cargoRepository.findByVisitaIdOrderByIdAsc(visitaId).stream()
+                .filter(cargo -> cargo.getTipo() == TipoServicio.FARMACIA)
+                .toList();
     }
 
     private ResultActions despacharCon(Long recetaId, String cuerpo) throws Exception {
