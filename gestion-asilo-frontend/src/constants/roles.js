@@ -43,6 +43,14 @@ export function creaReferencias(rol) {
   return rol === "MEDICO_GENERAL";
 }
 
+/**
+ * HU-18. Solo el Administrador del Asilo maneja la cuenta del familiar y la
+ * cuota base (@SoloAdministradorAsilo).
+ */
+export function administraCuentas(rol) {
+  return rol === "ADMINISTRADOR_ASILO";
+}
+
 /** HU-06. Solo la Fundación asigna citas (RF-05, @SoloAdministradorFundacion). */
 export function asignaCitas(rol) {
   return rol === "ADMINISTRADOR_FUNDACION";

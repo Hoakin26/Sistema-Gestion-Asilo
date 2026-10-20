@@ -82,6 +82,24 @@ export function formatearDia(iso) {
   return FORMATO_DIA_COMPLETO.format(aFechaLocal(iso));
 }
 
+const FORMATO_MES = new Intl.DateTimeFormat("es-GT", { month: "long", year: "numeric" });
+
+/** YS-134. "octubre de 2026" a partir del período de una cuenta, "2026-10". */
+export function formatearPeriodo(periodo) {
+  const [anio, mes] = periodo.split("-").map(Number);
+  return FORMATO_MES.format(new Date(anio, mes - 1, 1));
+}
+
+/** YS-134. El mes en curso como "2026-10", el valor de un `<input type="month">`. */
+export function mesActualISO() {
+  return hoyISO().slice(0, 7);
+}
+
+/** YS-134. El primer día del mes en curso, "2026-10-01". */
+export function inicioDeMesISO() {
+  return `${mesActualISO()}-01`;
+}
+
 export function edadEnAnios(iso) {
   const nacimiento = aFechaLocal(iso);
   const hoy = new Date();
