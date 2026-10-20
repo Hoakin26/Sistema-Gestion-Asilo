@@ -990,7 +990,25 @@ La cuenta es una por interno y mes, con una restricción única en la base. Cons
 
 Desde HU-18 la cuota la fija el Administrador del Asilo. El `PUT /api/internos/{id}` del Médico General ya no la toca. Su formulario devolvía la cuota que tenía al abrirse, así que guardarlo después de que el administrador la cambiara la regresaba al valor viejo sin que nadie lo notara. La prueba lo cubre: el Médico General edita con otra cuota y la del administrador se mantiene.
 
-## 37. Qué falta
+## 37. Los descuentos de la fundación (HU-19)
+
+### Quién los define y quién los ve
+
+`PUT /api/politicas-descuento/{tipoServicio}` está bajo `@SoloAdministradorFundacion`: el descuento lo da la fundación, y es ella quien decide cuánto. `GET /api/politicas-descuento` está bajo `@AsiloOFundacion`, porque el Administrador del Asilo los ve aplicados en cada cuenta y tiene que poder explicárselos al familiar, pero no los cambia. `VisitaMedicaTest` comprueba que los otros seis roles, el Administrador del Asilo incluido, reciben 403 al definir, y que los cinco roles que no administran reciben 403 al consultar. Cada versión anota quién la definió.
+
+### Un solo lugar donde se resta
+
+El descuento solo lo calcula `CalculadoraDescuento`, con la regla del tipo (`DescuentoPorcentaje` o `DescuentoMontoFijo`, patrón Estrategia). Lo usan el cargo al nacer (`CargoService`) y la consolidación del mes (`CuentaFamiliarService`), así que las dos llegan siempre al mismo resultado. Una regla nueva es una clase nueva y la calculadora no cambia (principio abierto/cerrado).
+
+### El neto nunca es negativo
+
+Un descuento mayor que el costo se limita al costo: el cargo queda en cero y el descuento guardado es el que de verdad se aplicó, para que original menos descuento cuadre con el neto en el estado de cuenta. Un porcentaje no pasa de 100 ni un valor baja de cero (400). La cuota base del asilo no lleva descuento: CU-006 lo aplica "a los servicios médicos".
+
+### Por fecha y versionado
+
+Decidido el 20/10. Cada política rige desde su fecha hasta que empieza la siguiente del mismo servicio, y a cada cargo le toca la vigente el día del servicio. Cambiar un descuento agrega una versión nueva en vez de reescribir la anterior: lo que rigió antes queda escrito, y un mes ya consolidado solo cambia si se vuelve a consolidar con una versión que ya regía esas fechas. Cuando lleguen los pagos (HU-34), una cuenta con pagos no debería recalcularse; esa regla es de HU-34.
+
+## 38. Qué falta
 
 Nada pendiente de HU-30, HU-31 ni HU-32. Lo que queda abierto, sin historia asignada todavía:
 
