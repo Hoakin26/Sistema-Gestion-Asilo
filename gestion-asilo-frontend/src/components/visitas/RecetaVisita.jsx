@@ -1,5 +1,5 @@
 import { useId, useRef, useState } from "react";
-import { Pencil, Pill, Plus, Trash2 } from "lucide-react";
+import { CircleCheck, Clock, Pencil, Pill, Plus, Trash2 } from "lucide-react";
 
 import { useToast } from "../../hooks/useToast";
 import { erroresPorCampo, mensajeDeError } from "../../services/api";
@@ -72,8 +72,12 @@ function validar({ indicacionesGenerales, medicamentos }) {
   return errores;
 }
 
-/** Los medicamentos de una receta, para leer: en la visita y en los antecedentes. */
-export function ListaMedicamentos({ medicamentos }) {
+/**
+ * Los medicamentos de una receta, para leer: en la visita y en los antecedentes.
+ * HU-16 (YS-127): con `conEntrega`, la farmacia ve además si cada uno ya se
+ * entregó y cuándo, o si sigue pendiente.
+ */
+export function ListaMedicamentos({ medicamentos, conEntrega = false }) {
   return (
     <ul className="divide-y divide-divisor">
       {medicamentos.map((m) => (
@@ -85,6 +89,21 @@ export function ListaMedicamentos({ medicamentos }) {
             </span>
           </div>
           <p className="mt-1 text-texto">{m.formaAplicacion}</p>
+          {conEntrega &&
+            (m.entregado ? (
+              <p className="mt-1 flex items-center gap-2 text-auxiliar text-exito">
+                <CircleCheck aria-hidden="true" size={16} />
+                <span>
+                  Entregado el{" "}
+                  <span className="tabular-nums slashed-zero">{formatearFechaHora(m.fechaEntrega)}</span>
+                </span>
+              </p>
+            ) : (
+              <p className="mt-1 flex items-center gap-2 text-auxiliar text-advertencia">
+                <Clock aria-hidden="true" size={16} />
+                Pendiente de entregar
+              </p>
+            ))}
         </li>
       ))}
     </ul>

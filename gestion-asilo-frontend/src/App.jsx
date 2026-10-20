@@ -196,6 +196,16 @@ function App() {
           </RutaPrivada>
         }
       />
+      {/* HU-16 (YS-127). La misma bandeja, solo con lo ya despachado. La key la
+          remonta al cambiar de módulo, con su propio filtro. */}
+      <Route
+        path="/despacho-medicamentos"
+        element={
+          <RutaPrivada>
+            <RecetasPendientesPage key="despachos" modo="despachos" />
+          </RutaPrivada>
+        }
+      />
       {/* Al dashboard y no a un módulo concreto: es la única ruta que los
           siete roles tienen en común. */}
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
