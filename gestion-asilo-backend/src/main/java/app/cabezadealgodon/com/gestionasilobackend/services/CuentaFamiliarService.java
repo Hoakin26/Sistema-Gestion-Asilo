@@ -24,6 +24,7 @@ import app.cabezadealgodon.com.gestionasilobackend.exception.RecursoNoEncontrado
 import app.cabezadealgodon.com.gestionasilobackend.models.CargoServicio;
 import app.cabezadealgodon.com.gestionasilobackend.models.CuentaMensual;
 import app.cabezadealgodon.com.gestionasilobackend.models.Interno;
+import app.cabezadealgodon.com.gestionasilobackend.models.PoliticaDescuento;
 import app.cabezadealgodon.com.gestionasilobackend.models.TipoServicio;
 import app.cabezadealgodon.com.gestionasilobackend.repository.CargoServicioRepository;
 import app.cabezadealgodon.com.gestionasilobackend.repository.CuentaMensualRepository;
@@ -35,9 +36,10 @@ import app.cabezadealgodon.com.gestionasilobackend.repository.InternoRepository;
  * farmacia que nacieron en HU-09, HU-14 y HU-17, y los desglosa por servicio.
  *
  * <p>
- * Los descuentos de la fundación (HU-19) ya vienen calculados en cada cargo,
- * así que aquí solo se suman. Los pagos y los estados de DE-04 llegan con
- * HU-34 (RF-22), decidido el 20/10.
+ * YS-136. Al consolidar se aplican los descuentos de la fundación (HU-19):
+ * cada cargo del mes toma la política vigente en la fecha de su servicio, con
+ * la misma {@link CalculadoraDescuento} que lo calculó al nacer. Los pagos y
+ * los estados de DE-04 llegan con HU-34 (RF-22), decidido el 20/10.
  */
 @Service
 public class CuentaFamiliarService {
@@ -47,12 +49,14 @@ public class CuentaFamiliarService {
     private final CuentaMensualRepository cuentaRepository;
     private final CargoServicioRepository cargoRepository;
     private final InternoRepository internoRepository;
+    private final CalculadoraDescuento calculadora;
 
     public CuentaFamiliarService(CuentaMensualRepository cuentaRepository, CargoServicioRepository cargoRepository,
-            InternoRepository internoRepository) {
+            InternoRepository internoRepository, CalculadoraDescuento calculadora) {
         this.cuentaRepository = cuentaRepository;
         this.cargoRepository = cargoRepository;
         this.internoRepository = internoRepository;
+        this.calculadora = calculadora;
     }
 
     /**
@@ -70,6 +74,12 @@ public class CuentaFamiliarService {
      * nadie; HU-34 decidirá qué pasa con una cuenta que ya tiene pagos.
      *
      * <p>
+     * YS-136. Antes de sumar, cada cargo vuelve a tomar el descuento de la
+     * política vigente en su fecha (HU-19): una política que la fundación
+     * definió después, pero que ya regía ese día, entra aquí. Las políticas se
+     * leen una sola vez para todo el mes.
+     *
+     * <p>
      * Un mes que todavía no empieza no se consolida (400). El mes en curso sí:
      * la cuenta queda con lo que va del mes, y se vuelve a consolidar al cerrar.
      */
@@ -82,7 +92,12 @@ public class CuentaFamiliarService {
 
         Map<Long, Interno> internos = new LinkedHashMap<>();
         Map<Long, List<CargoServicio>> cargosPorInterno = new HashMap<>();
+        List<PoliticaDescuento> politicas = calculadora.politicas();
         for (CargoServicio cargo : cargoRepository.entre(periodo.atDay(1), periodo.atEndOfMonth())) {
+            DesgloseCosto desglose = calculadora.calcular(cargo.getTipo(), cargo.getMontoOriginal(), cargo.getFecha(),
+                    politicas);
+            cargo.setDescuento(desglose.descuento());
+            cargo.setMontoNeto(desglose.montoNeto());
             internos.putIfAbsent(cargo.getInterno().getId(), cargo.getInterno());
             cargosPorInterno.computeIfAbsent(cargo.getInterno().getId(), id -> new ArrayList<>()).add(cargo);
         }

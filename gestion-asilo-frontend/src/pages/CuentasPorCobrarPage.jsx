@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Calculator, Inbox } from "lucide-react";
 
+import { DescuentosVigentes } from "../components/cuentas/DescuentosVigentes";
 import { Alert } from "../components/ui/Alert";
 import { Button } from "../components/ui/Button";
 import { FormField } from "../components/ui/FormField";
@@ -123,9 +124,12 @@ export function CuentasPorCobrarPage() {
         </Button>
       </div>
       <p className="mt-2 text-auxiliar text-texto-secundario">
-        Suma la cuota base y los cargos del mes de cada interno. Puede volver a consolidar un mes: se recalcula sin
-        duplicar nada.
+        Suma la cuota base y los cargos del mes de cada interno, con los descuentos de la fundación vigentes en la
+        fecha de cada servicio. Puede volver a consolidar un mes: se recalcula sin duplicar nada.
       </p>
+
+      {/* HU-19 (YS-137). El asilo los consulta; los define la fundación. */}
+      <DescuentosVigentes />
 
       {error && (
         <div className="mt-6">
@@ -177,6 +181,9 @@ export function CuentasPorCobrarPage() {
                       Servicios
                     </th>
                     <th scope="col" className={`${ENCABEZADO} text-right`}>
+                      Descuento
+                    </th>
+                    <th scope="col" className={`${ENCABEZADO} text-right`}>
                       Total a pagar
                     </th>
                     <th scope="col" className={`${ENCABEZADO} text-right`}>
@@ -204,9 +211,12 @@ export function CuentasPorCobrarPage() {
                       </td>
                       <td className="px-4 py-4 xl:px-6">{cuenta.familiar.nombreCompleto}</td>
                       <td className={MONTO}>{formatearQuetzales(cuenta.cuotaBase)}</td>
-                      {/* Los servicios ya con el descuento de la fundación (HU-19). */}
+                      {/* HU-19: el costo original y lo que descontó la fundación; el total ya es neto. */}
+                      <td className={MONTO}>{formatearQuetzales(cuenta.totalServicios)}</td>
                       <td className={MONTO}>
-                        {formatearQuetzales((centavos(cuenta.totalAPagar) - centavos(cuenta.cuotaBase)) / 100)}
+                        {centavos(cuenta.totalDescuentos) > 0
+                          ? `− ${formatearQuetzales(cuenta.totalDescuentos)}`
+                          : formatearQuetzales(cuenta.totalDescuentos)}
                       </td>
                       <td className={`${MONTO} font-semibold`}>{formatearQuetzales(cuenta.totalAPagar)}</td>
                       <td className={MONTO}>{formatearQuetzales(cuenta.saldo)}</td>
