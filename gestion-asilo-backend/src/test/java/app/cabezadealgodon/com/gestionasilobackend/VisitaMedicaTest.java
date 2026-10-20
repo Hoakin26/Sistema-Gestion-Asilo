@@ -65,6 +65,7 @@ import app.cabezadealgodon.com.gestionasilobackend.repository.CuentaMensualRepos
 import app.cabezadealgodon.com.gestionasilobackend.repository.EspecialidadRepository;
 import app.cabezadealgodon.com.gestionasilobackend.repository.ExamenLaboratorioRepository;
 import app.cabezadealgodon.com.gestionasilobackend.repository.OrdenLaboratorioRepository;
+import app.cabezadealgodon.com.gestionasilobackend.repository.PoliticaDescuentoRepository;
 import app.cabezadealgodon.com.gestionasilobackend.repository.RecetaRepository;
 import app.cabezadealgodon.com.gestionasilobackend.repository.RolRepository;
 import app.cabezadealgodon.com.gestionasilobackend.repository.SolicitudReferenciaRepository;
@@ -85,7 +86,8 @@ import tools.jackson.databind.ObjectMapper;
  * desde HU-14 (YS-122) su costo. Desde HU-15 (YS-125), la bandeja donde la
  * farmacia recibe las recetas, desde HU-16 (YS-128) su despacho y desde
  * HU-17 (YS-131) su costo. Desde HU-18 (YS-135), la cuenta del familiar que
- * reúne los cargos de los tres.
+ * reúne los cargos de los tres, y desde HU-19 (YS-138), los descuentos de la
+ * fundación que se le aplican.
  * Desde HU-02 (YS-67), el historial médico centralizado del Médico General,
  * que se arma con todo lo anterior.
  *
@@ -143,6 +145,9 @@ class VisitaMedicaTest extends PruebaConBaseDeDatos {
 
     @Autowired
     private CuentaMensualRepository cuentaRepository;
+
+    @Autowired
+    private PoliticaDescuentoRepository politicaRepository;
 
     @Autowired
     private PasswordEncoder passwordEncoder;
@@ -1546,6 +1551,132 @@ class VisitaMedicaTest extends PruebaConBaseDeDatos {
                 .andExpect(status().isForbidden());
     }
 
+    // ---- YS-138: los descuentos de la fundación (HU-19) ----
+
+    /**
+     * Decidido el 20/10: el descuento va por la fecha del servicio y se aplica
+     * al consolidar. Las políticas son de todo el sistema, así que la prueba
+     * las borra al terminar: la base es compartida y las demás cuentan sin
+     * descuento.
+     */
+    @Test
+    @DisplayName("Al consolidar, cada cargo toma el descuento vigente en su fecha: porcentaje, monto fijo sin neto negativo, y nada sin política")
+    void elDescuentoSeAplicaAlConsolidar() throws Exception {
+        try {
+            tarifaDe(6, "410.00");
+            Especialista especialista = nuevoEspecialista(6);
+            Cita cita = citaEl(especialista, HOY.atTime(9, 30));
+            Long interno = cita.getSolicitud().getInterno().getId();
+            long visita = conLosTresCargos(cita, especialista, "Creatinina", "120.00", "Omeprazol", "35.50");
+            // Los cargos nacieron antes de que hubiera política: sin descuento.
+            assertThat(cargoRepository.findByVisitaIdOrderByIdAsc(visita))
+                    .allSatisfy(cargo -> assertThat(cargo.getDescuento()).isEqualByComparingTo("0"));
+
+            LocalDate inicioDeMes = HOY.withDayOfMonth(1);
+            definirDescuento("CONSULTA", "PORCENTAJE", "20", inicioDeMes)
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.vigente").value(true))
+                    .andExpect(jsonPath("$.registradaPor").value("Persona de prueba"));
+            // Más que el costo del medicamento: el cargo queda en cero, no negativo.
+            definirDescuento("FARMACIA", "MONTO_FIJO", "50", inicioDeMes).andExpect(status().isOk());
+            // Uno que todavía no empieza no toca los cargos de hoy.
+            definirDescuento("LABORATORIO", "PORCENTAJE", "90", HOY.plusMonths(1)).andExpect(status().isOk())
+                    .andExpect(jsonPath("$.vigente").value(false));
+
+            String filtro = "$[?(@.interno.id == %d)]";
+            consolidar(YearMonth.now().toString())
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath(filtro + ".totalServicios", interno).value(565.50))
+                    .andExpect(jsonPath(filtro + ".totalDescuentos", interno).value(117.50))
+                    .andExpect(jsonPath(filtro + ".totalAPagar", interno).value(448.00));
+            Map<TipoServicio, CargoServicio> porTipo = new LinkedHashMap<>();
+            cargoRepository.findByVisitaIdOrderByIdAsc(visita).forEach(cargo -> porTipo.put(cargo.getTipo(), cargo));
+            assertThat(porTipo.get(TipoServicio.CONSULTA).getDescuento()).isEqualByComparingTo("82.00");
+            assertThat(porTipo.get(TipoServicio.CONSULTA).getMontoNeto()).isEqualByComparingTo("328.00");
+            assertThat(porTipo.get(TipoServicio.FARMACIA).getDescuento()).isEqualByComparingTo("35.50");
+            assertThat(porTipo.get(TipoServicio.FARMACIA).getMontoNeto()).isEqualByComparingTo("0.00");
+            assertThat(porTipo.get(TipoServicio.LABORATORIO).getDescuento()).isEqualByComparingTo("0.00");
+
+            // El estado de cuenta muestra el desglose entre original y descuento (criterio de HU-19).
+            estadoDeCuenta(interno, inicioDeMes, HOY)
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.desglose[?(@.concepto == 'CONSULTA')].original").value(410.00))
+                    .andExpect(jsonPath("$.desglose[?(@.concepto == 'CONSULTA')].descuento").value(82.00))
+                    .andExpect(jsonPath("$.desglose[?(@.concepto == 'CONSULTA')].neto").value(328.00))
+                    .andExpect(jsonPath("$.totalDescuentos").value(117.50));
+
+            // Un cargo que nace con la política ya definida la toma al nacer.
+            Cita otra = citaEl(especialista, HOY.atTime(10, 0));
+            long segunda = idDe(iniciar(otra.getId(), especialista));
+            diagnosticar(segunda, especialista, "Control", null).andExpect(status().isOk());
+            finalizar(segunda, especialista).andExpect(status().isOk());
+            assertThat(cargoRepository.findByVisitaIdOrderByIdAsc(segunda).get(0).getMontoNeto())
+                    .isEqualByComparingTo("328.00");
+        } finally {
+            politicaRepository.deleteAll();
+        }
+    }
+
+    @Test
+    @DisplayName("La política se valida, se versiona por fecha y se corrige definiendo la misma fecha otra vez")
+    void lasPoliticasSeVersionan() throws Exception {
+        try {
+            LocalDate desde = HOY.withDayOfMonth(1);
+            definirDescuento("CONSULTA", "PORCENTAJE", "150", desde)
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.errores.valor").value("Un porcentaje no puede pasar de 100"));
+            definirDescuento("CONSULTA", "MONTO_FIJO", "-1", desde)
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.errores.valor").value("El descuento no puede ser negativo"));
+            mvc.perform(put("/api/politicas-descuento/{tipo}", "CONSULTA")
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(RolNombre.ADMINISTRADOR_FUNDACION))
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"tipoDescuento\": \"PORCENTAJE\", \"valor\": 10}"))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.errores.vigenteDesde").value("Indique desde qué fecha rige"));
+            // La cuota no lleva descuento: no es un tipo de servicio.
+            definirDescuento("CUOTA", "PORCENTAJE", "10", desde).andExpect(status().isBadRequest());
+
+            definirDescuento("CONSULTA", "PORCENTAJE", "15", desde.minusMonths(1)).andExpect(status().isOk());
+            definirDescuento("CONSULTA", "PORCENTAJE", "20", desde).andExpect(status().isOk());
+            // La misma fecha otra vez corrige esa versión, no agrega otra.
+            definirDescuento("CONSULTA", "MONTO_FIJO", "25", desde).andExpect(status().isOk());
+            assertThat(politicaRepository.findByTipoServicioOrderByVigenteDesdeDesc(TipoServicio.CONSULTA)).hasSize(2);
+
+            mvc.perform(get("/api/politicas-descuento")
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(RolNombre.ADMINISTRADOR_ASILO)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.length()").value(2))
+                    .andExpect(jsonPath("$[0].tipoDescuento").value("MONTO_FIJO"))
+                    .andExpect(jsonPath("$[0].valor").value(25.00))
+                    .andExpect(jsonPath("$[0].vigente").value(true))
+                    .andExpect(jsonPath("$[1].valor").value(15.00))
+                    .andExpect(jsonPath("$[1].vigente").value(false));
+        } finally {
+            politicaRepository.deleteAll();
+        }
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @EnumSource(value = RolNombre.class, names = "ADMINISTRADOR_FUNDACION", mode = EnumSource.Mode.EXCLUDE)
+    @DisplayName("Solo el Administrador de la Fundación define los descuentos: los otros seis, el del Asilo incluido, reciben 403")
+    void soloLaFundacionDefineDescuentos(RolNombre rol) throws Exception {
+        mvc.perform(put("/api/politicas-descuento/{tipo}", "CONSULTA")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(rol))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"tipoDescuento\": \"PORCENTAJE\", \"valor\": 10, \"vigenteDesde\": \"%s\"}".formatted(HOY)))
+                .andExpect(status().isForbidden());
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @EnumSource(value = RolNombre.class, names = { "ADMINISTRADOR_FUNDACION", "ADMINISTRADOR_ASILO" },
+            mode = EnumSource.Mode.EXCLUDE)
+    @DisplayName("Los descuentos los consultan los dos administradores; los roles clínicos reciben 403")
+    void soloLosAdministradoresVenLosDescuentos(RolNombre rol) throws Exception {
+        mvc.perform(get("/api/politicas-descuento").header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(rol)))
+                .andExpect(status().isForbidden());
+    }
+
     // ---- YS-107: el diagnóstico y el cierre de la visita (HU-09) ----
 
     @Test
@@ -2012,6 +2143,16 @@ class VisitaMedicaTest extends PruebaConBaseDeDatos {
         diagnosticar(visita, especialista, "Hipertensión arterial", null).andExpect(status().isOk());
         finalizar(visita, especialista).andExpect(status().isOk());
         return visita;
+    }
+
+    /** YS-138. La fundación define el descuento de un servicio desde una fecha. */
+    private ResultActions definirDescuento(String tipoServicio, String tipoDescuento, String valor, LocalDate desde)
+            throws Exception {
+        return mvc.perform(put("/api/politicas-descuento/{tipo}", tipoServicio)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(RolNombre.ADMINISTRADOR_FUNDACION))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"tipoDescuento\": \"%s\", \"valor\": %s, \"vigenteDesde\": \"%s\"}"
+                        .formatted(tipoDescuento, valor, desde)));
     }
 
     /** YS-135. El Administrador del Asilo fija la cuota; {@code cuota} va tal cual en el JSON. */
