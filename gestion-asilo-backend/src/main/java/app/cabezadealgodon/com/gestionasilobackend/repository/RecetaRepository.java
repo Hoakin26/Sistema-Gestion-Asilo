@@ -8,17 +8,34 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import app.cabezadealgodon.com.gestionasilobackend.models.EstadoReceta;
 import app.cabezadealgodon.com.gestionasilobackend.models.Receta;
+import jakarta.persistence.LockModeType;
 
 public interface RecetaRepository extends JpaRepository<Receta, Long> {
 
     /** La receta de una visita, con sus medicamentos. */
     @EntityGraph(attributePaths = { "medicamentos" })
     Optional<Receta> findByVisitaId(Long visitaId);
+
+    /**
+     * YS-126. La receta que se va a despachar. El bloqueo sube la versión
+     * aunque solo cambien los medicamentos: dos despachos simultáneos, o un
+     * despacho y una corrección del especialista, chocan siempre, y el segundo
+     * recibe 409 en vez de entregar dos veces.
+     *
+     * <p>
+     * Sin {@code @EntityGraph}, a propósito: Hibernate aplica el bloqueo a todo
+     * lo que la consulta trae, y los medicamentos no tienen versión. Llegan
+     * después, dentro de la misma transacción.
+     */
+    @Lock(LockModeType.OPTIMISTIC_FORCE_INCREMENT)
+    @Query("select r from Receta r where r.id = :id")
+    Optional<Receta> paraDespachar(@Param("id") Long id);
 
     boolean existsByVisitaId(Long visitaId);
 
