@@ -6,6 +6,7 @@ import { erroresPorCampo, mensajeDeError } from "../../services/api";
 import { obtenerCostoOrden, registrarResultado } from "../../services/laboratorioService";
 import { formatearFechaHora } from "../../utils/fechas";
 import { enfocarPrimerError } from "../../utils/formularios";
+import { errorDeCosto, normalizarMonto } from "../../utils/montos";
 import { Alert } from "../ui/Alert";
 import { Button } from "../ui/Button";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
@@ -20,18 +21,6 @@ const TIPOS_PERMITIDOS = ["application/pdf", "image/jpeg", "image/png"];
 const EXTENSIONES = /\.(pdf|jpe?g|png)$/i;
 const TAMANO_MAXIMO = 10 * 1024 * 1024;
 const LARGO_MAXIMO = 4000;
-/* HU-14: hasta 8 enteros y 2 decimales, como el backend (LaboratorioService). */
-const MONTO = /^\d{1,8}(\.\d{1,2})?$/;
-
-/** Mismas reglas y mensajes que el backend, con la coma aceptada como punto. */
-function errorDeCosto(texto) {
-  const limpio = texto.trim().replace(",", ".");
-  if (!limpio) return "Indique el costo del examen";
-  if (limpio.startsWith("-")) return "El costo tiene que ser mayor que cero";
-  if (!MONTO.test(limpio)) return "Escriba un monto como 75 o 75.50";
-  if (Number(limpio) === 0) return "El costo tiene que ser mayor que cero";
-  return undefined;
-}
 
 /*
  * Se avisa al elegir el archivo, no al enviar: así quien lo eligió mal lo ve
@@ -84,7 +73,8 @@ function FormularioResultado({ orden, alCambiar, alCerrar, alGuardar }) {
     evento.preventDefault();
     const encontrados = {};
     if (!resultado.trim()) encontrados.resultado = "Escriba el resultado del examen";
-    const deCosto = errorDeCosto(costo);
+    // HU-14: mismas reglas y mensajes que el backend, con la coma aceptada como punto.
+    const deCosto = errorDeCosto(costo, "Indique el costo del examen");
     if (deCosto) encontrados.costo = deCosto;
     const deArchivo = errorDeArchivo(archivo);
     if (deArchivo) encontrados.archivo = deArchivo;
@@ -98,7 +88,7 @@ function FormularioResultado({ orden, alCambiar, alCerrar, alGuardar }) {
     try {
       const actualizada = await registrarResultado(orden.id, {
         resultado: resultado.trim(),
-        costo: costo.trim().replace(",", "."),
+        costo: normalizarMonto(costo),
         archivo,
       });
       mostrar(`Se cargó el resultado de «${orden.examen.nombre}» de ${orden.paciente.nombreCompleto}.`);

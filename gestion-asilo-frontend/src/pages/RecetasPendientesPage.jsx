@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { ChevronLeft, ChevronRight, Eye, Filter, Inbox, PackageOpen, Search } from "lucide-react";
 
+import { CostosDespachados } from "../components/farmacia/CostosDespachados";
 import { DespacharRecetaModal } from "../components/farmacia/DespacharRecetaModal";
 import { ListaMedicamentos } from "../components/visitas/RecetaVisita";
 import { Alert } from "../components/ui/Alert";
@@ -357,6 +358,7 @@ export function RecetasPendientesPage({ modo = "bandeja" }) {
             <div className="mt-4">
               <ListaMedicamentos medicamentos={enDetalle.medicamentos} conEntrega />
             </div>
+            <CostosDespachados key={enDetalle.id} receta={enDetalle} />
             {enDetalle.indicacionesGenerales && (
               <div className="mt-4 border-t border-divisor pt-4">
                 <h3 className="font-semibold text-texto">Indicaciones generales</h3>
