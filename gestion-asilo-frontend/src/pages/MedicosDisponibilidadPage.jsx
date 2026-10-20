@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Filter, Pencil, Plus, Search, Stethoscope } from "lucide-react";
 
 import { EspecialistaFormModal } from "../components/especialistas/EspecialistaFormModal";
+import { DescuentosFundacion } from "../components/especialistas/DescuentosFundacion";
 import { TarifasConsulta } from "../components/especialistas/TarifasConsulta";
 import { Alert } from "../components/ui/Alert";
 import { Button, IconButton } from "../components/ui/Button";
@@ -266,6 +267,10 @@ export function MedicosDisponibilidadPage() {
       {/* YS-169. En la misma pantalla: la Fundación ya viene aquí a
           administrar a sus especialistas, y la tarifa es de su especialidad. */}
       <TarifasConsulta />
+
+      {/* HU-19 (YS-137). Junto a las tarifas, decidido el 20/10: los dos son
+          los precios que fija la fundación. */}
+      <DescuentosFundacion />
 
       <EspecialistaFormModal
         abierto={modalAbierto}
