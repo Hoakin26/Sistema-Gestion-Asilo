@@ -51,7 +51,16 @@ export function Modal({
   return (
     <dialog
       ref={referencia}
-      onClose={alCerrar}
+      /*
+       * YS-130. Solo los eventos de este <dialog>: React hace subir "close" y
+       * "cancel" de un diálogo anidado, como la confirmación del despacho de
+       * la farmacia, y el modal los tomaba como suyos. Al confirmar se abría
+       * "¿Descartar los cambios?" encima de un despacho ya hecho, y Escape en
+       * la confirmación no la cerraba.
+       */
+      onClose={(evento) => {
+        if (evento.target === referencia.current) alCerrar();
+      }}
       /*
        * El <dialog> nativo se cierra con Escape por su cuenta; cancelar ese
        * evento es la única forma de impedirlo. Y se impide siempre, no solo
@@ -64,6 +73,7 @@ export function Modal({
        * la ventana ya cerrada, así que el botón que la abre dejaba de responder.
        */
       onCancel={(evento) => {
+        if (evento.target !== referencia.current) return;
         evento.preventDefault();
         if (!forzado) alCerrar();
       }}
