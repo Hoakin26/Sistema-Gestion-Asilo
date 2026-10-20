@@ -1,5 +1,6 @@
 package app.cabezadealgodon.com.gestionasilobackend.models;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 import jakarta.persistence.Column;
@@ -24,7 +25,7 @@ import lombok.Setter;
  * {@code formaAplicacion}, con las palabras de la historia, porque cubre las
  * dos cosas: "cada 8 horas por 7 días, vía oral". HU-16 y HU-17 agregan lo
  * que es de la farmacia: si se entregó y cuánto costó. YS-126: si se entregó
- * y cuándo.
+ * y cuándo. YS-129: cuánto costó.
  */
 @Entity
 @Table(name = "detalle_receta")
@@ -75,9 +76,22 @@ public class DetalleReceta {
     @Setter(AccessLevel.NONE)
     private LocalDateTime fechaEntrega;
 
-    /** YS-126. Lo marca entregado; el despacho ya comprobó que no lo estuviera. */
-    public void entregar(LocalDateTime momento) {
+    /**
+     * YS-129. Lo que costó lo entregado, por la cantidad recetada (HU-17); es
+     * el monto de su cargo de farmacia. Vacío mientras está pendiente: solo se
+     * cobra lo entregado (CU-005, E.2).
+     */
+    @Column(precision = 10, scale = 2)
+    @Setter(AccessLevel.NONE)
+    private BigDecimal costo;
+
+    /**
+     * YS-126. Lo marca entregado; el despacho ya comprobó que no lo estuviera.
+     * YS-129: con su costo.
+     */
+    public void entregar(LocalDateTime momento, BigDecimal costoEntregado) {
         entregado = true;
         fechaEntrega = momento;
+        costo = costoEntregado;
     }
 }

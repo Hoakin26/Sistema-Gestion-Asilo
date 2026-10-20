@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import app.cabezadealgodon.com.gestionasilobackend.dto.CostosRecetaResponse;
 import app.cabezadealgodon.com.gestionasilobackend.dto.DespachoRequest;
 import app.cabezadealgodon.com.gestionasilobackend.dto.RecetaResponse;
 import app.cabezadealgodon.com.gestionasilobackend.exception.OrdenNoPermitidoException;
@@ -65,11 +66,18 @@ public class FarmaciaController {
     /**
      * HU-16 (YS-126). Despacha la receta: entrega los medicamentos de
      * {@code entregados} y deja pendientes los demás. La receta pasa a
-     * Entregada, Parcialmente Entregada o Medicamento Agotado (DE-03).
+     * Entregada, Parcialmente Entregada o Medicamento Agotado (DE-03). HU-17
+     * (YS-129): cada entregado, con su costo, que queda como cargo de la visita.
      */
     @PostMapping("/{id}/despacho")
     public RecetaResponse despachar(@PathVariable Long id, @Valid @RequestBody DespachoRequest request,
             @AuthenticationPrincipal UsuarioAutenticado farmaceutico) {
         return farmaciaService.despachar(id, request, farmaceutico.getUsuario());
+    }
+
+    /** HU-17 (YS-129). Lo que se cobró de la receta, para el detalle de la farmacia. */
+    @GetMapping("/{id}/costos")
+    public CostosRecetaResponse costos(@PathVariable Long id) {
+        return farmaciaService.costos(id);
     }
 }
