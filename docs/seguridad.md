@@ -972,7 +972,25 @@ Un medicamento que no va en la lista queda pendiente; así se marca uno sin exis
 - **Las mismas reglas que el costo del laboratorio.** Mayor que cero, hasta 8 enteros y 2 decimales, con la coma aceptada como punto, sin notación científica ni signos. Las dos validaciones viven en un solo lugar (`Montos`), con los mismos mensajes, y un error sale en la fila del medicamento.
 - **Quién ve el costo.** Solo la farmacia, al despachar y en el detalle de la receta, por `GET /api/recetas/{id}/costos` (`@SoloFarmacia`). `RecetaResponse` no lo lleva porque también la recibe el especialista, que receta por criterio clínico, como se decidió para el laboratorio el 19/10. `VisitaMedicaTest` barre los otros seis roles en `GET .../costos`. El cargo del familiar dice "farmacia" y el monto, nunca el nombre del medicamento (`fase-diseno.md` 4.9).
 
-## 36. Qué falta
+## 36. La cuenta del familiar (HU-18)
+
+### Quién la ve
+
+`GET /api/cuentas`, `POST /api/cuentas/consolidar` y `GET /api/internos/{id}/estado-cuenta` están bajo `@SoloAdministradorAsilo`, puesto sobre todo `CuentaFamiliarController`, y `PUT /api/internos/{id}/cuota` también. Es el que cobra. Ningún rol clínico tiene por qué saber lo que paga una familia, y la fundación cobra al asilo, no a cada familia (eso es RF-13). `VisitaMedicaTest` barre los otros seis roles en los cuatro endpoints, y todos reciben 403.
+
+### Lo que dice el estado de cuenta, y lo que no
+
+Es la vista financiera de un dato clínico: cada cargo salió de una consulta, un examen o un medicamento. Por eso va por tipo de servicio y nunca por nombre (`fase-diseno.md` 4.9): una línea que dijera "Consulta de Psiquiatría" o el nombre de un antipsicótico revelaría el padecimiento del interno sin mostrar un diagnóstico, y el Administrador del Asilo no puede ver datos clínicos (RNF-03). Cada cargo lleva el tipo, la fecha, el número de solicitud y los montos; la cuenta, el familiar a cargo y los totales. La prueba lo comprueba buscando en la respuesta el examen, el medicamento (uno que delata un padecimiento), el diagnóstico y la especialidad: no aparece ninguno.
+
+### Consolidar no duplica
+
+La cuenta es una por interno y mes, con una restricción única en la base. Consolidar otra vez el mismo mes recalcula la misma cuenta con los cargos que tenga en ese momento, y cada cargo apunta a una sola cuenta. Mientras no haya pagos (llegan con HU-34) recalcular no le quita nada a nadie; HU-34 decidirá qué pasa al reconsolidar una cuenta que ya tiene pagos. La cuenta guarda el familiar y la cuota con que se cobró, para que un cambio posterior no reescriba lo ya cobrado.
+
+### La cuota tiene un solo dueño
+
+Desde HU-18 la cuota la fija el Administrador del Asilo. El `PUT /api/internos/{id}` del Médico General ya no la toca. Su formulario devolvía la cuota que tenía al abrirse, así que guardarlo después de que el administrador la cambiara la regresaba al valor viejo sin que nadie lo notara. La prueba lo cubre: el Médico General edita con otra cuota y la del administrador se mantiene.
+
+## 37. Qué falta
 
 Nada pendiente de HU-30, HU-31 ni HU-32. Lo que queda abierto, sin historia asignada todavía:
 

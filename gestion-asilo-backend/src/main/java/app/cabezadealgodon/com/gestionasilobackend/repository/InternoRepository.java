@@ -1,7 +1,10 @@
 package app.cabezadealgodon.com.gestionasilobackend.repository;
 
+import java.util.List;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -35,4 +38,12 @@ public interface InternoRepository extends JpaRepository<Interno, Long> {
             """)
     Page<Interno> buscar(@Param("nombre") String patronNombre, @Param("dpi") String patronDpi,
             Pageable paginado);
+
+    /**
+     * YS-132. Los internos activos con cuota: tienen cuenta cada mes aunque no
+     * hayan recibido servicios (HU-18). Con su familiar, a quien queda a cargo.
+     */
+    @EntityGraph(attributePaths = { "familiarResponsable" })
+    @Query("select i from Interno i where i.activo = true and i.cuotaMensual > 0")
+    List<Interno> activosConCuota();
 }

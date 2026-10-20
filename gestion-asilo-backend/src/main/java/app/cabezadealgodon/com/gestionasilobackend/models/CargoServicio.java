@@ -77,6 +77,14 @@ public class CargoServicio {
     @Column(nullable = false)
     private LocalDate fecha;
 
+    /**
+     * YS-132. La cuenta mensual en que se consolidó (HU-18), la relación
+     * "consolidado en" del diseño. Vacía mientras el mes no se consolida.
+     */
+    @ManyToOne
+    @JoinColumn(name = "cuenta_id")
+    private CuentaMensual cuenta;
+
     @CreationTimestamp
     @Column(name = "fecha_creacion", nullable = false, updatable = false)
     private LocalDateTime fechaCreacion;
