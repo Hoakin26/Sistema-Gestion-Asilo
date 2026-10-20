@@ -947,7 +947,25 @@ Por nombre, sin mayúsculas ni tildes, o por DPI, con el mismo `PatronBusqueda` 
 
 Los medicamentos no se traen en la misma consulta que la página: con una colección, Hibernate tendría que traer todas las recetas para cortar la página en memoria. Llegan por lotes (`@BatchSize`), en una consulta más para toda la página.
 
-## 34. Qué falta
+## 34. El despacho de la farmacia (HU-16)
+
+### Quién despacha
+
+`POST /api/recetas/{id}/despacho` hereda `@SoloFarmacia` del controlador. `VisitaMedicaTest` barre los otros seis roles, con el Administrador del Asilo entre ellos, y todos reciben 403; el rol se revisa antes de buscar la receta, así que un 403 no revela si existe. Cada despacho anota a quien lo hizo y cuándo, y cada medicamento entregado, su fecha.
+
+### Nada se entrega dos veces
+
+Es el criterio de HU-16 ("que no se despache dos veces la misma receta") y se aplica en tres niveles:
+
+- **La receta.** El estado solo cambia por `Receta.cambiarEstado`, que respeta DE-03 como la orden respeta DE-02. Una receta Entregada ya no admite despachos: 409.
+- **Cada medicamento.** Una receta incompleta sí se vuelve a despachar (el diagrama del análisis la completa "cuando llega inventario"), pero solo con lo que sigue pendiente: un medicamento ya entregado es 409, y la petición se rechaza entera, sin entregar a medias el resto.
+- **Dos personas a la vez.** La receta se lee con `OPTIMISTIC_FORCE_INCREMENT`: su versión sube en cada despacho aunque solo cambien los medicamentos, así que dos despachos simultáneos, o un despacho y una corrección del especialista, chocan siempre y el segundo recibe 409 en vez de entregar dos veces. Sin ese bloqueo, marcar un medicamento no tocaba la fila de la receta y el choque podía pasar inadvertido.
+
+### Lo que no se entrega
+
+Un medicamento que no va en la lista queda pendiente; así se marca uno sin existencias (CU-005, E.1). Si en el primer despacho no se entrega ninguno, la receta queda en Medicamento Agotado, sin fecha de despacho, y sigue en la bandeja de la farmacia. Un despacho posterior sin entregas no cambiaría nada y se rechaza (400). HU-17 cobra solo lo entregado (CU-005, E.2).
+
+## 35. Qué falta
 
 Nada pendiente de HU-30, HU-31 ni HU-32. Lo que queda abierto, sin historia asignada todavía:
 

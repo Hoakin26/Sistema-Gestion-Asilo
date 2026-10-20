@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { ChevronLeft, ChevronRight, Eye, Filter, Inbox, Search } from "lucide-react";
+import { ChevronLeft, ChevronRight, Eye, Filter, Inbox, PackageOpen, Search } from "lucide-react";
 
+import { DespacharRecetaModal } from "../components/farmacia/DespacharRecetaModal";
 import { ListaMedicamentos } from "../components/visitas/RecetaVisita";
 import { Alert } from "../components/ui/Alert";
 import { Button } from "../components/ui/Button";
@@ -25,14 +26,17 @@ const MEDICAMENTOS_EN_FILA = 3;
 
 /*
  * El filtro con que arranca: lo que todavía hay que entregar. Una receta
- * parcialmente entregada sigue siendo trabajo de la farmacia hasta completarla.
- * Si una con medicamento agotado se vuelve a despachar lo decide HU-16; por
- * ahora se consulta con su propio filtro.
+ * parcialmente entregada o con medicamento agotado sigue siendo trabajo de la
+ * farmacia: cuando llegan existencias se vuelve a despachar (DE-03, HU-16).
  */
 const POR_DESPACHAR = "POR_DESPACHAR";
+const ESTADOS_POR_DESPACHAR = ["PENDIENTE_DESPACHO", "PARCIALMENTE_ENTREGADA", "MEDICAMENTO_AGOTADO"];
+
+/* YS-127. El historial de despachos: las recetas con alguna entrega (decidido el 19/10). */
+const ESTADOS_DESPACHADOS = ["PARCIALMENTE_ENTREGADA", "ENTREGADA"];
 
 function estadosDelFiltro(filtro) {
-  if (filtro === POR_DESPACHAR) return ["PENDIENTE_DESPACHO", "PARCIALMENTE_ENTREGADA"];
+  if (filtro === POR_DESPACHAR) return ESTADOS_POR_DESPACHAR;
   return filtro ? [filtro] : [];
 }
 
@@ -48,11 +52,18 @@ function unidades(cantidad) {
  * además la forma de aplicación y las indicaciones generales.
  *
  * El diagnóstico no aparece en ninguna parte, a propósito: la farmacia
- * despacha la receta, no la consulta, y el backend tampoco lo manda. El
- * despacho llega con HU-16.
+ * despacha la receta, no la consulta, y el backend tampoco lo manda.
+ *
+ * HU-16 (YS-127). Desde cada receta por despachar se despacha. Con
+ * `modo="despachos"` es el módulo "Despacho de medicamentos": la misma
+ * bandeja, solo con las recetas que ya tienen entregas, del despacho más
+ * reciente al más antiguo (decidido el 19/10), como el registro de resultados
+ * del laboratorio.
  */
-export function RecetasPendientesPage() {
-  const [filtro, setFiltro] = useState(POR_DESPACHAR);
+export function RecetasPendientesPage({ modo = "bandeja" }) {
+  const enDespachos = modo === "despachos";
+
+  const [filtro, setFiltro] = useState(enDespachos ? "" : POR_DESPACHAR);
   const [busqueda, setBusqueda] = useState("");
   // Lo que de verdad se consulta: la búsqueda, una vez que dejó de escribir.
   const [termino, setTermino] = useState("");
@@ -61,7 +72,11 @@ export function RecetasPendientesPage() {
   const [resultado, setResultado] = useState(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState(null);
+  const [recargas, setRecargas] = useState(0);
   const [enDetalle, setEnDetalle] = useState(null);
+  // La receta que se despacha; las aperturas remontan el formulario limpio.
+  const [enDespacho, setEnDespacho] = useState(null);
+  const [aperturasDespacho, setAperturasDespacho] = useState(0);
 
   useEffect(() => {
     const espera = setTimeout(() => {
@@ -75,7 +90,12 @@ export function RecetasPendientesPage() {
   useEffect(() => {
     // Una respuesta vieja que llega tarde no pisa a la del filtro actual.
     let vigente = true;
-    listarRecetas({ estados: estadosDelFiltro(filtro), paciente: termino, pagina })
+    listarRecetas({
+      estados: enDespachos ? ESTADOS_DESPACHADOS : estadosDelFiltro(filtro),
+      paciente: termino,
+      pagina,
+      orden: enDespachos ? "fechaDespacho,desc" : undefined,
+    })
       .then((datos) => {
         if (!vigente) return;
         setResultado(datos);
@@ -90,7 +110,7 @@ export function RecetasPendientesPage() {
     return () => {
       vigente = false;
     };
-  }, [filtro, termino, pagina]);
+  }, [filtro, termino, pagina, recargas, enDespachos]);
 
   const cambiarFiltro = (evento) => {
     setFiltro(evento.target.value);
@@ -104,15 +124,22 @@ export function RecetasPendientesPage() {
     setPagina(0);
   };
 
+  const abrirDespacho = (receta) => {
+    setAperturasDespacho((valor) => valor + 1);
+    setEnDespacho(receta);
+  };
+
   const recetas = resultado?.content ?? [];
   const total = resultado?.totalElements ?? 0;
   const totalPaginas = resultado?.totalPages ?? 0;
 
   return (
-    <AppLayout migas={["Inicio", "Recetas pendientes"]}>
-      <h1 className="text-h1 font-bold">Recetas pendientes</h1>
+    <AppLayout migas={["Inicio", enDespachos ? "Despacho de medicamentos" : "Recetas pendientes"]}>
+      <h1 className="text-h1 font-bold">{enDespachos ? "Despacho de medicamentos" : "Recetas pendientes"}</h1>
       <p className="mt-2 text-texto-secundario">
-        Recetas que emitieron los especialistas, de la más antigua a la más reciente.
+        {enDespachos
+          ? "Recetas que la farmacia ya despachó, del despacho más reciente al más antiguo."
+          : "Recetas que emitieron los especialistas, de la más antigua a la más reciente."}
       </p>
 
       <div className="mt-6 flex flex-wrap gap-4">
@@ -132,7 +159,7 @@ export function RecetasPendientesPage() {
           />
         </div>
 
-        <div className="relative w-full sm:w-64">
+        <div className={`relative w-full sm:w-64 ${enDespachos ? "hidden" : ""}`}>
           <Filter
             aria-hidden="true"
             size={20}
@@ -165,14 +192,16 @@ export function RecetasPendientesPage() {
             <p className="max-w-md text-texto-secundario">
               {termino
                 ? "Ninguna receta coincide con el paciente que buscó."
-                : filtro === POR_DESPACHAR
-                  ? "No hay recetas por despachar."
-                  : filtro
-                    ? `No hay recetas en estado "${ETIQUETAS_ESTADO[filtro]}".`
-                    : "Todavía no hay recetas."}
+                : enDespachos
+                  ? "Todavía no hay recetas despachadas."
+                  : filtro === POR_DESPACHAR
+                    ? "No hay recetas por despachar."
+                    : filtro
+                      ? `No hay recetas en estado "${ETIQUETAS_ESTADO[filtro]}".`
+                      : "Todavía no hay recetas."}
             </p>
             {/* Vacío por el filtro ≠ vacío de verdad, como en las otras bandejas. */}
-            {(termino || filtro) && (
+            {(termino || (filtro && !enDespachos)) && (
               <Button variante="secundario" onClick={quitarFiltros}>
                 Ver todas las recetas
               </Button>
@@ -245,9 +274,24 @@ export function RecetasPendientesPage() {
                         </td>
                         <td className="px-4 py-4 xl:px-6">
                           <StatusBadge estado={receta.estado} />
+                          {receta.fechaDespacho && (
+                            <span className="mt-1 block text-auxiliar text-texto-secundario tabular-nums slashed-zero">
+                              Última entrega: {formatearFechaHora(receta.fechaDespacho)}
+                            </span>
+                          )}
                         </td>
                         <td className="px-4 py-4 xl:px-6">
-                          <div className="flex justify-end whitespace-nowrap">
+                          <div className="flex flex-wrap justify-end gap-2 whitespace-nowrap">
+                            {/* HU-16: también las incompletas, cuando llegan existencias (DE-03). */}
+                            {ESTADOS_POR_DESPACHAR.includes(receta.estado) && (
+                              <Button
+                                onClick={() => abrirDespacho(receta)}
+                                aria-label={`Despachar la receta de ${receta.paciente.nombreCompleto}`}
+                              >
+                                <PackageOpen aria-hidden="true" size={20} />
+                                Despachar
+                              </Button>
+                            )}
                             <Button
                               variante="secundario"
                               onClick={() => setEnDetalle(receta)}
@@ -311,7 +355,7 @@ export function RecetasPendientesPage() {
               <StatusBadge estado={enDetalle.estado} />
             </div>
             <div className="mt-4">
-              <ListaMedicamentos medicamentos={enDetalle.medicamentos} />
+              <ListaMedicamentos medicamentos={enDetalle.medicamentos} conEntrega />
             </div>
             {enDetalle.indicacionesGenerales && (
               <div className="mt-4 border-t border-divisor pt-4">
@@ -322,6 +366,17 @@ export function RecetasPendientesPage() {
           </div>
         )}
       </Modal>
+
+      <DespacharRecetaModal
+        abierto={enDespacho !== null}
+        receta={enDespacho}
+        claveFormulario={aperturasDespacho}
+        alCerrar={() => setEnDespacho(null)}
+        alDespachar={() => {
+          setEnDespacho(null);
+          setRecargas((valor) => valor + 1);
+        }}
+      />
     </AppLayout>
   );
 }

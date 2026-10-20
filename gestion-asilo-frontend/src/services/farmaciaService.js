@@ -9,14 +9,28 @@ import { api } from "./api";
  * laboratorio: con el formato por defecto de Axios (`estado[]=...`) Spring
  * ignoraría el filtro.
  */
-export async function listarRecetas({ estados = [], paciente = "", pagina = 0 } = {}) {
+export async function listarRecetas({ estados = [], paciente = "", pagina = 0, orden } = {}) {
   const { data } = await api.get("/recetas", {
     params: {
       estado: estados.length > 0 ? estados : undefined,
       paciente: paciente || undefined,
       page: pagina,
+      // YS-127. "fechaDespacho,desc" para el historial de despachos.
+      sort: orden,
     },
     paramsSerializer: { indexes: null },
+  });
+  return data;
+}
+
+/**
+ * HU-16 (YS-127). Despacha la receta: `entregados` son los ids de los
+ * medicamentos que se entregan ahora; los demás quedan pendientes. Devuelve la
+ * receta con su nuevo estado (DE-03).
+ */
+export async function despacharReceta(recetaId, entregados) {
+  const { data } = await api.post(`/recetas/${recetaId}/despacho`, {
+    entregados: entregados.map((id) => ({ id })),
   });
   return data;
 }
