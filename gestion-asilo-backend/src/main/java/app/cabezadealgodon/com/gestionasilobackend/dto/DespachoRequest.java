@@ -13,8 +13,8 @@ import jakarta.validation.constraints.Size;
  * puede llegar vacía, pero no faltar.
  *
  * <p>
- * HU-17 le agrega a cada medicamento entregado su costo, en esta misma
- * petición (YS-129).
+ * HU-17 (YS-129) le agrega a cada medicamento entregado su costo, en esta
+ * misma petición: lo que no se entrega no se cobra.
  */
 public record DespachoRequest(
         @NotNull(message = "Indique qué medicamentos se entregaron")
