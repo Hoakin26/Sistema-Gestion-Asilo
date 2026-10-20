@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { ArrowLeft, ClipboardList, Pencil, Stethoscope, UserRound } from "lucide-react";
 
+import { CuotaFormModal } from "../components/cuentas/CuotaFormModal";
+import { EstadoCuentaInterno } from "../components/cuentas/EstadoCuentaInterno";
 import { FichaMedicaFormModal } from "../components/internos/FichaMedicaFormModal";
 import { FichaMedicaDetalle } from "../components/internos/FichaMedicaDetalle";
 import { InternoFormModal } from "../components/internos/InternoFormModal";
@@ -9,7 +11,13 @@ import { SolicitudReferenciaFormModal } from "../components/referencias/Solicitu
 import { BotonEnlace, Button } from "../components/ui/Button";
 import { StatusBadge } from "../components/ui/StatusBadge";
 import { Barra } from "../components/ui/TablaSkeleton";
-import { consultaHistorial, creaReferencias, editaInternos, leeDatosClinicos } from "../constants/roles";
+import {
+  administraCuentas,
+  consultaHistorial,
+  creaReferencias,
+  editaInternos,
+  leeDatosClinicos,
+} from "../constants/roles";
 import { useAuth } from "../hooks/useAuth";
 import { useToast } from "../hooks/useToast";
 import { AppLayout } from "../layouts/AppLayout";
@@ -57,7 +65,8 @@ function PerfilSkeleton() {
 
 /**
  * YS-61. El perfil del interno: datos personales, familiar responsable y, para
- * el personal clínico, la ficha médica.
+ * el personal clínico, la ficha médica. HU-18 (YS-134): para el Administrador
+ * del Asilo, la cuota mensual y el estado de cuenta del familiar.
  *
  * El expediente y la ficha se piden por separado y su falla también se trata
  * por separado: si la ficha no carga, los datos personales igual se muestran.
@@ -84,6 +93,10 @@ export function InternoPerfilPage() {
   const [aperturasFicha, setAperturasFicha] = useState(0);
   const [referenciaAbierta, setReferenciaAbierta] = useState(false);
   const [aperturasReferencia, setAperturasReferencia] = useState(0);
+  // HU-18 (YS-134). La cuota y el estado de cuenta, solo del Administrador del Asilo.
+  const cobraCuentas = administraCuentas(usuario?.rol);
+  const [cuotaAbierta, setCuotaAbierta] = useState(false);
+  const [aperturasCuota, setAperturasCuota] = useState(0);
 
   useEffect(() => {
     let vigente = true;
@@ -130,6 +143,11 @@ export function InternoPerfilPage() {
   const abrirReferencia = () => {
     setAperturasReferencia((valor) => valor + 1);
     setReferenciaAbierta(true);
+  };
+
+  const abrirCuota = () => {
+    setAperturasCuota((valor) => valor + 1);
+    setCuotaAbierta(true);
   };
 
   const familiar = interno?.familiarResponsable;
@@ -220,6 +238,15 @@ export function InternoPerfilPage() {
                     </Dato>
                   )}
                 </dl>
+                {/* HU-18 (YS-134). La fija el Administrador del Asilo (YS-132). */}
+                {cobraCuentas && (
+                  <div className="mt-4">
+                    <Button variante="secundario" onClick={abrirCuota}>
+                      <Pencil aria-hidden="true" size={20} />
+                      {interno.cuotaMensual == null ? "Definir cuota" : "Cambiar cuota"}
+                    </Button>
+                  </div>
+                )}
               </section>
 
               <section aria-labelledby="titulo-familiar" className={TARJETA}>
@@ -250,6 +277,13 @@ export function InternoPerfilPage() {
               </section>
             </div>
 
+            {/* HU-18 (YS-134). Lo que se le cobra al familiar, sin nada clínico (RNF-03). */}
+            {cobraCuentas && (
+              <div className="mt-6">
+                <EstadoCuentaInterno internoId={interno.id} />
+              </div>
+            )}
+
             {veFicha && (
               <div className="mt-6">
                 <FichaMedicaDetalle
@@ -274,6 +308,22 @@ export function InternoPerfilPage() {
             setEdicionAbierta(false);
             setInterno(guardado);
             mostrar(`Se guardaron los cambios de ${guardado.nombreCompleto}.`);
+          }}
+        />
+      )}
+
+      {cobraCuentas && interno && (
+        <CuotaFormModal
+          abierto={cuotaAbierta}
+          interno={interno}
+          claveFormulario={aperturasCuota}
+          alCerrar={() => setCuotaAbierta(false)}
+          alGuardar={(guardado) => {
+            setCuotaAbierta(false);
+            setInterno(guardado);
+            mostrar(
+              `La cuota de ${guardado.nombreCompleto} es ahora ${formatearQuetzales(guardado.cuotaMensual)}. Entra en la cuenta al consolidar el mes.`,
+            );
           }}
         />
       )}

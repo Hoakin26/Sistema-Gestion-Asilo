@@ -37,6 +37,30 @@ export const ETIQUETAS_ESTADO = {
   PARCIALMENTE_ENTREGADA: "Parcialmente Entregada",
   ENTREGADA: "Entregada",
   MEDICAMENTO_AGOTADO: "Medicamento Agotado",
+
+  // DE-04 · Cuenta mensual del familiar (YS-134). Sin prefijo: los nombres no chocan.
+  PENDIENTE_PAGO: "Pendiente de Pago",
+  PAGO_PARCIAL: "Pago Parcial",
+  COMPLETAMENTE_CANCELADA: "Completamente Cancelada",
+  EN_MORA: "En Mora",
+};
+
+/**
+ * YS-134. Los conceptos del estado de cuenta, por tipo de servicio y nunca por
+ * nombre (RNF-03): las claves de `TipoServicio` del backend, más la cuota base.
+ */
+export const CONCEPTOS_CUENTA = {
+  CUOTA: "Cuota base del asilo",
+  CONSULTA: "Consultas médicas",
+  LABORATORIO: "Exámenes de laboratorio",
+  FARMACIA: "Farmacia",
+};
+
+/** YS-134. Cada cargo, en singular, para el detalle del estado de cuenta. */
+export const SERVICIOS = {
+  CONSULTA: "Consulta",
+  LABORATORIO: "Laboratorio",
+  FARMACIA: "Farmacia",
 };
 
 /** DE-02, en el orden del diagrama: para el filtro de la bandeja del laboratorio (YS-115). */

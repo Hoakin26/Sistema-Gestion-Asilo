@@ -100,7 +100,8 @@ const CATALOGO = {
     Icono: UserRound,
     ruta: "/internos",
   },
-  cuentasPorCobrar: { etiqueta: "Cuentas por cobrar", Icono: Receipt, ruta: null },
+  // HU-18 (YS-134). La cuenta mensual de cada familiar.
+  cuentasPorCobrar: { etiqueta: "Cuentas por cobrar", Icono: Receipt, ruta: "/cuentas-por-cobrar" },
   cuentasPorPagar: { etiqueta: "Cuentas por pagar", Icono: Wallet, ruta: null },
   donaciones: { etiqueta: "Donaciones", Icono: Gift, ruta: null },
   gastos: { etiqueta: "Gastos", Icono: CircleDollarSign, ruta: null },

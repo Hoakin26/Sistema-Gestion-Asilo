@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import app.cabezadealgodon.com.gestionasilobackend.dto.CuotaRequest;
 import app.cabezadealgodon.com.gestionasilobackend.dto.FichaMedicaRequest;
 import app.cabezadealgodon.com.gestionasilobackend.dto.FichaMedicaResponse;
 import app.cabezadealgodon.com.gestionasilobackend.dto.HistorialMedicoResponse;
@@ -25,6 +26,7 @@ import app.cabezadealgodon.com.gestionasilobackend.dto.InternoResumenResponse;
 import app.cabezadealgodon.com.gestionasilobackend.exception.OrdenNoPermitidoException;
 import app.cabezadealgodon.com.gestionasilobackend.security.PersonalClinico;
 import app.cabezadealgodon.com.gestionasilobackend.security.PersonalConAccesoAInternos;
+import app.cabezadealgodon.com.gestionasilobackend.security.SoloAdministradorAsilo;
 import app.cabezadealgodon.com.gestionasilobackend.security.SoloMedicoGeneral;
 import app.cabezadealgodon.com.gestionasilobackend.services.HistorialMedicoService;
 import app.cabezadealgodon.com.gestionasilobackend.services.InternoService;
@@ -94,6 +96,17 @@ public class InternoController {
     @SoloMedicoGeneral
     public InternoResponse actualizar(@PathVariable Long id, @Valid @RequestBody InternoRequest request) {
         return internoService.actualizar(id, request);
+    }
+
+    /**
+     * HU-18 (YS-132). La cuota base mensual, que fija el Administrador del
+     * Asilo: es un dato financiero (RNF-02), y la consolidación de la cuenta
+     * del familiar la suma a los cargos del mes.
+     */
+    @PutMapping("/{id}/cuota")
+    @SoloAdministradorAsilo
+    public InternoResponse actualizarCuota(@PathVariable Long id, @Valid @RequestBody CuotaRequest request) {
+        return internoService.actualizarCuota(id, request.cuotaMensual());
     }
 
     /**
