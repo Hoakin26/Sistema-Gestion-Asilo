@@ -43,6 +43,7 @@ import com.jayway.jsonpath.JsonPath;
 
 import app.cabezadealgodon.com.gestionasilobackend.models.CargoServicio;
 import app.cabezadealgodon.com.gestionasilobackend.models.Cita;
+import app.cabezadealgodon.com.gestionasilobackend.models.DetalleReceta;
 import app.cabezadealgodon.com.gestionasilobackend.models.Especialidad;
 import app.cabezadealgodon.com.gestionasilobackend.models.EstadoOrden;
 import app.cabezadealgodon.com.gestionasilobackend.models.EstadoReceta;
@@ -78,7 +79,7 @@ import tools.jackson.databind.ObjectMapper;
  * (YS-113), los exámenes de laboratorio, y desde HU-12 (YS-116), la bandeja
  * donde el laboratorio los recibe, desde HU-13 (YS-119) su resultado y
  * desde HU-14 (YS-122) su costo. Desde HU-15 (YS-125), la bandeja donde la
- * farmacia recibe las recetas.
+ * farmacia recibe las recetas, y desde HU-16 (YS-128) su despacho.
  * Desde HU-02 (YS-67), el historial médico centralizado del Médico General,
  * que se arma con todo lo anterior.
  *
@@ -903,12 +904,12 @@ class VisitaMedicaTest extends PruebaConBaseDeDatos {
     void laDespachadaNoSeCorrige() throws Exception {
         Especialista especialista = nuevoEspecialista(0);
         long visita = idDe(iniciar(citaEl(especialista, HOY.atTime(9, 30)).getId(), especialista));
-        recetar(visita, especialista, null, medicamento("Losartán", "50 mg", 30, "Cada 24 horas"))
-                .andExpect(status().isCreated());
-        // El despacho llega con HU-16: aquí se marca a mano.
+        recetar(visita, especialista, null,
+                medicamento("Losartán", "50 mg", 30, "Cada 24 horas"),
+                medicamento("Amlodipino", "5 mg", 30, "Cada 24 horas")).andExpect(status().isCreated());
         Receta receta = recetaRepository.findByVisitaId(visita).orElseThrow();
-        receta.setEstado(EstadoReceta.PARCIALMENTE_ENTREGADA);
-        recetaRepository.save(receta);
+        despachar(receta.getId(), idsDe(receta)[0])
+                .andExpect(jsonPath("$.estado").value("PARCIALMENTE_ENTREGADA"));
 
         corregir(visita, especialista, null, medicamento("Otro", "1", 1, "x"))
                 .andExpect(status().isConflict())
@@ -1027,10 +1028,8 @@ class VisitaMedicaTest extends PruebaConBaseDeDatos {
         recetar(visitaSegunda, especialista, null, medicamento("Metformina", "850 mg", 60, "Cada 12 horas"))
                 .andExpect(status().isCreated());
 
-        // El despacho llega con HU-16: aquí se marca a mano.
         Receta entregada = recetaRepository.findByVisitaId(visitaPrimera).orElseThrow();
-        entregada.setEstado(EstadoReceta.ENTREGADA);
-        recetaRepository.save(entregada);
+        despachar(entregada.getId(), idsDe(entregada)).andExpect(jsonPath("$.estado").value("ENTREGADA"));
         int deLaPrimera = entregada.getId().intValue();
         int deLaSegunda = recetaRepository.findByVisitaId(visitaSegunda).orElseThrow().getId().intValue();
 
@@ -1079,6 +1078,180 @@ class VisitaMedicaTest extends PruebaConBaseDeDatos {
         mvc.perform(get("/api/recetas").param("estado", "DESPACHADA")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(RolNombre.FARMACIA)))
                 .andExpect(status().isBadRequest());
+    }
+
+    // ---- YS-128: el despacho de la farmacia (HU-16) ----
+
+    @Test
+    @DisplayName("Despachar todos los medicamentos deja la receta Entregada, con su fecha y quién la despachó; despacharla otra vez es 409")
+    void despacharTodoLaDejaEntregada() throws Exception {
+        Especialista especialista = nuevoEspecialista(0);
+        long visita = idDe(iniciar(citaEl(especialista, HOY.atTime(10, 0)).getId(), especialista));
+        recetar(visita, especialista, null,
+                medicamento("Losartán", "50 mg", 30, "Cada 24 horas"),
+                medicamento("Amlodipino", "5 mg", 30, "Cada 24 horas")).andExpect(status().isCreated());
+        Receta receta = recetaRepository.findByVisitaId(visita).orElseThrow();
+        Long[] todos = idsDe(receta);
+
+        despachar(receta.getId(), todos)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.estado").value("ENTREGADA"))
+                .andExpect(jsonPath("$.fechaDespacho").isNotEmpty())
+                .andExpect(jsonPath("$.medicamentos[0].entregado").value(true))
+                .andExpect(jsonPath("$.medicamentos[0].fechaEntrega").isNotEmpty())
+                .andExpect(jsonPath("$.medicamentos[1].entregado").value(true));
+        Receta guardada = recetaRepository.findByVisitaId(visita).orElseThrow();
+        assertThat(guardada.getFechaDespacho()).isNotNull();
+        assertThat(guardada.getFarmaceutico().getId()).isEqualTo(usuarioDe(RolNombre.FARMACIA).getId());
+
+        // HU-16: "Validar que no se despache dos veces la misma receta".
+        despachar(receta.getId(), todos)
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.mensaje").value(containsString("ya se entregó completa")));
+        despachar(receta.getId()).andExpect(status().isConflict());
+    }
+
+    @Test
+    @DisplayName("Despachar una parte la deja Parcialmente Entregada; el resto se entrega después, sin volver a entregar lo ya entregado")
+    void despacharUnaParteYDespuesElResto() throws Exception {
+        Especialista especialista = nuevoEspecialista(0);
+        long visita = idDe(iniciar(citaEl(especialista, HOY.atTime(10, 30)).getId(), especialista));
+        recetar(visita, especialista, null,
+                medicamento("Losartán", "50 mg", 30, "Cada 24 horas"),
+                medicamento("Amlodipino", "5 mg", 30, "Cada 24 horas"),
+                medicamento("Metformina", "850 mg", 60, "Cada 12 horas")).andExpect(status().isCreated());
+        Receta receta = recetaRepository.findByVisitaId(visita).orElseThrow();
+        Long[] ids = idsDe(receta);
+
+        despachar(receta.getId(), ids[0])
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.estado").value("PARCIALMENTE_ENTREGADA"))
+                .andExpect(jsonPath("$.fechaDespacho").isNotEmpty())
+                .andExpect(jsonPath("$.medicamentos[0].entregado").value(true))
+                .andExpect(jsonPath("$.medicamentos[1].entregado").value(false))
+                .andExpect(jsonPath("$.medicamentos[1].fechaEntrega").isEmpty());
+        // Otra entrega que todavía no completa la receta la deja igual.
+        despachar(receta.getId(), ids[1]).andExpect(jsonPath("$.estado").value("PARCIALMENTE_ENTREGADA"));
+
+        // Lo ya entregado no se entrega dos veces, y el 409 no deja nada a medias.
+        despachar(receta.getId(), ids[0], ids[2])
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.mensaje").value("«Losartán» ya se entregó"));
+        assertThat(entregados(visita)).containsExactly(true, true, false);
+        // Sin entregas, después del primer despacho, no cambiaría nada.
+        despachar(receta.getId())
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errores.entregados").value("Marque al menos un medicamento entregado"));
+
+        despachar(receta.getId(), ids[2])
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.estado").value("ENTREGADA"));
+    }
+
+    /** CU-005, E.1: no hay existencias y la farmacia lo deja anotado; cuando llegan, se entrega. */
+    @Test
+    @DisplayName("Un despacho sin entregas deja la receta en Medicamento Agotado, sin fecha y todavía por despachar; cuando hay existencias, se entrega")
+    void sinExistenciasQuedaAgotada() throws Exception {
+        Especialista especialista = nuevoEspecialista(0);
+        Cita cita = citaEl(especialista, HOY.atTime(11, 0));
+        long visita = idDe(iniciar(cita.getId(), especialista));
+        recetar(visita, especialista, null, medicamento("Insulina glargina", "10 UI", 1, "Cada noche, subcutánea"))
+                .andExpect(status().isCreated());
+        Receta receta = recetaRepository.findByVisitaId(visita).orElseThrow();
+
+        despachar(receta.getId())
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.estado").value("MEDICAMENTO_AGOTADO"))
+                .andExpect(jsonPath("$.fechaDespacho").isEmpty())
+                .andExpect(jsonPath("$.medicamentos[0].entregado").value(false));
+        // Sigue entre las que la farmacia tiene que despachar.
+        assertThat(idsDeRecetas(dpiDe(cita), "PENDIENTE_DESPACHO", "PARCIALMENTE_ENTREGADA", "MEDICAMENTO_AGOTADO"))
+                .containsExactly(receta.getId().intValue());
+        despachar(receta.getId()).andExpect(status().isBadRequest());
+
+        despachar(receta.getId(), idsDe(receta))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.estado").value("ENTREGADA"))
+                .andExpect(jsonPath("$.fechaDespacho").isNotEmpty());
+    }
+
+    @Test
+    @DisplayName("Un medicamento de otra receta o repetido es 400 en su fila; sin la lista, 400; una receta que no existe, 404; y nada se entrega")
+    void despachoInvalido() throws Exception {
+        Especialista especialista = nuevoEspecialista(0);
+        Especialista otro = nuevoEspecialista(0);
+        long visita = idDe(iniciar(citaEl(especialista, HOY.atTime(11, 30)).getId(), especialista));
+        long otraVisita = idDe(iniciar(citaEl(otro, HOY.atTime(11, 30)).getId(), otro));
+        recetar(visita, especialista, null,
+                medicamento("Losartán", "50 mg", 30, "Cada 24 horas"),
+                medicamento("Amlodipino", "5 mg", 30, "Cada 24 horas")).andExpect(status().isCreated());
+        recetar(otraVisita, otro, null, medicamento("Omeprazol", "20 mg", 14, "En ayunas"))
+                .andExpect(status().isCreated());
+        Receta receta = recetaRepository.findByVisitaId(visita).orElseThrow();
+        Long[] ids = idsDe(receta);
+        Long ajeno = idsDe(recetaRepository.findByVisitaId(otraVisita).orElseThrow())[0];
+
+        despachar(receta.getId(), ids[0], ajeno)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errores['entregados[1].id']")
+                        .value("Ese medicamento no está en la receta; vuelva a abrirla"));
+        despachar(receta.getId(), ids[1], ids[1])
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errores['entregados[1].id']").value("«Amlodipino» está repetido"));
+        despacharCon(receta.getId(), "{}")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errores.entregados").value("Indique qué medicamentos se entregaron"));
+        despacharCon(receta.getId(), "{\"entregados\": [{}]}")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errores['entregados[0].id']").value("Indique el medicamento"));
+        despachar(999_999L, ids[0]).andExpect(status().isNotFound());
+
+        assertThat(entregados(visita)).containsExactly(false, false);
+        assertThat(recetaRepository.findByVisitaId(visita).orElseThrow().getEstado())
+                .isEqualTo(EstadoReceta.PENDIENTE_DESPACHO);
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @EnumSource(value = RolNombre.class, names = "FARMACIA", mode = EnumSource.Mode.EXCLUDE)
+    @DisplayName("Los otros seis roles no despachan recetas: 403")
+    void soloLaFarmaciaDespacha(RolNombre rol) throws Exception {
+        // El rol se revisa antes de buscar la receta: no hace falta que exista.
+        mvc.perform(post("/api/recetas/{id}/despacho", 999_999)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(rol))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"entregados\": []}"))
+                .andExpect(status().isForbidden());
+    }
+
+    /** El módulo "Despacho de medicamentos" (decidido el 19/10). */
+    @Test
+    @DisplayName("El historial de despachos trae las recetas con entregas, del despacho más reciente al más antiguo")
+    void elHistorialDeDespachos() throws Exception {
+        Especialista especialista = nuevoEspecialista(0);
+        Cita primera = citaEl(especialista, HOY.atTime(8, 0));
+        Cita segunda = citaEl(especialista, HOY.atTime(8, 30), primera.getSolicitud().getInterno().getId());
+        long visitaPrimera = idDe(iniciar(primera.getId(), especialista));
+        recetar(visitaPrimera, especialista, null, medicamento("Losartán", "50 mg", 30, "Cada 24 horas"))
+                .andExpect(status().isCreated());
+        cerrar(visitaPrimera, "Hipertensión arterial", HOY.atTime(8, 0));
+        long visitaSegunda = idDe(iniciar(segunda.getId(), especialista));
+        recetar(visitaSegunda, especialista, null,
+                medicamento("Metformina", "850 mg", 60, "Cada 12 horas"),
+                medicamento("Glibenclamida", "5 mg", 30, "Antes del desayuno")).andExpect(status().isCreated());
+        Receta deLaPrimera = recetaRepository.findByVisitaId(visitaPrimera).orElseThrow();
+        Receta deLaSegunda = recetaRepository.findByVisitaId(visitaSegunda).orElseThrow();
+
+        // Primero una entrega parcial de la segunda y después la primera completa.
+        despachar(deLaSegunda.getId(), idsDe(deLaSegunda)[0]).andExpect(status().isOk());
+        despachar(deLaPrimera.getId(), idsDe(deLaPrimera)).andExpect(status().isOk());
+
+        String respuesta = mvc.perform(get("/api/recetas").param("paciente", dpiDe(primera))
+                .param("estado", "PARCIALMENTE_ENTREGADA", "ENTREGADA").param("sort", "fechaDespacho,desc")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(RolNombre.FARMACIA)))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
+        List<Integer> historial = JsonPath.read(respuesta, "$.content[*].id");
+        assertThat(historial).containsExactly(deLaPrimera.getId().intValue(), deLaSegunda.getId().intValue());
     }
 
     // ---- YS-107: el diagnóstico y el cierre de la visita (HU-09) ----
@@ -1502,6 +1675,33 @@ class VisitaMedicaTest extends PruebaConBaseDeDatos {
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
         return JsonPath.read(respuesta, "$.content[*].id");
+    }
+
+    /** YS-128. La farmacia despacha la receta entregando esos medicamentos; sin ninguno, sin entregas. */
+    private ResultActions despachar(Long recetaId, Long... entregados) throws Exception {
+        List<Map<String, Object>> lista = new ArrayList<>();
+        for (Long id : entregados) {
+            lista.add(Map.of("id", id));
+        }
+        return despacharCon(recetaId, json.writeValueAsString(Map.of("entregados", lista)));
+    }
+
+    private ResultActions despacharCon(Long recetaId, String cuerpo) throws Exception {
+        return mvc.perform(post("/api/recetas/{id}/despacho", recetaId)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(RolNombre.FARMACIA))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(cuerpo));
+    }
+
+    /** Los ids de los medicamentos de la receta, en el orden en que se recetaron. */
+    private static Long[] idsDe(Receta receta) {
+        return receta.getMedicamentos().stream().map(DetalleReceta::getId).toArray(Long[]::new);
+    }
+
+    /** Si cada medicamento de la receta de esa visita está entregado, en su orden. */
+    private List<Boolean> entregados(long visitaId) {
+        return recetaRepository.findByVisitaId(visitaId).orElseThrow().getMedicamentos().stream()
+                .map(DetalleReceta::isEntregado).toList();
     }
 
     /** YS-119. El laboratorio carga el resultado con un costo cualquiera; {@code archivo} puede ser {@code null}. */
