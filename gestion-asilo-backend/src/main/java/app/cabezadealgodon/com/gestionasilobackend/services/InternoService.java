@@ -1,5 +1,6 @@
 package app.cabezadealgodon.com.gestionasilobackend.services;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 import org.springframework.data.domain.Page;
@@ -76,6 +77,8 @@ public class InternoService {
 
         Interno interno = new Interno();
         aplicar(request, interno);
+        // YS-59. Si el Médico General la conoce, la deja escrita al registrar; después es del Administrador del Asilo.
+        interno.setCuotaMensual(request.cuotaMensual());
         interno.setActivo(true);
         interno.setFamiliarResponsable(familiarRepository.save(nuevoFamiliar(request.familiarResponsable())));
         internoRepository.save(interno);
@@ -92,6 +95,12 @@ public class InternoService {
      * médica: esa se escribe por {@link #actualizarFicha}, reservado al Médico
      * General, y tener un solo camino hacia cada dato evita que dos reglas
      * distintas terminen contradiciéndose.
+     *
+     * <p>
+     * YS-132. Tampoco la cuota: desde HU-18 la fija el Administrador del Asilo
+     * por {@link #actualizarCuota}. El formulario del Médico General devolvía
+     * la que tenía al abrirlo, así que guardar después de que el administrador
+     * la cambiara la regresaba al valor viejo.
      */
     @Transactional
     public InternoResponse actualizar(Long id, InternoRequest request) {
@@ -105,6 +114,17 @@ public class InternoService {
 
         aplicar(request, interno);
         aplicarFamiliar(request.familiarResponsable(), interno.getFamiliarResponsable());
+        return mapear(internoRepository.save(interno));
+    }
+
+    /**
+     * YS-132. La cuota base del interno (HU-18), que fija el Administrador del
+     * Asilo. Cero es "sin cuota". La toma la próxima consolidación del mes.
+     */
+    @Transactional
+    public InternoResponse actualizarCuota(Long id, BigDecimal cuotaMensual) {
+        Interno interno = buscarInterno(id);
+        interno.setCuotaMensual(cuotaMensual.setScale(2));
         return mapear(internoRepository.save(interno));
     }
 
@@ -163,7 +183,6 @@ public class InternoService {
         interno.setDpi(request.dpi().trim());
         interno.setFechaNacimiento(request.fechaNacimiento());
         interno.setFechaIngreso(request.fechaIngreso());
-        interno.setCuotaMensual(request.cuotaMensual());
     }
 
     private Familiar nuevoFamiliar(FamiliarRequest request) {
