@@ -30,6 +30,7 @@ final class MapeoReceta {
                 new ResumenPersona(medico.getId(), medico.getNombreCompleto()),
                 receta.getEstado(),
                 receta.getFechaEmision(),
+                receta.getFechaDespacho(),
                 receta.getIndicacionesGenerales(),
                 medicamentos(receta));
     }
@@ -37,7 +38,7 @@ final class MapeoReceta {
     static List<RecetaResponse.Medicamento> medicamentos(Receta receta) {
         return receta.getMedicamentos().stream()
                 .map(m -> new RecetaResponse.Medicamento(m.getId(), m.getMedicamento(), m.getDosis(),
-                        m.getCantidad(), m.getFormaAplicacion()))
+                        m.getCantidad(), m.getFormaAplicacion(), m.isEntregado(), m.getFechaEntrega()))
                 .toList();
     }
 }
