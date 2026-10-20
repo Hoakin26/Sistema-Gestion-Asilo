@@ -63,6 +63,16 @@ export const SERVICIOS = {
   FARMACIA: "Farmacia",
 };
 
+/** YS-137. Los tipos de servicio con descuento de la fundación, en el orden de `TipoServicio`. */
+export const TIPOS_SERVICIO = ["CONSULTA", "LABORATORIO", "FARMACIA"];
+
+/** YS-137. A qué se le resta un descuento de monto fijo: es por cargo, y cada servicio cobra distinto. */
+export const POR_CARGO = {
+  CONSULTA: "por consulta",
+  LABORATORIO: "por examen",
+  FARMACIA: "por medicamento entregado",
+};
+
 /** DE-02, en el orden del diagrama: para el filtro de la bandeja del laboratorio (YS-115). */
 export const ESTADOS_ORDEN = ["PENDIENTE", "EN_PROCESO", "RESULTADOS_CARGADOS", "ANULADA"];
 
