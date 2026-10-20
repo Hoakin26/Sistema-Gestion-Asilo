@@ -1,6 +1,7 @@
 package app.cabezadealgodon.com.gestionasilobackend;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
@@ -16,6 +17,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.YearMonth;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -43,6 +45,7 @@ import com.jayway.jsonpath.JsonPath;
 
 import app.cabezadealgodon.com.gestionasilobackend.models.CargoServicio;
 import app.cabezadealgodon.com.gestionasilobackend.models.Cita;
+import app.cabezadealgodon.com.gestionasilobackend.models.CuentaMensual;
 import app.cabezadealgodon.com.gestionasilobackend.models.DetalleReceta;
 import app.cabezadealgodon.com.gestionasilobackend.models.Especialidad;
 import app.cabezadealgodon.com.gestionasilobackend.models.EstadoOrden;
@@ -58,6 +61,7 @@ import app.cabezadealgodon.com.gestionasilobackend.models.Usuario;
 import app.cabezadealgodon.com.gestionasilobackend.models.VisitaMedica;
 import app.cabezadealgodon.com.gestionasilobackend.repository.CargoServicioRepository;
 import app.cabezadealgodon.com.gestionasilobackend.repository.CitaRepository;
+import app.cabezadealgodon.com.gestionasilobackend.repository.CuentaMensualRepository;
 import app.cabezadealgodon.com.gestionasilobackend.repository.EspecialidadRepository;
 import app.cabezadealgodon.com.gestionasilobackend.repository.ExamenLaboratorioRepository;
 import app.cabezadealgodon.com.gestionasilobackend.repository.OrdenLaboratorioRepository;
@@ -80,7 +84,8 @@ import tools.jackson.databind.ObjectMapper;
  * donde el laboratorio los recibe, desde HU-13 (YS-119) su resultado y
  * desde HU-14 (YS-122) su costo. Desde HU-15 (YS-125), la bandeja donde la
  * farmacia recibe las recetas, desde HU-16 (YS-128) su despacho y desde
- * HU-17 (YS-131) su costo.
+ * HU-17 (YS-131) su costo. Desde HU-18 (YS-135), la cuenta del familiar que
+ * reúne los cargos de los tres.
  * Desde HU-02 (YS-67), el historial médico centralizado del Médico General,
  * que se arma con todo lo anterior.
  *
@@ -135,6 +140,9 @@ class VisitaMedicaTest extends PruebaConBaseDeDatos {
 
     @Autowired
     private OrdenLaboratorioRepository ordenRepository;
+
+    @Autowired
+    private CuentaMensualRepository cuentaRepository;
 
     @Autowired
     private PasswordEncoder passwordEncoder;
@@ -1349,6 +1357,195 @@ class VisitaMedicaTest extends PruebaConBaseDeDatos {
                 .andExpect(status().isForbidden());
     }
 
+    // ---- YS-135: la cuenta del familiar (HU-18) ----
+
+    @Test
+    @DisplayName("Consolidar el mes suma la cuota base y los cargos de consulta, laboratorio y farmacia; consolidar otra vez recalcula sin duplicar")
+    void consolidaLaCuentaDelMes() throws Exception {
+        tarifaDe(6, "410.00");
+        Especialista especialista = nuevoEspecialista(6);
+        Cita cita = citaEl(especialista, HOY.atTime(8, 0));
+        Long interno = cita.getSolicitud().getInterno().getId();
+        cambiarCuota(interno, "1500")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.cuotaMensual").value(1500.00));
+        long visita = conLosTresCargos(cita, especialista, "Glucosa en ayunas", "120.00", "Losartán", "35.50");
+
+        String periodo = YearMonth.now().toString();
+        String filtro = "$[?(@.interno.id == %d)]";
+        consolidar(periodo)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(filtro + ".periodo", interno).value(periodo))
+                .andExpect(jsonPath(filtro + ".familiar.nombreCompleto", interno).value("Familiar de prueba"))
+                .andExpect(jsonPath(filtro + ".cuotaBase", interno).value(1500.00))
+                .andExpect(jsonPath(filtro + ".totalServicios", interno).value(565.50))
+                .andExpect(jsonPath(filtro + ".totalDescuentos", interno).value(0.00))
+                .andExpect(jsonPath(filtro + ".totalAPagar", interno).value(2065.50))
+                .andExpect(jsonPath(filtro + ".saldo", interno).value(2065.50))
+                .andExpect(jsonPath(filtro + ".estado", interno).value("PENDIENTE_PAGO"));
+        List<CuentaMensual> cuentas = cuentaRepository.findByInternoId(interno);
+        assertThat(cuentas).hasSize(1);
+        assertThat(cargoRepository.findByVisitaIdOrderByIdAsc(visita)).hasSize(3)
+                .allSatisfy(cargo -> assertThat(cargo.getCuenta().getId()).isEqualTo(cuentas.get(0).getId()));
+
+        // Otra vez, después de cambiar la cuota: la misma cuenta, recalculada, y los cargos sin repetirse.
+        cambiarCuota(interno, "1600").andExpect(status().isOk());
+        consolidar(periodo)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(filtro + ".id", interno).value(cuentas.get(0).getId().intValue()))
+                .andExpect(jsonPath(filtro + ".totalServicios", interno).value(565.50))
+                .andExpect(jsonPath(filtro + ".totalAPagar", interno).value(2165.50));
+        assertThat(cuentaRepository.findByInternoId(interno)).hasSize(1);
+
+        mvc.perform(get("/api/cuentas").param("periodo", periodo)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(RolNombre.ADMINISTRADOR_ASILO)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(filtro + ".totalAPagar", interno).value(2165.50));
+    }
+
+    /** RNF-03 y la sección 4.9 del diseño: lo que se cobra, sin decir de qué. */
+    @Test
+    @DisplayName("El estado de cuenta desglosa por servicio y por rango de fechas, sin especialidad, examen, medicamento ni diagnóstico")
+    void elEstadoDeCuentaPorRango() throws Exception {
+        tarifaDe(6, "410.00");
+        Especialista especialista = nuevoEspecialista(6);
+        Cita cita = citaEl(especialista, HOY.atTime(8, 30));
+        Long interno = cita.getSolicitud().getInterno().getId();
+        cambiarCuota(interno, "900").andExpect(status().isOk());
+        conLosTresCargos(cita, especialista, "Perfil lipídico", "75", "Quetiapina", "48");
+        LocalDate inicioDeMes = HOY.withDayOfMonth(1);
+        String numero = solicitudRepository.findById(cita.getSolicitud().getId()).orElseThrow().getNumero();
+
+        // Antes de consolidar: los cargos ya se ven, pero todavía no están en ninguna cuenta.
+        estadoDeCuenta(interno, inicioDeMes, HOY)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.cargos.length()").value(3))
+                .andExpect(jsonPath("$.cargos[0].periodo").isEmpty())
+                .andExpect(jsonPath("$.cargosSinConsolidar").value(3))
+                .andExpect(jsonPath("$.cuentas").isEmpty());
+
+        consolidar(YearMonth.now().toString()).andExpect(status().isOk());
+        String cuerpo = estadoDeCuenta(interno, inicioDeMes, HOY)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.desglose[0].concepto").value("CUOTA"))
+                .andExpect(jsonPath("$.desglose[0].neto").value(900.00))
+                .andExpect(jsonPath("$.desglose[?(@.concepto == 'CONSULTA')].neto").value(410.00))
+                .andExpect(jsonPath("$.desglose[?(@.concepto == 'LABORATORIO')].neto").value(75.00))
+                .andExpect(jsonPath("$.desglose[?(@.concepto == 'FARMACIA')].cantidad").value(1))
+                .andExpect(jsonPath("$.desglose[?(@.concepto == 'FARMACIA')].neto").value(48.00))
+                .andExpect(jsonPath("$.cargos[*].numeroSolicitud").value(contains(numero, numero, numero)))
+                .andExpect(jsonPath("$.cargos[0].periodo").value(YearMonth.now().toString()))
+                .andExpect(jsonPath("$.cargosSinConsolidar").value(0))
+                .andExpect(jsonPath("$.totalAPagar").value(1433.00))
+                .andExpect(jsonPath("$.saldoTotal").value(1433.00))
+                .andExpect(jsonPath("$.cuentas[0].estado").value("PENDIENTE_PAGO"))
+                .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
+        String especialidad = especialidadRepository.findById(idEspecialidad(6)).orElseThrow().getNombre();
+        assertThat(cuerpo).doesNotContain("Perfil lipídico", "Quetiapina", "Hipertensión", especialidad);
+
+        // Un rango que no toca este mes no trae cargos ni cuotas; lo que debe en total no cambia.
+        estadoDeCuenta(interno, HOY.minusYears(1).withDayOfMonth(1), HOY.minusYears(1).withDayOfMonth(28))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.cargos").isEmpty())
+                .andExpect(jsonPath("$.cuentas").isEmpty())
+                .andExpect(jsonPath("$.totalAPagar").value(0.00))
+                .andExpect(jsonPath("$.saldoTotal").value(1433.00));
+        estadoDeCuenta(interno, HOY, HOY.minusDays(1))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errores.hasta").value("La fecha final no puede ser anterior a la inicial"));
+        estadoDeCuenta(999_999L, inicioDeMes, HOY).andExpect(status().isNotFound());
+    }
+
+    @Test
+    @DisplayName("Tiene cuenta quien tiene cuota o recibió servicios en el mes; sin ninguna de las dos, no")
+    void quienTieneCuenta() throws Exception {
+        tarifaDe(6, "410.00");
+        Especialista especialista = nuevoEspecialista(6);
+        Cita cita = citaEl(especialista, HOY.atTime(9, 0));
+        Long conServicios = cita.getSolicitud().getInterno().getId();
+        long visita = idDe(iniciar(cita.getId(), especialista));
+        diagnosticar(visita, especialista, "Control", null).andExpect(status().isOk());
+        finalizar(visita, especialista).andExpect(status().isOk());
+        long sinNada = crearInterno(tokenDe(RolNombre.MEDICO_GENERAL));
+
+        consolidar(YearMonth.now().toString())
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.interno.id == %d)].cuotaBase", conServicios).value(0.00))
+                .andExpect(jsonPath("$[?(@.interno.id == %d)].totalAPagar", conServicios).value(410.00));
+        assertThat(cuentaRepository.findByInternoId(sinNada)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("La cuota la fija el Administrador del Asilo, mayor o igual que cero; el Médico General ya no la cambia al editar al interno")
+    void laCuotaEsDelAdministrador() throws Exception {
+        long interno = crearInterno(tokenDe(RolNombre.MEDICO_GENERAL));
+
+        cambiarCuota(interno, "-5")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errores.cuotaMensual").value("La cuota mensual no puede ser negativa"));
+        cambiarCuota(interno, "null")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errores.cuotaMensual").value("Indique la cuota mensual"));
+        cambiarCuota(interno, "12.345").andExpect(status().isBadRequest());
+        cambiarCuota(999_999L, "100").andExpect(status().isNotFound());
+        cambiarCuota(interno, "0").andExpect(status().isOk()).andExpect(jsonPath("$.cuotaMensual").value(0.00));
+        cambiarCuota(interno, "1250.5").andExpect(status().isOk()).andExpect(jsonPath("$.cuotaMensual").value(1250.50));
+
+        // El Médico General edita al interno con la cuota que tenía en pantalla: ya no la pisa.
+        String token = tokenDe(RolNombre.MEDICO_GENERAL);
+        String expediente = mvc.perform(get("/api/internos/{id}", interno).header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
+        String edicion = """
+                {"nombreCompleto": "Interno con visita",
+                 "dpi": "%s",
+                 "fechaNacimiento": "1943-02-14",
+                 "fechaIngreso": "2023-05-02",
+                 "cuotaMensual": 10,
+                 "familiarResponsable": {
+                   "nombreCompleto": "Familiar de prueba",
+                   "parentesco": "Hija",
+                   "telefono": "5555 0001"}}
+                """.formatted((String) JsonPath.read(expediente, "$.dpi"));
+        mvc.perform(put("/api/internos/{id}", interno)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(edicion))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.cuotaMensual").value(1250.50));
+    }
+
+    @Test
+    @DisplayName("Un mes que todavía no empieza no se consolida, y un período mal escrito o ausente es 400")
+    void periodoInvalido() throws Exception {
+        consolidar(YearMonth.now().plusMonths(1).toString())
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errores.periodo").value("Ese mes todavía no empieza: no hay nada que consolidar"));
+        consolidar("octubre").andExpect(status().isBadRequest());
+        mvc.perform(post("/api/cuentas/consolidar")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(RolNombre.ADMINISTRADOR_ASILO)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @EnumSource(value = RolNombre.class, names = "ADMINISTRADOR_ASILO", mode = EnumSource.Mode.EXCLUDE)
+    @DisplayName("Los otros seis roles no ven ni consolidan cuentas, ni fijan la cuota: 403")
+    void soloElAdministradorDelAsiloCobra(RolNombre rol) throws Exception {
+        String token = "Bearer " + tokenDe(rol);
+        mvc.perform(get("/api/cuentas").header(HttpHeaders.AUTHORIZATION, token))
+                .andExpect(status().isForbidden());
+        mvc.perform(post("/api/cuentas/consolidar").param("periodo", YearMonth.now().toString())
+                .header(HttpHeaders.AUTHORIZATION, token))
+                .andExpect(status().isForbidden());
+        mvc.perform(get("/api/internos/{id}/estado-cuenta", 999_999).header(HttpHeaders.AUTHORIZATION, token))
+                .andExpect(status().isForbidden());
+        mvc.perform(put("/api/internos/{id}/cuota", 999_999)
+                .header(HttpHeaders.AUTHORIZATION, token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"cuotaMensual\": 100}"))
+                .andExpect(status().isForbidden());
+    }
+
     // ---- YS-107: el diagnóstico y el cierre de la visita (HU-09) ----
 
     @Test
@@ -1795,6 +1992,45 @@ class VisitaMedicaTest extends PruebaConBaseDeDatos {
         entrega.put("id", id);
         entrega.put("costo", costo);
         return entrega;
+    }
+
+    /**
+     * YS-135. Una visita con los tres tipos de cargo: el examen con su costo
+     * (HU-14), el medicamento entregado con el suyo (HU-17) y la consulta al
+     * finalizar (HU-09). La especialidad ya tiene que tener tarifa.
+     */
+    private long conLosTresCargos(Cita cita, Especialista especialista, String nombreExamen, String costoExamen,
+            String nombreMedicamento, String costoMedicamento) throws Exception {
+        long visita = idDe(iniciar(cita.getId(), especialista));
+        ordenar(visita, especialista, examen(nombreExamen, null)).andExpect(status().isCreated());
+        Long orden = ordenRepository.findByVisitaIdOrderByIdAsc(visita).get(0).getId();
+        cargarResultado(orden, "Dentro de lo normal", costoExamen, null).andExpect(status().isOk());
+        recetar(visita, especialista, null, medicamento(nombreMedicamento, "25 mg", 30, "Cada noche"))
+                .andExpect(status().isCreated());
+        Receta receta = recetaRepository.findByVisitaId(visita).orElseThrow();
+        despacharEntregas(receta.getId(), entrega(idsDe(receta)[0], costoMedicamento)).andExpect(status().isOk());
+        diagnosticar(visita, especialista, "Hipertensión arterial", null).andExpect(status().isOk());
+        finalizar(visita, especialista).andExpect(status().isOk());
+        return visita;
+    }
+
+    /** YS-135. El Administrador del Asilo fija la cuota; {@code cuota} va tal cual en el JSON. */
+    private ResultActions cambiarCuota(Long internoId, String cuota) throws Exception {
+        return mvc.perform(put("/api/internos/{id}/cuota", internoId)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(RolNombre.ADMINISTRADOR_ASILO))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"cuotaMensual\": %s}".formatted(cuota)));
+    }
+
+    private ResultActions consolidar(String periodo) throws Exception {
+        return mvc.perform(post("/api/cuentas/consolidar").param("periodo", periodo)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(RolNombre.ADMINISTRADOR_ASILO)));
+    }
+
+    private ResultActions estadoDeCuenta(Long internoId, LocalDate desde, LocalDate hasta) throws Exception {
+        return mvc.perform(get("/api/internos/{id}/estado-cuenta", internoId)
+                .param("desde", desde.toString()).param("hasta", hasta.toString())
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(RolNombre.ADMINISTRADOR_ASILO)));
     }
 
     private ResultActions costosDe(Long recetaId) throws Exception {
