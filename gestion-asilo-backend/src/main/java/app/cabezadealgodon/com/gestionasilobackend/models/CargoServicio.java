@@ -32,8 +32,12 @@ import lombok.Setter;
  * cuenta mensual, y HU-19 calcula el descuento.
  *
  * <p>
- * Los montos se copian al crearlo y no se recalculan: si cambia la tarifa o la
- * política de descuento, el cargo conserva lo que se cobró.
+ * El monto original se copia al crearlo y no se recalcula: si cambia la tarifa,
+ * el cargo conserva lo que costó el servicio. YS-136: el descuento y el neto,
+ * en cambio, salen de la política de la fundación vigente en la fecha del
+ * servicio (decidido el 20/10), y la consolidación del mes los vuelve a
+ * calcular con esa misma regla. Un cambio de política solo los mueve si rige
+ * desde una fecha anterior al servicio.
  */
 @Entity
 @Table(name = "cargo_servicio", indexes = {

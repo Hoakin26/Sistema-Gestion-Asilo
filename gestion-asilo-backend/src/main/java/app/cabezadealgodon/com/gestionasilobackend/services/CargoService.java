@@ -18,17 +18,21 @@ import app.cabezadealgodon.com.gestionasilobackend.repository.CargoServicioRepos
  * farmacia (HU-17), así que la regla del descuento se aplica en un solo sitio.
  *
  * <p>
- * Por ahora el descuento es cero: las políticas de descuento llegan con HU-19,
- * que lo calculará aquí mismo (el {@code CalculadoraDescuento} del diseño) sin
- * que cambie ninguno de los que llaman.
+ * YS-136. El descuento de la fundación (HU-19) se calcula aquí, con la
+ * {@link CalculadoraDescuento} del diseño, y ninguno de los que llaman tuvo
+ * que cambiar. Es la política vigente el día del servicio; la consolidación
+ * del mes (HU-18) la vuelve a calcular con la misma regla, por si la fundación
+ * definió después una política que ya regía en esa fecha.
  */
 @Service
 public class CargoService {
 
     private final CargoServicioRepository cargoRepository;
+    private final CalculadoraDescuento calculadora;
 
-    public CargoService(CargoServicioRepository cargoRepository) {
+    public CargoService(CargoServicioRepository cargoRepository, CalculadoraDescuento calculadora) {
         this.cargoRepository = cargoRepository;
+        this.calculadora = calculadora;
     }
 
     /**
@@ -37,17 +41,18 @@ public class CargoService {
      */
     @Transactional(propagation = Propagation.MANDATORY)
     public CargoServicio registrar(VisitaMedica visita, TipoServicio tipo, BigDecimal montoOriginal) {
-        BigDecimal descuento = BigDecimal.ZERO;
+        LocalDate hoy = LocalDate.now();
+        // Nunca menor que cero, aunque un descuento fijo supere al monto (HU-19).
+        DesgloseCosto desglose = calculadora.calcular(tipo, montoOriginal, hoy);
 
         CargoServicio cargo = new CargoServicio();
         cargo.setTipo(tipo);
         cargo.setInterno(visita.getInterno());
         cargo.setVisita(visita);
-        cargo.setMontoOriginal(montoOriginal);
-        cargo.setDescuento(descuento);
-        // Nunca menor que cero, aunque un descuento fijo supere al monto (HU-19).
-        cargo.setMontoNeto(montoOriginal.subtract(descuento).max(BigDecimal.ZERO));
-        cargo.setFecha(LocalDate.now());
+        cargo.setMontoOriginal(desglose.montoOriginal());
+        cargo.setDescuento(desglose.descuento());
+        cargo.setMontoNeto(desglose.montoNeto());
+        cargo.setFecha(hoy);
         return cargoRepository.save(cargo);
     }
 }
