@@ -108,7 +108,8 @@ const CATALOGO = {
   donaciones: { etiqueta: "Donaciones", Icono: Gift, ruta: "/donaciones" },
   // HU-23 (YS-149). Los gastos operativos del asilo.
   gastos: { etiqueta: "Gastos", Icono: CircleDollarSign, ruta: "/gastos" },
-  reportes: { etiqueta: "Reportes", Icono: FileText, ruta: null },
+  // HU-24 (YS-152). La entrada a los reportes; cada uno se suma con su historia.
+  reportes: { etiqueta: "Reportes", Icono: FileText, ruta: "/reportes" },
   configuracion: { etiqueta: "Configuración", Icono: Settings, ruta: null },
 };
 
