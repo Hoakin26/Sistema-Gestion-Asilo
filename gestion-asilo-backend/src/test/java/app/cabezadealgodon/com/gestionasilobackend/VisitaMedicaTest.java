@@ -93,7 +93,8 @@ import tools.jackson.databind.ObjectMapper;
  * fundación que se le aplican, desde HU-34 (YS-178), los pagos del familiar
  * sobre esa cuenta, su anulación y la mora, y desde HU-20 (YS-141), lo que el
  * asilo le debe a la fundación por esos mismos cargos y sus pagos, y desde
- * HU-21 (YS-144), las citas que el familiar todavía no termina de pagar.
+ * HU-21 (YS-144), las citas que el familiar todavía no termina de pagar, y desde
+ * HU-24 (YS-153), el reporte de costos por cita que sale de esos mismos cargos.
  * Desde HU-02 (YS-67), el historial médico centralizado del Médico General,
  * que se arma con todo lo anterior.
  *
@@ -2230,6 +2231,97 @@ class VisitaMedicaTest extends PruebaConBaseDeDatos {
                 .andExpect(status().isForbidden());
     }
 
+    // ---- YS-153: el reporte de costos por cita (HU-24) ----
+
+    /**
+     * Los totales por cita, por paciente y por tipo, el promedio, el filtro
+     * por fechas y que no aparezca nada clínico. Se pide del interno de la
+     * prueba: la base es compartida. La política se borra al terminar.
+     */
+    @Test
+    @DisplayName("El reporte de costos desglosa cada cita en consulta, exámenes y medicamentos, con totales y promedio, sin nada clínico")
+    void elReporteDeCostosPorCita() throws Exception {
+        try {
+            tarifaDe(6, "410.00");
+            definirDescuento("CONSULTA", "PORCENTAJE", "20", LocalDate.of(2000, 1, 1)).andExpect(status().isOk());
+            Especialista especialista = nuevoEspecialista(6);
+            Cita reciente = citaEl(especialista, HOY.atTime(8, 0));
+            Long interno = reciente.getSolicitud().getInterno().getId();
+            long recienteId = conLosTresCargos(reciente, especialista, "Perfil lipídico", "120.00", "Olanzapina",
+                    "35.50");
+            long anterior = consultaFinalizada(especialista, HOY.minusDays(3).atTime(9, 0), interno);
+
+            String cuerpo = reporteDeCostos(interno, HOY.minusDays(3), HOY)
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.paciente.id").value(interno.intValue()))
+                    .andExpect(jsonPath("$.cantidadCitas").value(2))
+                    .andExpect(jsonPath("$.pacientes.length()").value(1))
+                    // De la más antigua a la más reciente.
+                    .andExpect(jsonPath("$.pacientes[0].citas[*].visitaId").value(contains((int) anterior, (int) recienteId)))
+                    .andExpect(jsonPath("$.pacientes[0].citas[0].costos.consulta").value(410.00))
+                    .andExpect(jsonPath("$.pacientes[0].citas[0].costos.examenes").value(0))
+                    .andExpect(jsonPath("$.pacientes[0].citas[0].costos.total").value(410.00))
+                    .andExpect(jsonPath("$.pacientes[0].citas[0].costos.descuento").value(82.00))
+                    .andExpect(jsonPath("$.pacientes[0].citas[0].costos.neto").value(328.00))
+                    .andExpect(jsonPath("$.pacientes[0].citas[1].costos.examenes").value(1))
+                    .andExpect(jsonPath("$.pacientes[0].citas[1].costos.costoExamenes").value(120.00))
+                    .andExpect(jsonPath("$.pacientes[0].citas[1].costos.medicamentos").value(1))
+                    .andExpect(jsonPath("$.pacientes[0].citas[1].costos.costoMedicamentos").value(35.50))
+                    .andExpect(jsonPath("$.pacientes[0].citas[1].costos.total").value(565.50))
+                    .andExpect(jsonPath("$.pacientes[0].citas[1].costos.neto").value(483.50))
+                    .andExpect(jsonPath("$.totales.consulta").value(820.00))
+                    .andExpect(jsonPath("$.totales.total").value(975.50))
+                    .andExpect(jsonPath("$.totales.descuento").value(164.00))
+                    .andExpect(jsonPath("$.totales.neto").value(811.50))
+                    .andExpect(jsonPath("$.promedioPorCita").value(487.75))
+                    .andExpect(jsonPath("$.pacientes[0].promedioPorCita").value(487.75))
+                    .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
+            String especialidad = especialidadRepository.findById(idEspecialidad(6)).orElseThrow().getNombre();
+            assertThat(cuerpo).doesNotContain("Perfil lipídico", "Olanzapina", "Hipertensión", especialidad);
+
+            // El rango deja fuera lo que no cae en él.
+            reporteDeCostos(interno, HOY, HOY)
+                    .andExpect(jsonPath("$.cantidadCitas").value(1))
+                    .andExpect(jsonPath("$.pacientes[0].citas[*].visitaId").value(contains((int) recienteId)))
+                    .andExpect(jsonPath("$.totales.total").value(565.50));
+            reporteDeCostos(interno, HOY.minusYears(1), HOY.minusYears(1).plusDays(10))
+                    .andExpect(jsonPath("$.cantidadCitas").value(0))
+                    .andExpect(jsonPath("$.pacientes").isEmpty())
+                    .andExpect(jsonPath("$.totales.total").value(0.00))
+                    .andExpect(jsonPath("$.promedioPorCita").value(0.00));
+
+            // Sin paciente, de todos: el de la prueba entre ellos, con sus mismos totales.
+            reporteDeCostos(null, HOY.minusDays(3), HOY)
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.paciente").isEmpty())
+                    .andExpect(jsonPath("$.pacientes[?(@.paciente.id == %d)].totales.total", interno).value(975.50));
+        } finally {
+            politicaRepository.deleteAll();
+        }
+    }
+
+    @Test
+    @DisplayName("El reporte de costos rechaza un rango al revés (400) y un paciente que no existe (404); sin fechas, va del inicio del mes a hoy")
+    void reporteDeCostosInvalido() throws Exception {
+        reporteDeCostos(null, HOY, HOY.minusDays(1))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errores.hasta").value("La fecha final no puede ser anterior a la inicial"));
+        reporteDeCostos(999_999L, HOY.withDayOfMonth(1), HOY).andExpect(status().isNotFound());
+        reporteDeCostos(null, null, null)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.desde").value(HOY.withDayOfMonth(1).toString()))
+                .andExpect(jsonPath("$.hasta").value(HOY.toString()));
+        mvc.perform(get("/api/reportes/costos-por-cita")).andExpect(status().isUnauthorized());
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @EnumSource(value = RolNombre.class, names = "ADMINISTRADOR_ASILO", mode = EnumSource.Mode.EXCLUDE)
+    @DisplayName("Los otros seis roles no generan el reporte de costos: 403")
+    void soloElAdministradorDelAsiloVeElReporteDeCostos(RolNombre rol) throws Exception {
+        mvc.perform(get("/api/reportes/costos-por-cita").header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(rol)))
+                .andExpect(status().isForbidden());
+    }
+
     // ---- YS-107: el diagnóstico y el cierre de la visita (HU-09) ----
 
     @Test
@@ -2696,6 +2788,22 @@ class VisitaMedicaTest extends PruebaConBaseDeDatos {
         diagnosticar(visita, especialista, "Hipertensión arterial", null).andExpect(status().isOk());
         finalizar(visita, especialista).andExpect(status().isOk());
         return visita;
+    }
+
+    /** YS-153. El reporte de costos por cita; {@code null} omite el parámetro. */
+    private ResultActions reporteDeCostos(Long internoId, LocalDate desde, LocalDate hasta) throws Exception {
+        MockHttpServletRequestBuilder peticion = get("/api/reportes/costos-por-cita")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(RolNombre.ADMINISTRADOR_ASILO));
+        if (internoId != null) {
+            peticion.param("internoId", internoId.toString());
+        }
+        if (desde != null) {
+            peticion.param("desde", desde.toString());
+        }
+        if (hasta != null) {
+            peticion.param("hasta", hasta.toString());
+        }
+        return mvc.perform(peticion);
     }
 
     /** YS-144. Las citas pendientes del paciente (nombre o DPI) en el rango; {@code null} lo omite. */
