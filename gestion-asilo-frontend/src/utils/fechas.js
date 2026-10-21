@@ -28,6 +28,17 @@ export function formatearFecha(iso) {
   return iso ? FORMATO_LARGO.format(aFechaLocal(iso)) : "";
 }
 
+const FORMATO_CORTO = new Intl.DateTimeFormat("es-GT", {
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+});
+
+/** "30 nov 2026". YS-179: para las tablas donde la fecha larga no cabe en una línea. */
+export function formatearFechaCorta(iso) {
+  return iso ? FORMATO_CORTO.format(aFechaLocal(iso)) : "";
+}
+
 const FORMATO_FECHA_HORA = new Intl.DateTimeFormat("es-GT", {
   day: "numeric",
   month: "short",
