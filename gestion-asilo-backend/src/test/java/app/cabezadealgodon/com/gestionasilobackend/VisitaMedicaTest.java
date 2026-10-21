@@ -53,6 +53,7 @@ import app.cabezadealgodon.com.gestionasilobackend.models.EstadoReceta;
 import app.cabezadealgodon.com.gestionasilobackend.models.OrdenLaboratorio;
 import app.cabezadealgodon.com.gestionasilobackend.models.EstadoSolicitud;
 import app.cabezadealgodon.com.gestionasilobackend.models.EstadoVisita;
+import app.cabezadealgodon.com.gestionasilobackend.models.Interno;
 import app.cabezadealgodon.com.gestionasilobackend.models.Receta;
 import app.cabezadealgodon.com.gestionasilobackend.models.RolNombre;
 import app.cabezadealgodon.com.gestionasilobackend.models.SolicitudReferencia;
@@ -64,7 +65,9 @@ import app.cabezadealgodon.com.gestionasilobackend.repository.CitaRepository;
 import app.cabezadealgodon.com.gestionasilobackend.repository.CuentaMensualRepository;
 import app.cabezadealgodon.com.gestionasilobackend.repository.EspecialidadRepository;
 import app.cabezadealgodon.com.gestionasilobackend.repository.ExamenLaboratorioRepository;
+import app.cabezadealgodon.com.gestionasilobackend.repository.InternoRepository;
 import app.cabezadealgodon.com.gestionasilobackend.repository.OrdenLaboratorioRepository;
+import app.cabezadealgodon.com.gestionasilobackend.repository.PagoRepository;
 import app.cabezadealgodon.com.gestionasilobackend.repository.PoliticaDescuentoRepository;
 import app.cabezadealgodon.com.gestionasilobackend.repository.RecetaRepository;
 import app.cabezadealgodon.com.gestionasilobackend.repository.RolRepository;
@@ -86,8 +89,9 @@ import tools.jackson.databind.ObjectMapper;
  * desde HU-14 (YS-122) su costo. Desde HU-15 (YS-125), la bandeja donde la
  * farmacia recibe las recetas, desde HU-16 (YS-128) su despacho y desde
  * HU-17 (YS-131) su costo. Desde HU-18 (YS-135), la cuenta del familiar que
- * reúne los cargos de los tres, y desde HU-19 (YS-138), los descuentos de la
- * fundación que se le aplican.
+ * reúne los cargos de los tres, desde HU-19 (YS-138), los descuentos de la
+ * fundación que se le aplican, y desde HU-34 (YS-178), los pagos del familiar
+ * sobre esa cuenta, su anulación y la mora.
  * Desde HU-02 (YS-67), el historial médico centralizado del Médico General,
  * que se arma con todo lo anterior.
  *
@@ -148,6 +152,12 @@ class VisitaMedicaTest extends PruebaConBaseDeDatos {
 
     @Autowired
     private PoliticaDescuentoRepository politicaRepository;
+
+    @Autowired
+    private PagoRepository pagoRepository;
+
+    @Autowired
+    private InternoRepository internoRepository;
 
     @Autowired
     private PasswordEncoder passwordEncoder;
@@ -1677,6 +1687,238 @@ class VisitaMedicaTest extends PruebaConBaseDeDatos {
                 .andExpect(status().isForbidden());
     }
 
+    // ---- YS-178: los pagos del familiar (HU-34) ----
+
+    @Test
+    @DisplayName("Un pago parcial se descuenta del saldo y deja la cuenta en Pago Parcial; el que completa el total la cancela")
+    void pagoParcialYDespuesElTotal() throws Exception {
+        long interno = crearInterno(tokenDe(RolNombre.MEDICO_GENERAL));
+        cambiarCuota(interno, "1000").andExpect(status().isOk());
+        long cuenta = cuentaDelMes(interno);
+
+        pagar(cuenta, "400", HOY, "EFECTIVO")
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.cuenta.totalAPagar").value(1000.00))
+                .andExpect(jsonPath("$.cuenta.totalPagado").value(400.00))
+                .andExpect(jsonPath("$.cuenta.saldo").value(600.00))
+                .andExpect(jsonPath("$.cuenta.estado").value("PAGO_PARCIAL"))
+                .andExpect(jsonPath("$.pagos.length()").value(1))
+                .andExpect(jsonPath("$.pagos[0].monto").value(400.00))
+                .andExpect(jsonPath("$.pagos[0].formaPago").value("EFECTIVO"))
+                .andExpect(jsonPath("$.pagos[0].registradoPor").value("Persona de prueba"))
+                .andExpect(jsonPath("$.pagos[0].anulado").value(false));
+        // El resto, de ayer y con referencia: el historial va del más reciente al más antiguo.
+        pagarCon(cuenta, """
+                {"monto": 600.00, "fecha": "%s", "formaPago": "TRANSFERENCIA", "referencia": "  BI-2026-0042  "}
+                """.formatted(HOY.minusDays(1)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.cuenta.totalPagado").value(1000.00))
+                .andExpect(jsonPath("$.cuenta.saldo").value(0.00))
+                .andExpect(jsonPath("$.cuenta.estado").value("COMPLETAMENTE_CANCELADA"))
+                .andExpect(jsonPath("$.pagos.length()").value(2))
+                .andExpect(jsonPath("$.pagos[0].monto").value(400.00))
+                .andExpect(jsonPath("$.pagos[1].monto").value(600.00))
+                .andExpect(jsonPath("$.pagos[1].referencia").value("BI-2026-0042"));
+
+        // Pagada completa, no recibe más pagos.
+        pagar(cuenta, "1", HOY, "EFECTIVO")
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.mensaje").value("Esta cuenta ya está pagada completa"));
+
+        pagos(cuenta)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.cuenta.estado").value("COMPLETAMENTE_CANCELADA"))
+                .andExpect(jsonPath("$.pagos.length()").value(2));
+        mvc.perform(get("/api/cuentas").param("periodo", YearMonth.now().toString())
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(RolNombre.ADMINISTRADOR_ASILO)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.id == %d)].totalPagado", cuenta).value(1000.00))
+                .andExpect(jsonPath("$[?(@.id == %d)].saldo", cuenta).value(0.00));
+        estadoDeCuenta(interno, HOY.withDayOfMonth(1), HOY)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.cuentas[0].totalPagado").value(1000.00))
+                .andExpect(jsonPath("$.saldoTotal").value(0.00));
+    }
+
+    @Test
+    @DisplayName("El monto tiene que ser mayor que cero y no pasar del saldo; la fecha no puede ser futura y la forma de pago es obligatoria")
+    void pagoInvalido() throws Exception {
+        long interno = crearInterno(tokenDe(RolNombre.MEDICO_GENERAL));
+        cambiarCuota(interno, "500").andExpect(status().isOk());
+        long cuenta = cuentaDelMes(interno);
+
+        pagar(cuenta, "0", HOY, "EFECTIVO")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errores.monto").value("El monto tiene que ser mayor que cero"));
+        pagar(cuenta, "-5", HOY, "EFECTIVO")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errores.monto").value("El monto tiene que ser mayor que cero"));
+        pagar(cuenta, "12.345", HOY, "EFECTIVO")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errores.monto").value("El monto admite hasta dos decimales"));
+        pagar(cuenta, "500.01", HOY, "EFECTIVO")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errores.monto").value("El pago no puede pasar del saldo pendiente, Q500.00"));
+        pagar(cuenta, "100", HOY.plusDays(1), "EFECTIVO")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errores.fecha").value("La fecha del pago no puede estar en el futuro"));
+        pagarCon(cuenta, "{}")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errores.monto").value("Indique el monto del pago"))
+                .andExpect(jsonPath("$.errores.fecha").value("Indique la fecha del pago"))
+                .andExpect(jsonPath("$.errores.formaPago").value("Elija la forma de pago"));
+        pagar(cuenta, "100", HOY, "BITCOIN").andExpect(status().isBadRequest());
+        pagar(999_999L, "100", HOY, "EFECTIVO").andExpect(status().isNotFound());
+        mvc.perform(get("/api/cuentas/{id}/pagos", cuenta)).andExpect(status().isUnauthorized());
+
+        // Nada de eso quedó registrado.
+        assertThat(pagoRepository.findByCuentaIdOrderByFechaDescIdDesc(cuenta)).isEmpty();
+        assertThat(cuentaRepository.findById(cuenta).orElseThrow().getSaldo()).isEqualByComparingTo("500.00");
+    }
+
+    /** Decidido el 20/10: el pago mal registrado se anula con su motivo, no se borra. */
+    @Test
+    @DisplayName("Anular un pago devuelve su monto al saldo y recalcula el estado; queda en el historial con el motivo y no se anula dos veces")
+    void anularUnPago() throws Exception {
+        long interno = crearInterno(tokenDe(RolNombre.MEDICO_GENERAL));
+        cambiarCuota(interno, "800").andExpect(status().isOk());
+        long cuenta = cuentaDelMes(interno);
+        String respuesta = pagar(cuenta, "800", HOY, "CHEQUE")
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.cuenta.estado").value("COMPLETAMENTE_CANCELADA"))
+                .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
+        long pago = ((Number) JsonPath.read(respuesta, "$.pagos[0].id")).longValue();
+
+        anular(pago, "   ")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errores.motivo").value("Escriba el motivo de la anulación"));
+        anular(pago, "  Se registró Q800 en lugar de Q80  ")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.cuenta.totalPagado").value(0.00))
+                .andExpect(jsonPath("$.cuenta.saldo").value(800.00))
+                .andExpect(jsonPath("$.cuenta.estado").value("PENDIENTE_PAGO"))
+                .andExpect(jsonPath("$.pagos.length()").value(1))
+                .andExpect(jsonPath("$.pagos[0].anulado").value(true))
+                .andExpect(jsonPath("$.pagos[0].motivoAnulacion").value("Se registró Q800 en lugar de Q80"))
+                .andExpect(jsonPath("$.pagos[0].anuladoPor").value("Persona de prueba"))
+                .andExpect(jsonPath("$.pagos[0].fechaAnulacion").isNotEmpty());
+        anular(pago, "Otra vez")
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.mensaje").value("Este pago ya está anulado"));
+        anular(999_999L, "No existe").andExpect(status().isNotFound());
+
+        // Lo anulado ya no cuenta: el pago correcto deja la cuenta en Pago Parcial.
+        pagar(cuenta, "80", HOY, "EFECTIVO")
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.cuenta.totalPagado").value(80.00))
+                .andExpect(jsonPath("$.cuenta.saldo").value(720.00))
+                .andExpect(jsonPath("$.cuenta.estado").value("PAGO_PARCIAL"))
+                .andExpect(jsonPath("$.pagos.length()").value(2));
+        assertThat(pagoRepository.findByCuentaIdOrderByFechaDescIdDesc(cuenta)).hasSize(2);
+    }
+
+    /**
+     * Decidido el 20/10: vence al final del mes siguiente. La cuenta se guarda
+     * como estaba antes de vencer, sin mora: la mora la pone el calendario al
+     * leerla, sin que nadie la toque.
+     */
+    @Test
+    @DisplayName("Vencido el fin del mes siguiente, la cuenta con saldo está En Mora; un pago parcial no la saca, el del total sí")
+    void laCuentaVencidaEstaEnMora() throws Exception {
+        long interno = crearInterno(tokenDe(RolNombre.MEDICO_GENERAL));
+        YearMonth vencido = YearMonth.now().minusMonths(2);
+        long cuenta = cuentaAntesDeVencer(interno, vencido, "900.00");
+
+        pagos(cuenta)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.cuenta.estado").value("EN_MORA"))
+                .andExpect(jsonPath("$.cuenta.fechaVencimiento").value(vencido.plusMonths(1).atEndOfMonth().toString()))
+                .andExpect(jsonPath("$.pagos").isEmpty());
+        pagar(cuenta, "300", HOY, "DEPOSITO")
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.cuenta.saldo").value(600.00))
+                .andExpect(jsonPath("$.cuenta.estado").value("EN_MORA"));
+        pagar(cuenta, "600", HOY, "TARJETA")
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.cuenta.estado").value("COMPLETAMENTE_CANCELADA"));
+
+        // La del mes pasado vence al final de este: todavía no está en mora.
+        long reciente = cuentaAntesDeVencer(interno, YearMonth.now().minusMonths(1), "450.00");
+        pagos(reciente)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.cuenta.estado").value("PENDIENTE_PAGO"))
+                .andExpect(jsonPath("$.cuenta.fechaVencimiento").value(YearMonth.now().atEndOfMonth().toString()));
+    }
+
+    /**
+     * Decidido el 20/10: al reconsolidar una cuenta con pagos se congela lo ya
+     * cobrado. Las políticas son de todo el sistema: se borran al terminar.
+     */
+    @Test
+    @DisplayName("Reconsolidar una cuenta con pagos congela lo cobrado y solo suma los cargos nuevos; la cancelada vuelve a Pago Parcial")
+    void reconsolidarConPagosCongelaLoCobrado() throws Exception {
+        try {
+            tarifaDe(6, "410.00");
+            Especialista especialista = nuevoEspecialista(6);
+            Cita cita = citaEl(especialista, HOY.atTime(10, 30));
+            Long interno = cita.getSolicitud().getInterno().getId();
+            cambiarCuota(interno, "1000").andExpect(status().isOk());
+            long visita = idDe(iniciar(cita.getId(), especialista));
+            diagnosticar(visita, especialista, "Control", null).andExpect(status().isOk());
+            finalizar(visita, especialista).andExpect(status().isOk());
+            long cuenta = cuentaDelMes(interno);
+            pagar(cuenta, "1410", HOY, "EFECTIVO")
+                    .andExpect(status().isCreated())
+                    .andExpect(jsonPath("$.cuenta.estado").value("COMPLETAMENTE_CANCELADA"));
+
+            // Después del pago: otra cuota, un descuento que ya regía y una consulta nueva.
+            cambiarCuota(interno, "2000").andExpect(status().isOk());
+            definirDescuento("CONSULTA", "PORCENTAJE", "50", HOY.withDayOfMonth(1)).andExpect(status().isOk());
+            Cita otra = citaEl(especialista, HOY.atTime(11, 0), interno);
+            long segunda = idDe(iniciar(otra.getId(), especialista));
+            diagnosticar(segunda, especialista, "Control", null).andExpect(status().isOk());
+            finalizar(segunda, especialista).andExpect(status().isOk());
+
+            String filtro = "$[?(@.id == %d)]";
+            consolidar(YearMonth.now().toString())
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath(filtro + ".cuotaBase", cuenta).value(1000.00))
+                    .andExpect(jsonPath(filtro + ".totalServicios", cuenta).value(820.00))
+                    .andExpect(jsonPath(filtro + ".totalDescuentos", cuenta).value(205.00))
+                    .andExpect(jsonPath(filtro + ".totalAPagar", cuenta).value(1615.00))
+                    .andExpect(jsonPath(filtro + ".totalPagado", cuenta).value(1410.00))
+                    .andExpect(jsonPath(filtro + ".saldo", cuenta).value(205.00))
+                    .andExpect(jsonPath(filtro + ".estado", cuenta).value("PAGO_PARCIAL"));
+            // El cargo que ya estaba en la cuenta conserva su monto; el nuevo trae el descuento.
+            assertThat(cargoRepository.findByVisitaIdOrderByIdAsc(visita).get(0).getMontoNeto())
+                    .isEqualByComparingTo("410.00");
+            assertThat(cargoRepository.findByVisitaIdOrderByIdAsc(segunda).get(0).getMontoNeto())
+                    .isEqualByComparingTo("205.00");
+        } finally {
+            politicaRepository.deleteAll();
+        }
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @EnumSource(value = RolNombre.class, names = "ADMINISTRADOR_ASILO", mode = EnumSource.Mode.EXCLUDE)
+    @DisplayName("Los otros seis roles no registran, ni consultan, ni anulan pagos: 403")
+    void soloElAdministradorDelAsiloRegistraPagos(RolNombre rol) throws Exception {
+        String token = "Bearer " + tokenDe(rol);
+        // Con cuerpos válidos: la validación corre antes que la seguridad del método.
+        mvc.perform(post("/api/cuentas/{id}/pagos", 999_999)
+                .header(HttpHeaders.AUTHORIZATION, token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"monto\": 100, \"fecha\": \"%s\", \"formaPago\": \"EFECTIVO\"}".formatted(HOY)))
+                .andExpect(status().isForbidden());
+        mvc.perform(get("/api/cuentas/{id}/pagos", 999_999).header(HttpHeaders.AUTHORIZATION, token))
+                .andExpect(status().isForbidden());
+        mvc.perform(post("/api/pagos/{id}/anulacion", 999_999)
+                .header(HttpHeaders.AUTHORIZATION, token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"motivo\": \"Error de digitación\"}"))
+                .andExpect(status().isForbidden());
+    }
+
     // ---- YS-107: el diagnóstico y el cierre de la visita (HU-09) ----
 
     @Test
@@ -2143,6 +2385,57 @@ class VisitaMedicaTest extends PruebaConBaseDeDatos {
         diagnosticar(visita, especialista, "Hipertensión arterial", null).andExpect(status().isOk());
         finalizar(visita, especialista).andExpect(status().isOk());
         return visita;
+    }
+
+    /** YS-178. Consolida el mes en curso y devuelve la cuenta del interno. */
+    private long cuentaDelMes(long internoId) throws Exception {
+        consolidar(YearMonth.now().toString()).andExpect(status().isOk());
+        return cuentaRepository.findByInternoIdAndPeriodo(internoId, YearMonth.now().toString()).orElseThrow().getId();
+    }
+
+    /**
+     * YS-178. Una cuenta de un mes pasado, guardada directo en la base como
+     * estaba el último día de su mes: sin pagos y sin mora. Así no se consolida
+     * un mes pasado para todos los internos de la base compartida.
+     */
+    private long cuentaAntesDeVencer(long internoId, YearMonth periodo, String total) {
+        Interno interno = internoRepository.findById(internoId).orElseThrow();
+        CuentaMensual cuenta = new CuentaMensual();
+        cuenta.setInterno(interno);
+        cuenta.setFamiliar(interno.getFamiliarResponsable());
+        cuenta.setPeriodo(periodo.toString());
+        cuenta.setCuotaBase(new BigDecimal(total));
+        cuenta.setTotalServicios(BigDecimal.ZERO.setScale(2));
+        cuenta.setTotalDescuentos(BigDecimal.ZERO.setScale(2));
+        cuenta.setTotalAPagar(new BigDecimal(total));
+        cuenta.actualizarSaldo(periodo.atEndOfMonth());
+        cuenta.setFechaConsolidacion(periodo.atEndOfMonth().atTime(18, 0));
+        return cuentaRepository.save(cuenta).getId();
+    }
+
+    /** YS-178. El Administrador del Asilo registra un pago; {@code monto} va tal cual en el JSON. */
+    private ResultActions pagar(long cuentaId, String monto, LocalDate fecha, String formaPago) throws Exception {
+        return pagarCon(cuentaId, "{\"monto\": %s, \"fecha\": \"%s\", \"formaPago\": \"%s\"}"
+                .formatted(monto, fecha, formaPago));
+    }
+
+    private ResultActions pagarCon(long cuentaId, String cuerpo) throws Exception {
+        return mvc.perform(post("/api/cuentas/{id}/pagos", cuentaId)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(RolNombre.ADMINISTRADOR_ASILO))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(cuerpo));
+    }
+
+    private ResultActions pagos(long cuentaId) throws Exception {
+        return mvc.perform(get("/api/cuentas/{id}/pagos", cuentaId)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(RolNombre.ADMINISTRADOR_ASILO)));
+    }
+
+    private ResultActions anular(long pagoId, String motivo) throws Exception {
+        return mvc.perform(post("/api/pagos/{id}/anulacion", pagoId)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(RolNombre.ADMINISTRADOR_ASILO))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json.writeValueAsString(Map.of("motivo", motivo))));
     }
 
     /** YS-138. La fundación define el descuento de un servicio desde una fecha. */
