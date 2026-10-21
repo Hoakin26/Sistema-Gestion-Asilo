@@ -1,0 +1,13 @@
+import { api } from "./api";
+
+/**
+ * HU-21 (YS-143). Las citas que el familiar todavía no termina de pagar, con
+ * el paciente (nombre o DPI) y el rango de fechas que se pidan; sin filtros,
+ * todas. Responde `{ citas, montoTotal, montoPagado, saldoPendiente }`.
+ */
+export async function listarServiciosPendientes({ paciente, desde, hasta }) {
+  const { data } = await api.get("/servicios-pendientes", {
+    params: { paciente: paciente || undefined, desde: desde || undefined, hasta: hasta || undefined },
+  });
+  return data;
+}

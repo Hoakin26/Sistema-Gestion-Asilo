@@ -33,7 +33,8 @@ const ESTILOS = {
  *
  * DE-01 (la solicitud de referencia), DE-02 (la orden de laboratorio), DE-03
  * (la receta), DE-04 (la cuenta mensual, desde HU-18), el aviso al familiar,
- * la visita y la deuda con la fundación (HU-20).
+ * la visita, la deuda con la fundación (HU-20) y la cita pendiente de pago
+ * (HU-21).
  */
 const ESTADOS = {
   ACTIVO: { Icono: CircleCheck, tono: "exito" },
@@ -77,6 +78,10 @@ const ESTADOS = {
 
   // YS-140 · Deuda con la fundación: Pendiente es el de DE-02, de arriba.
   PAGADA: { Icono: CircleCheck, tono: "exito" },
+
+  // YS-143 · Cita pendiente de pago: Sin Pago con el tono de Pendiente de Pago,
+  // y Pago Parcial es el de DE-04.
+  SIN_PAGO: { Icono: Clock, tono: "advertencia" },
 };
 
 /**
