@@ -4,7 +4,6 @@ import { Ban } from "lucide-react";
 import { FORMAS_PAGO } from "../../constants/estados";
 import { useToast } from "../../hooks/useToast";
 import { erroresPorCampo, mensajeDeError } from "../../services/api";
-import { anularPago, obtenerPagos } from "../../services/cuentaService";
 import { formatearFecha, formatearFechaHora } from "../../utils/fechas";
 import { formatearQuetzales } from "../../utils/formato";
 import { enfocarPrimerError } from "../../utils/formularios";
@@ -15,7 +14,7 @@ import { Textarea } from "../ui/Input";
 import { Modal } from "../ui/Modal";
 import { Barra } from "../ui/TablaSkeleton";
 
-function FormularioAnulacion({ pago, alCerrar, alAnular }) {
+function FormularioAnulacion({ pago, anular, alCerrar, alAnular }) {
   const refFormulario = useRef(null);
   const [motivo, setMotivo] = useState("");
   const [error, setError] = useState(null);
@@ -32,7 +31,7 @@ function FormularioAnulacion({ pago, alCerrar, alAnular }) {
     setGuardando(true);
     setErrorGeneral(null);
     try {
-      alAnular(await anularPago(pago.id, motivo.trim()));
+      alAnular(await anular(pago.id, motivo.trim()));
     } catch (fallo) {
       // 409: otra persona ya lo anuló.
       const porCampo = erroresPorCampo(fallo);
@@ -50,8 +49,8 @@ function FormularioAnulacion({ pago, alCerrar, alAnular }) {
       <div className="flex flex-col gap-6 px-4 py-6 sm:px-6">
         {errorGeneral && <Alert>{errorGeneral}</Alert>}
         <Alert tipo="info" rol="status">
-          El pago de {formatearQuetzales(pago.monto)} del {formatearFecha(pago.fecha)} vuelve al saldo de la cuenta. No se
-          borra: queda en el historial como anulado, con el motivo.
+          El pago de {formatearQuetzales(pago.monto)} del {formatearFecha(pago.fecha)} vuelve al saldo. No se borra:
+          queda en el historial como anulado, con el motivo.
         </Alert>
         <FormField etiqueta="Motivo de la anulación" obligatorio error={error}>
           {(campo) => (
@@ -82,21 +81,33 @@ function FormularioAnulacion({ pago, alCerrar, alAnular }) {
 }
 
 /**
- * HU-34 (YS-177). El historial de pagos de una cuenta mensual, del más reciente
- * al más antiguo, con los anulados marcados y su motivo. Un pago vigente se
- * puede anular con su motivo (YS-176); `alCambiar` recibe la cuenta con su
- * saldo y su estado nuevos.
+ * HU-34 (YS-177). El historial de pagos de una cuenta, del más reciente al
+ * más antiguo, con los anulados marcados y su motivo. Un pago vigente se puede
+ * anular con su motivo (YS-176).
+ *
+ * YS-140. Sirve igual para la cuenta del familiar (HU-34) y para la deuda con
+ * la fundación (HU-20): `cargar()` y `anular(pagoId, motivo)` llaman a su API
+ * y responden `{ cuenta, pagos }`. `clave` identifica la cuenta: al cambiar,
+ * se vuelve a cargar. `alCambiar` recibe la cuenta con su saldo y su estado
+ * nuevos después de anular.
  */
-export function PagosCuenta({ cuentaId, alCambiar }) {
+export function HistorialPagos({ clave, cargar, anular, alCambiar }) {
   const { mostrar } = useToast();
   const [pagos, setPagos] = useState(null);
   const [error, setError] = useState(null);
   const [enAnulacion, setEnAnulacion] = useState(null);
   const [aperturas, setAperturas] = useState(0);
+  // `cargar` es una función nueva en cada render del padre: se guarda la última
+  // y solo se vuelve a pedir el historial cuando cambia de cuenta (`clave`).
+  const refCargar = useRef(cargar);
+  useEffect(() => {
+    refCargar.current = cargar;
+  });
 
   useEffect(() => {
     let vigente = true;
-    obtenerPagos(cuentaId)
+    refCargar
+      .current()
       .then((historial) => {
         if (vigente) setPagos(historial.pagos);
       })
@@ -108,7 +119,7 @@ export function PagosCuenta({ cuentaId, alCambiar }) {
     return () => {
       vigente = false;
     };
-  }, [cuentaId]);
+  }, [clave]);
 
   if (pagos === null) {
     return (
@@ -123,7 +134,7 @@ export function PagosCuenta({ cuentaId, alCambiar }) {
     <div className="px-4 pb-4">
       {error && <Alert>{error}</Alert>}
       {pagos.length === 0 && !error ? (
-        <p className="text-auxiliar text-texto-secundario">Todavía no hay pagos en esta cuenta.</p>
+        <p className="text-auxiliar text-texto-secundario">Todavía no hay pagos registrados.</p>
       ) : (
         <ul className="divide-y divide-divisor rounded-tarjeta border border-divisor bg-fondo">
           {pagos.map((pago) => (
@@ -170,6 +181,7 @@ export function PagosCuenta({ cuentaId, alCambiar }) {
           <FormularioAnulacion
             key={aperturas}
             pago={enAnulacion}
+            anular={anular}
             alCerrar={() => setEnAnulacion(null)}
             alAnular={(historial) => {
               setEnAnulacion(null);
