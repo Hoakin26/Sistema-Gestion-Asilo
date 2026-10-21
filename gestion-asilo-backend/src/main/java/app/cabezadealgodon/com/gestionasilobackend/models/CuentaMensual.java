@@ -5,6 +5,8 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
 
+import org.hibernate.annotations.ColumnDefault;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -97,10 +99,17 @@ public class CuentaMensual {
 
     /**
      * YS-133. Lo pagado por el familiar, sin los pagos anulados (HU-34). El
-     * valor por defecto va en la columna, como en {@code Usuario}: la tabla ya
-     * tiene filas, y las cuentas que existían no tenían pagos.
+     * valor por defecto va en la columna: la tabla ya tiene filas, y las
+     * cuentas que existían no tenían pagos.
+     *
+     * <p>
+     * YS-139. Con {@code @ColumnDefault} y no con {@code columnDefinition}, como
+     * estaba en HU-34: con una definición escrita a mano, Hibernate no
+     * reconocía el tipo de la columna ya creada e intentaba alterarlo en cada
+     * arranque con un DDL inválido.
      */
-    @Column(name = "total_pagado", nullable = false, columnDefinition = "numeric(10,2) not null default 0")
+    @Column(name = "total_pagado", nullable = false, precision = 10, scale = 2)
+    @ColumnDefault("0")
     @Setter(AccessLevel.NONE)
     private BigDecimal totalPagado = BigDecimal.ZERO.setScale(2);
 
