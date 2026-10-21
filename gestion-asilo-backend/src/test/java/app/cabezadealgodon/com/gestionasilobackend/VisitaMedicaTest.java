@@ -92,7 +92,8 @@ import tools.jackson.databind.ObjectMapper;
  * reúne los cargos de los tres, desde HU-19 (YS-138), los descuentos de la
  * fundación que se le aplican, desde HU-34 (YS-178), los pagos del familiar
  * sobre esa cuenta, su anulación y la mora, y desde HU-20 (YS-141), lo que el
- * asilo le debe a la fundación por esos mismos cargos y sus pagos.
+ * asilo le debe a la fundación por esos mismos cargos y sus pagos, y desde
+ * HU-21 (YS-144), las citas que el familiar todavía no termina de pagar.
  * Desde HU-02 (YS-67), el historial médico centralizado del Médico General,
  * que se arma con todo lo anterior.
  *
@@ -2111,6 +2112,124 @@ class VisitaMedicaTest extends PruebaConBaseDeDatos {
                 .andExpect(status().isForbidden());
     }
 
+    // ---- YS-144: las citas pendientes de pago (HU-21) ----
+
+    /**
+     * Decidido el 21/10: una fila por cita, lo pagado de la cuenta repartido en
+     * proporción, y las de un mes sin consolidar como Sin Pago. Se filtra por el
+     * DPI del interno: la base es compartida y los internos de prueba se
+     * llaman igual.
+     */
+    @Test
+    @DisplayName("Una cita sin pagar sale Sin Pago, con un pago parcial lleva su parte en proporción y, pagada la cuenta, ya no aparece")
+    void lasCitasPendientesSalenDeLosPagos() throws Exception {
+        tarifaDe(6, "410.00");
+        Especialista especialista = nuevoEspecialista(6);
+        Cita cita = citaEl(especialista, HOY.atTime(8, 0));
+        Long interno = cita.getSolicitud().getInterno().getId();
+        String dpi = dpiDe(cita);
+        // 410 de la consulta, 120 del examen y 35.50 del medicamento; con la cuota, la cuenta suma 1000.
+        cambiarCuota(interno, "434.50").andExpect(status().isOk());
+        conLosTresCargos(cita, especialista, "Glucosa en ayunas", "120.00", "Quetiapina", "35.50");
+        String numero = solicitudRepository.findById(cita.getSolicitud().getId()).orElseThrow().getNumero();
+
+        // Antes de consolidar: sin pago, y marcada.
+        String cuerpo = citasPendientes(dpi, null, null)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.citas.length()").value(1))
+                .andExpect(jsonPath("$.citas[0].numeroSolicitud").value(numero))
+                .andExpect(jsonPath("$.citas[0].fecha").value(HOY.toString()))
+                .andExpect(jsonPath("$.citas[0].paciente.id").value(interno.intValue()))
+                .andExpect(jsonPath("$.citas[0].servicios[*].tipo").value(contains("CONSULTA", "LABORATORIO", "FARMACIA")))
+                .andExpect(jsonPath("$.citas[0].servicios[*].cantidad").value(contains(1, 1, 1)))
+                .andExpect(jsonPath("$.citas[0].montoTotal").value(565.50))
+                .andExpect(jsonPath("$.citas[0].montoPagado").value(0.00))
+                .andExpect(jsonPath("$.citas[0].saldo").value(565.50))
+                .andExpect(jsonPath("$.citas[0].estado").value("SIN_PAGO"))
+                .andExpect(jsonPath("$.citas[0].sinConsolidar").value(true))
+                .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
+        String especialidad = especialidadRepository.findById(idEspecialidad(6)).orElseThrow().getNombre();
+        assertThat(cuerpo).doesNotContain("Glucosa en ayunas", "Quetiapina", "Hipertensión", especialidad);
+
+        long cuenta = cuentaDelMes(interno);
+        citasPendientes(dpi, null, null)
+                .andExpect(jsonPath("$.citas[0].estado").value("SIN_PAGO"))
+                .andExpect(jsonPath("$.citas[0].sinConsolidar").value(false));
+
+        // El 40 % de la cuenta: la cita lleva pagado el 40 % de lo suyo.
+        pagar(cuenta, "400", HOY, "EFECTIVO").andExpect(status().isCreated());
+        citasPendientes(dpi, null, null)
+                .andExpect(jsonPath("$.citas[0].montoPagado").value(226.20))
+                .andExpect(jsonPath("$.citas[0].saldo").value(339.30))
+                .andExpect(jsonPath("$.citas[0].estado").value("PAGO_PARCIAL"))
+                .andExpect(jsonPath("$.citas[0].vencida").value(false))
+                .andExpect(jsonPath("$.saldoPendiente").value(339.30));
+
+        // Vencida su cuenta, se marca: se lleva la cuenta a hace dos meses.
+        CuentaMensual vencida = cuentaRepository.findById(cuenta).orElseThrow();
+        vencida.setPeriodo(YearMonth.now().minusMonths(2).toString());
+        cuentaRepository.save(vencida);
+        citasPendientes(dpi, null, null)
+                .andExpect(jsonPath("$.citas[0].estado").value("PAGO_PARCIAL"))
+                .andExpect(jsonPath("$.citas[0].vencida").value(true));
+
+        // Pagada completa, sale del listado.
+        pagar(cuenta, "600", HOY, "EFECTIVO").andExpect(status().isCreated());
+        citasPendientes(dpi, null, null)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.citas").isEmpty())
+                .andExpect(jsonPath("$.saldoPendiente").value(0.00));
+    }
+
+    @Test
+    @DisplayName("Las citas pendientes se filtran por rango de fechas y por paciente, sin mayúsculas ni tildes; un rango al revés es 400")
+    void filtrosDeCitasPendientes() throws Exception {
+        tarifaDe(6, "410.00");
+        Especialista especialista = nuevoEspecialista(6);
+        Cita anterior = citaEl(especialista, HOY.minusDays(3).atTime(8, 0));
+        Long interno = anterior.getSolicitud().getInterno().getId();
+        long primera = idDe(iniciar(anterior.getId(), especialista));
+        diagnosticar(primera, especialista, "Control", null).andExpect(status().isOk());
+        finalizar(primera, especialista).andExpect(status().isOk());
+        long segunda = consultaFinalizada(especialista, HOY.atTime(9, 0), interno);
+        String dpi = dpiDe(anterior);
+
+        citasPendientes(dpi, null, null)
+                .andExpect(jsonPath("$.citas[*].visitaId").value(contains((int) primera, (int) segunda)))
+                .andExpect(jsonPath("$.montoTotal").value(820.00));
+        citasPendientes(dpi, HOY, null)
+                .andExpect(jsonPath("$.citas[*].visitaId").value(contains((int) segunda)));
+        citasPendientes(dpi, null, HOY.minusDays(1))
+                .andExpect(jsonPath("$.citas[*].visitaId").value(contains((int) primera)));
+        citasPendientes(dpi, HOY.minusDays(3), HOY.minusDays(3))
+                .andExpect(jsonPath("$.citas[*].visitaId").value(contains((int) primera)));
+
+        // Por nombre, como lo escribe la gente: sin tildes ni mayúsculas.
+        Interno conTildes = internoRepository.findById(interno).orElseThrow();
+        conTildes.setNombreCompleto("Ñoño Ávila Pendiente " + dpi);
+        internoRepository.save(conTildes);
+        citasPendientes("nono avila pendiente " + dpi, null, null)
+                .andExpect(jsonPath("$.citas.length()").value(2))
+                .andExpect(jsonPath("$.citas[0].paciente.nombreCompleto").value("Ñoño Ávila Pendiente " + dpi));
+        citasPendientes("nadie se llama así 123", null, null).andExpect(jsonPath("$.citas").isEmpty());
+
+        citasPendientes(dpi, HOY, HOY.minusDays(1))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errores.hasta").value("La fecha final no puede ser anterior a la inicial"));
+        mvc.perform(get("/api/servicios-pendientes").param("desde", "ayer")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(RolNombre.ADMINISTRADOR_ASILO)))
+                .andExpect(status().isBadRequest());
+        mvc.perform(get("/api/servicios-pendientes")).andExpect(status().isUnauthorized());
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @EnumSource(value = RolNombre.class, names = "ADMINISTRADOR_ASILO", mode = EnumSource.Mode.EXCLUDE)
+    @DisplayName("Los otros seis roles no ven las citas pendientes de pago: 403")
+    void soloElAdministradorDelAsiloVeLasPendientes(RolNombre rol) throws Exception {
+        mvc.perform(get("/api/servicios-pendientes").header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(rol)))
+                .andExpect(status().isForbidden());
+    }
+
     // ---- YS-107: el diagnóstico y el cierre de la visita (HU-09) ----
 
     @Test
@@ -2579,9 +2698,31 @@ class VisitaMedicaTest extends PruebaConBaseDeDatos {
         return visita;
     }
 
+    /** YS-144. Las citas pendientes del paciente (nombre o DPI) en el rango; {@code null} lo omite. */
+    private ResultActions citasPendientes(String paciente, LocalDate desde, LocalDate hasta) throws Exception {
+        MockHttpServletRequestBuilder peticion = get("/api/servicios-pendientes")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(RolNombre.ADMINISTRADOR_ASILO));
+        if (paciente != null) {
+            peticion.param("paciente", paciente);
+        }
+        if (desde != null) {
+            peticion.param("desde", desde.toString());
+        }
+        if (hasta != null) {
+            peticion.param("hasta", hasta.toString());
+        }
+        return mvc.perform(peticion);
+    }
+
     /** YS-141. Una visita finalizada con solo su consulta: un cargo con la tarifa de la especialidad. */
     private long consultaFinalizada(Especialista especialista, LocalDateTime momento) throws Exception {
-        Cita cita = citaEl(especialista, momento);
+        return consultaFinalizada(especialista, momento, null);
+    }
+
+    /** YS-144. Lo mismo, para un interno que ya existe; con {@code null}, uno nuevo. */
+    private long consultaFinalizada(Especialista especialista, LocalDateTime momento, Long internoId)
+            throws Exception {
+        Cita cita = citaEl(especialista, momento, internoId);
         long visita = idDe(iniciar(cita.getId(), especialista));
         diagnosticar(visita, especialista, "Control", null).andExpect(status().isOk());
         finalizar(visita, especialista).andExpect(status().isOk());
