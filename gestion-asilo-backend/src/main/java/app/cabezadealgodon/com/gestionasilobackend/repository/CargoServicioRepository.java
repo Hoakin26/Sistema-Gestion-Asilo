@@ -1,7 +1,9 @@
 package app.cabezadealgodon.com.gestionasilobackend.repository;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -9,6 +11,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import app.cabezadealgodon.com.gestionasilobackend.models.CargoServicio;
+import app.cabezadealgodon.com.gestionasilobackend.models.TipoServicio;
 
 public interface CargoServicioRepository extends JpaRepository<CargoServicio, Long> {
 
@@ -37,4 +40,42 @@ public interface CargoServicioRepository extends JpaRepository<CargoServicio, Lo
             """)
     List<CargoServicio> delInternoEntre(@Param("internoId") Long internoId, @Param("desde") LocalDate desde,
             @Param("hasta") LocalDate hasta);
+
+    /**
+     * YS-139. Lo que suman los cargos de cada mes y tipo de servicio: lo que el
+     * asilo le debe a la fundación (HU-20). El neto, con el descuento que da la
+     * fundación (decidido el 21/10). Sin nada del interno ni del servicio en
+     * sí: solo el tipo, cuántos y cuánto.
+     */
+    @Query("""
+            select year(c.fecha) as anio, month(c.fecha) as mes, c.tipo as tipo,
+                   count(c) as cantidad, sum(c.montoNeto) as total
+            from CargoServicio c
+            group by year(c.fecha), month(c.fecha), c.tipo
+            """)
+    List<TotalDelMes> totalesPorMes();
+
+    /** YS-139. Lo mismo para un solo tipo de servicio entre dos fechas: la deuda de un mes. */
+    @Query("""
+            select year(c.fecha) as anio, month(c.fecha) as mes, c.tipo as tipo,
+                   count(c) as cantidad, sum(c.montoNeto) as total
+            from CargoServicio c
+            where c.tipo = :tipo and c.fecha between :desde and :hasta
+            group by year(c.fecha), month(c.fecha), c.tipo
+            """)
+    Optional<TotalDelMes> totalDelMes(@Param("tipo") TipoServicio tipo, @Param("desde") LocalDate desde,
+            @Param("hasta") LocalDate hasta);
+
+    /** YS-139. Una fila de {@link #totalesPorMes}: cuántos cargos de un tipo hubo en un mes y cuánto suman. */
+    interface TotalDelMes {
+        Integer getAnio();
+
+        Integer getMes();
+
+        TipoServicio getTipo();
+
+        Long getCantidad();
+
+        BigDecimal getTotal();
+    }
 }
