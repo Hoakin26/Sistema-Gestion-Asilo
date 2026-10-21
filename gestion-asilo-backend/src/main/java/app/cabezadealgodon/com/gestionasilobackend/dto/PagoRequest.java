@@ -14,6 +14,10 @@ import jakarta.validation.constraints.Size;
  * YS-133. Un pago del familiar (HU-34): la fecha, el monto y la forma de pago,
  * con la referencia de la boleta o la transferencia si la hay. Que no pase del
  * saldo lo revisa el servicio, porque depende de la cuenta.
+ *
+ * <p>
+ * YS-139. El pago del asilo a la fundación (HU-20) lleva los mismos datos y
+ * las mismas reglas, así que usa este mismo DTO.
  */
 public record PagoRequest(
         @NotNull(message = "Indique el monto del pago")
