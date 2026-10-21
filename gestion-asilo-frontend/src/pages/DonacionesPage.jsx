@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
-import { Ban, Gift, Plus, Search } from "lucide-react";
+import { Ban, Gift, Plus } from "lucide-react";
 
 import { DonacionFormModal } from "../components/donaciones/DonacionFormModal";
+import { FiltrosHistorico } from "../components/finanzas/FiltrosHistorico";
+import { TotalesPorTipo } from "../components/finanzas/TotalesPorTipo";
 import { Alert } from "../components/ui/Alert";
 import { Button } from "../components/ui/Button";
-import { FormField } from "../components/ui/FormField";
 import { FormularioAnulacion } from "../components/ui/FormularioAnulacion";
-import { Input, Select } from "../components/ui/Input";
 import { Modal } from "../components/ui/Modal";
 import { TablaSkeleton } from "../components/ui/TablaSkeleton";
 import { TIPOS_DONANTE } from "../constants/estados";
@@ -28,10 +28,6 @@ const ENCABEZADO = "px-4 py-4 text-auxiliar font-semibold text-texto-secundario 
  */
 export function DonacionesPage() {
   const { mostrar } = useToast();
-  const [tipo, setTipo] = useState("");
-  const [desde, setDesde] = useState("");
-  const [hasta, setHasta] = useState("");
-  // Lo que de verdad se consulta: cambia al pulsar "Buscar", no en cada cambio.
   const [filtros, setFiltros] = useState({ tipo: "", desde: "", hasta: "" });
   // Registrar o anular cambia el histórico: se vuelve a pedir con los mismos filtros.
   const [recargas, setRecargas] = useState(0);
@@ -67,14 +63,10 @@ export function DonacionesPage() {
     };
   }, [filtros, recargas]);
 
-  const buscar = (evento) => {
-    evento.preventDefault();
-    const encontrados = {};
-    if (desde && hasta && hasta < desde) encontrados.hasta = "La fecha final no puede ser anterior a la inicial";
-    setErrores(encontrados);
-    if (Object.keys(encontrados).length > 0) return;
+  const buscar = (nuevos) => {
+    setErrores({});
     setCargando(true);
-    setFiltros({ tipo, desde, hasta });
+    setFiltros(nuevos);
   };
 
   const recargar = () => setRecargas((valor) => valor + 1);
@@ -101,46 +93,14 @@ export function DonacionesPage() {
         </Button>
       </div>
 
-      <form onSubmit={buscar} noValidate className="mt-6 flex flex-wrap items-end gap-4">
-        <FormField etiqueta="Tipo de donante" error={errores.tipo}>
-          {(campo) => (
-            <Select {...campo} value={tipo} onChange={(evento) => setTipo(evento.target.value)} className="sm:w-64">
-              <option value="">Todos los tipos</option>
-              {Object.entries(TIPOS_DONANTE).map(([clave, etiqueta]) => (
-                <option key={clave} value={clave}>
-                  {etiqueta}
-                </option>
-              ))}
-            </Select>
-          )}
-        </FormField>
-        <FormField etiqueta="Desde" error={errores.desde}>
-          {(campo) => (
-            <Input
-              {...campo}
-              type="date"
-              value={desde}
-              onChange={(evento) => setDesde(evento.target.value)}
-              className="sm:w-48"
-            />
-          )}
-        </FormField>
-        <FormField etiqueta="Hasta" error={errores.hasta}>
-          {(campo) => (
-            <Input
-              {...campo}
-              type="date"
-              value={hasta}
-              onChange={(evento) => setHasta(evento.target.value)}
-              className="sm:w-48"
-            />
-          )}
-        </FormField>
-        <Button type="submit" variante="secundario" cargando={cargando}>
-          {!cargando && <Search aria-hidden="true" size={20} />}
-          Buscar
-        </Button>
-      </form>
+      <FiltrosHistorico
+        etiquetaTipo="Tipo de donante"
+        etiquetaTodos="Todos los tipos"
+        opciones={TIPOS_DONANTE}
+        cargando={cargando}
+        errores={errores}
+        alBuscar={buscar}
+      />
 
       {error && (
         <div className="mt-6">
@@ -149,29 +109,18 @@ export function DonacionesPage() {
       )}
 
       {datos && (
-        <section
-          aria-label="Lo que suman las donaciones del período"
-          className="mt-6 rounded-tarjeta border border-divisor bg-superficie p-4 shadow-tarjeta sm:p-6"
-        >
-          <div className="flex flex-wrap items-baseline justify-between gap-4">
-            <p className="text-texto-secundario">{conFiltros ? "Total del período" : "Total de todas las donaciones"}</p>
-            <p className="text-h3 font-semibold tabular-nums slashed-zero">{formatearQuetzales(datos.total)}</p>
-          </div>
-          <dl className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            {datos.porTipo.map((grupo) => (
-              <div key={grupo.tipoDonante} className="rounded-tarjeta bg-fondo px-4 py-3">
-                <dt className="text-auxiliar text-texto-secundario">{TIPOS_DONANTE[grupo.tipoDonante]}</dt>
-                <dd className="mt-1 tabular-nums slashed-zero">
-                  <span className="font-semibold">{formatearQuetzales(grupo.total)}</span>
-                  <span className="text-auxiliar text-texto-secundario">
-                    {" "}
-                    · {grupo.cantidad === 1 ? "1 donación" : `${grupo.cantidad} donaciones`}
-                  </span>
-                </dd>
-              </div>
-            ))}
-          </dl>
-        </section>
+        <TotalesPorTipo
+          etiqueta="Lo que suman las donaciones del período"
+          titulo={conFiltros ? "Total del período" : "Total de todas las donaciones"}
+          total={datos.total}
+          grupos={datos.porTipo.map((grupo) => ({
+            clave: grupo.tipoDonante,
+            etiqueta: TIPOS_DONANTE[grupo.tipoDonante],
+            cantidad: grupo.cantidad,
+            total: grupo.total,
+          }))}
+          unidad={["donación", "donaciones"]}
+        />
       )}
 
       <div className="mt-6">
