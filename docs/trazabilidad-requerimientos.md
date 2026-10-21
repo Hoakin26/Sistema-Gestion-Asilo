@@ -33,9 +33,9 @@ Desde la versión 1.1 son 24 RF: RF-20 y RF-21 se dividieron en dos cada uno y s
 | RF-20b | Reporte de entradas | HU-27 | YS-160 a YS-162 | Sprint 3, 14/10 |
 | RF-21a | Reporte de exámenes por paciente | HU-28 | YS-163 a YS-165 | Sprint 3, 14/10. HU-28 se dividió en criterios de aceptación separados para RF-21a y RF-21b (v1.1) |
 | RF-21b | Reporte de medicamentos por paciente | HU-28 | YS-163 a YS-165 | Sprint 3, 14/10 |
-| RF-22 | Registro de pagos del familiar | HU-34 (YS-173) | YS-133 (movida desde HU-18 el 20/10); faltan las de pantalla y pruebas | Sprint 3. Nuevo en v1.1; sin él, RF-12 y RF-14 no pueden cambiar el estado de los servicios pagados. Va después de HU-19: el familiar paga la cuenta con descuento. La cuenta mensual de HU-18 ya deja el saldo y el estado (DE-04) listos para descontar los pagos |
+| RF-22 | Registro de pagos del familiar | HU-34 (YS-173) | YS-133 (movida desde HU-18 el 20/10), YS-176 a YS-178 | **Implementado** (20/10). Nuevo en v1.1. El Administrador del Asilo registra cada pago con fecha, monto, forma de pago y referencia, desde "Cuentas por cobrar" o desde el estado de cuenta del interno, y se aplica a la cuenta mensual entera (cuota más servicios con descuento). Un pago parcial se descuenta del saldo y deja la cuenta en Pago Parcial; el del total la deja Completamente Cancelada. El monto tiene que ser mayor que cero y no pasar del saldo. Cada cuenta tiene su historial de pagos, y un pago mal registrado se anula con su motivo, sin borrarse. La cuenta vence al final del mes siguiente y, con saldo, pasa sola a En Mora (DE-04). Reconsolidar una cuenta con pagos congela lo ya cobrado y solo suma los cargos nuevos (decidido el 20/10). De aquí leen RF-14 (HU-21) y RF-19 (HU-26) |
 
-**Cobertura planificada: 24 de 24.** Implementados al 20/10: RF-01, RF-02, RF-03, RF-04, RF-05, RF-06, RF-07, RF-08, RF-09, RF-10, RF-11 y RF-12. Si el tiempo aprieta, lo que se ajusta es el nivel de detalle de cada historia (`fase-diseno.md`, 1.7, Nivel 1), nunca la lista de requerimientos.
+**Cobertura planificada: 24 de 24.** Implementados al 20/10: RF-01, RF-02, RF-03, RF-04, RF-05, RF-06, RF-07, RF-08, RF-09, RF-10, RF-11, RF-12 y RF-22. Si el tiempo aprieta, lo que se ajusta es el nivel de detalle de cada historia (`fase-diseno.md`, 1.7, Nivel 1), nunca la lista de requerimientos.
 
 ## 2. Requerimientos no funcionales
 

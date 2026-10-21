@@ -984,7 +984,7 @@ Es la vista financiera de un dato clínico: cada cargo salió de una consulta, u
 
 ### Consolidar no duplica
 
-La cuenta es una por interno y mes, con una restricción única en la base. Consolidar otra vez el mismo mes recalcula la misma cuenta con los cargos que tenga en ese momento, y cada cargo apunta a una sola cuenta. Mientras no haya pagos (llegan con HU-34) recalcular no le quita nada a nadie; HU-34 decidirá qué pasa al reconsolidar una cuenta que ya tiene pagos. La cuenta guarda el familiar y la cuota con que se cobró, para que un cambio posterior no reescriba lo ya cobrado.
+La cuenta es una por interno y mes, con una restricción única en la base. Consolidar otra vez el mismo mes recalcula la misma cuenta con los cargos que tenga en ese momento, y cada cargo apunta a una sola cuenta. Mientras no haya pagos recalcular no le quita nada a nadie; lo que pasa al reconsolidar una cuenta que ya tiene pagos lo decidió HU-34 (sección 38). La cuenta guarda el familiar y la cuota con que se cobró, para que un cambio posterior no reescriba lo ya cobrado.
 
 ### La cuota tiene un solo dueño
 
@@ -1006,9 +1006,31 @@ Un descuento mayor que el costo se limita al costo: el cargo queda en cero y el 
 
 ### Por fecha y versionado
 
-Decidido el 20/10. Cada política rige desde su fecha hasta que empieza la siguiente del mismo servicio, y a cada cargo le toca la vigente el día del servicio. Cambiar un descuento agrega una versión nueva en vez de reescribir la anterior: lo que rigió antes queda escrito, y un mes ya consolidado solo cambia si se vuelve a consolidar con una versión que ya regía esas fechas. Cuando lleguen los pagos (HU-34), una cuenta con pagos no debería recalcularse; esa regla es de HU-34.
+Decidido el 20/10. Cada política rige desde su fecha hasta que empieza la siguiente del mismo servicio, y a cada cargo le toca la vigente el día del servicio. Cambiar un descuento agrega una versión nueva en vez de reescribir la anterior: lo que rigió antes queda escrito, y un mes ya consolidado solo cambia si se vuelve a consolidar con una versión que ya regía esas fechas. Una cuenta con pagos no vuelve a calcular los descuentos de lo que ya cobró (HU-34, sección 38).
 
-## 38. Qué falta
+## 38. Los pagos del familiar (HU-34)
+
+### Quién cobra
+
+`POST /api/cuentas/{id}/pagos`, `GET /api/cuentas/{id}/pagos` y `POST /api/pagos/{id}/anulacion` están en `CuentaFamiliarController`, bajo el mismo `@SoloAdministradorAsilo` de la sección 36. `VisitaMedicaTest` barre los otros seis roles en los tres y todos reciben 403. La prueba manda cuerpos válidos, porque la validación corre antes que la seguridad del método: con un cuerpo inválido respondería 400 sin llegar a comprobar el rol. El historial no lleva nada clínico: monto, fecha, forma de pago, referencia y quién lo registró.
+
+### El pago no pasa del saldo
+
+Que el monto sea mayor que cero y tenga dos decimales lo revisa `PagoRequest`; que no pase del saldo, `PagoService`, con el saldo leído en la misma transacción. Una cuenta ya pagada completa no recibe más pagos (409). La cuenta tiene `@Version`: dos pagos simultáneos que juntos pasarían del saldo no se suman los dos, el segundo recibe 409 y tiene que volver a leer el saldo. El saldo y el estado no tienen setter: solo cambian con `registrarPago`, `anularPago` y la consolidación, así que nadie los pone a mano.
+
+### Anular no borra
+
+Decidido el 20/10. Un pago mal registrado se anula con un motivo obligatorio, y queda en el historial tachado, con quién lo anuló y cuándo. Su monto vuelve al saldo y el estado se recalcula sin él. Borrarlo dejaría un hueco en lo cobrado sin explicación, justo lo que un control de caja tiene que poder rastrear. Un pago anulado no se anula dos veces (409).
+
+### Lo cobrado se congela
+
+Decidido el 20/10. Al reconsolidar una cuenta con pagos, los cargos que ya estaban en ella conservan su monto y su descuento, y la cuota y el familiar se quedan como estaban. Solo se suman los cargos que llegaron después. Así un cambio de cuota o un descuento nuevo no reescribe lo que el familiar ya pagó; si entra un cargo nuevo, el saldo crece y una cuenta cancelada vuelve a Pago Parcial.
+
+### La mora la pone el calendario
+
+Decidido el 20/10. La cuenta vence al final del mes siguiente a su período: la de octubre, el 30 de noviembre. Pasada esa fecha, con saldo, está En Mora; un pago parcial no la saca y el del total sí. El estado no se cambia a mano. `CuentaMensual.estadoAl` lo calcula con el saldo, lo pagado y la fecha, y cada lectura lo recalcula con la fecha del día, porque la mora llega sin que nadie toque la cuenta. `CuentaMensualTest` cubre los bordes: el día en que vence, el siguiente, el cambio de año y febrero bisiesto.
+
+## 39. Qué falta
 
 Nada pendiente de HU-30, HU-31 ni HU-32. Lo que queda abierto, sin historia asignada todavía:
 
