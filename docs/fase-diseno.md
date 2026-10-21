@@ -1101,16 +1101,41 @@ classDiagram
         -BigDecimal totalServicios
         -BigDecimal totalDescuentos
         -BigDecimal totalAPagar
+        -BigDecimal totalPagado
         -BigDecimal saldo
         -EstadoCuenta estado
     }
+    class PagoRegistrado {
+        <<abstract>>
+        -BigDecimal monto
+        -LocalDate fecha
+        -FormaPago formaPago
+        -String referencia
+        -boolean anulado
+        -String motivoAnulacion
+    }
+    class Pago
+    class CuentaPorPagar {
+        -Long id
+        -String periodo
+        -TipoServicio tipoServicio
+        -BigDecimal totalPagado
+    }
+    class PagoFundacion
     CargoServicio "*" --> "1" Interno
     CargoServicio "*" --> "1" VisitaMedica : origen
     CargoServicio "*" --> "0..1" CuentaMensual : consolidado en
     CuentaMensual "*" --> "1" Interno
     CuentaMensual "*" --> "1" Familiar : a cargo de
     PoliticaDescuento ..> CargoServicio : determina el descuento
+    PagoRegistrado <|-- Pago
+    PagoRegistrado <|-- PagoFundacion
+    Pago "*" --> "1" CuentaMensual : abona a
+    PagoFundacion "*" --> "1" CuentaPorPagar : abona a
+    CargoServicio ..> CuentaPorPagar : su neto suma lo adeudado
 ```
+
+`CuentaPorPagar` (HU-20) es lo que el asilo le debe a la fundación por un tipo de servicio en un mes. No guarda lo adeudado: es siempre la suma del neto de los cargos de ese mes y servicio, así que no tiene relación directa con ellos ni hay que consolidarla (decidido el 21/10). Guarda lo pagado, y nace con el primer pago. `Pago` y `PagoFundacion` comparten sus campos y la anulación en `PagoRegistrado` (`@MappedSuperclass`, sin tabla propia).
 
 **Enumeraciones: máquinas de estado DE-01 a DE-04 y catálogos**
 
@@ -1308,7 +1333,9 @@ stateDiagram-v2
 | Farmacia | `FarmaciaService` (sobre `Receta`) | HU-15 a HU-17 | Sprint 3 |
 | Finanzas | `CargoServicio`, `PoliticaDescuento`, `CuentaMensual`, `CargoService`, `CalculadoraDescuento`, `CuentaFamiliarService` | HU-18, HU-19 | Sprint 3 |
 | Notificaciones | `SolicitudCreadaEvent`, `NotificacionService` (Spring Mail, asíncrono) | HU-04 | Sprint 2 |
-| Donaciones, gastos, cuentas por pagar | `Donacion`, `GastoOperativo`, `PagoFundacion`, `Pago` | HU-20 a HU-23 | Sprint 3 |
+| Pagos del familiar | `Pago`, `PagoRegistrado`, `PagoService` | HU-34 | Implementado (20/10) |
+| Cuentas por pagar | `CuentaPorPagar`, `PagoFundacion`, `CuentaPorPagarService` | HU-20 | Implementado (21/10) |
+| Donaciones y gastos | `Donacion`, `GastoOperativo` | HU-22, HU-23 | Sprint 3 |
 | Reportes | `ReporteService` y plantillas PDF | HU-24 a HU-28 | Sprint 3 |
 
 ---
@@ -1947,6 +1974,10 @@ classDiagram
 | GET | `/api/internos/{id}/estado-cuenta?desde=&hasta=` | AA | — | `EstadoCuentaResponse`: entre las dos fechas (sin ellas, del primer día del mes a hoy), el desglose por concepto (cuota, consulta, laboratorio, farmacia) con cantidad, original, descuento y neto; cada cargo con fecha, tipo, número de solicitud, montos y la cuenta en que se consolidó; las cuentas mensuales del rango, los totales y el saldo total del interno. Por tipo de servicio, nunca por nombre: ni especialidad, ni examen, ni medicamento. 400 si `hasta` es anterior a `desde`; 404 si el interno no existe | HU-18, HU-19 |
 | POST | `/api/cuentas/{id}/pagos` | AA | `PagoRequest` (`monto`, obligatorio, mayor que cero y con dos decimales; `fecha`, obligatoria y no futura; `formaPago`: `EFECTIVO`, `TRANSFERENCIA`, `DEPOSITO`, `TARJETA` o `CHEQUE`; `referencia`, opcional, hasta 100) | 201, `HistorialPagosResponse`: la cuenta con lo pagado, el saldo y el estado nuevos (`PAGO_PARCIAL`, o `COMPLETAMENTE_CANCELADA` si cubre el saldo; vencida, sigue `EN_MORA` mientras haya saldo), y el historial. 400 en el campo, y en `monto` si pasa del saldo pendiente; 404 si la cuenta no existe; 409 si ya está pagada completa o si otro pago la cambió al mismo tiempo | HU-34 |
 | GET | `/api/cuentas/{id}/pagos` | AA | — | `HistorialPagosResponse`: la cuenta y sus pagos, del más reciente al más antiguo, cada uno con monto, fecha, forma de pago, referencia, quién lo registró y, si se anuló, el motivo, quién y cuándo. 404 si la cuenta no existe | HU-34 |
+| GET | `/api/cuentas-por-pagar` | AA | — | `List<CuentaPorPagarResponse>`: el histórico de lo que el asilo le debe a la fundación, una fila por mes y tipo de servicio con servicios, del mes más reciente al más antiguo: cuántos servicios hubo, lo adeudado (el neto de sus cargos, con el descuento de la fundación), lo pagado, el saldo y el estado (`PENDIENTE` o `PAGADA`). Siempre al día con los cargos; sin nombres de pacientes, exámenes ni medicamentos | HU-20 |
+| GET | `/api/cuentas-por-pagar/{periodo}/{tipoServicio}/pagos` | AA | — | `HistorialPagosFundacionResponse`: esa deuda (`2026-10`, `CONSULTA`) con sus pagos, del más reciente al más antiguo, los anulados incluidos. Un mes sin servicios de ese tipo responde en cero. 400 con un mes mal escrito o un tipo que no sea `CONSULTA`, `LABORATORIO` ni `FARMACIA` | HU-20 |
+| POST | `/api/cuentas-por-pagar/{periodo}/{tipoServicio}/pagos` | AA | `PagoRequest`, el mismo del pago del familiar | 201, `HistorialPagosFundacionResponse` con el saldo y el estado nuevos (`PAGADA` si cubre el saldo). 400 en el campo, y en `monto` si pasa del saldo pendiente; 409 si la deuda ya está pagada, si ese mes no tiene servicios de ese tipo o si otro pago la cambió al mismo tiempo | HU-20 |
+| POST | `/api/pagos-fundacion/{id}/anulacion` | AA | `AnulacionPagoRequest` | `HistorialPagosFundacionResponse`. Como en el pago del familiar: no se borra, queda anulado con el motivo y su monto vuelve al saldo. 400 sin motivo; 404 si no existe; 409 si ya estaba anulado | HU-20 |
 | POST | `/api/pagos/{id}/anulacion` | AA | `AnulacionPagoRequest` (`motivo`, obligatorio, hasta 300) | `HistorialPagosResponse`. El pago no se borra: queda anulado con el motivo, y su monto vuelve al saldo; el estado se recalcula sin él. 400 sin motivo; 404 si el pago no existe; 409 si ya estaba anulado | HU-34 |
 | GET | `/api/politicas-descuento` | AA, AF | — | `List<PoliticaDescuentoResponse>`: todas las versiones, por servicio y de la más reciente a la más antigua, con `vigente` en la que rige hoy y quién la definió | HU-19 |
 | PUT | `/api/politicas-descuento/{tipoServicio}` | AF | `PoliticaDescuentoRequest` (`tipoDescuento`: `PORCENTAJE` o `MONTO_FIJO`; `valor`, mayor o igual que cero, y un porcentaje hasta 100; `vigenteDesde`, obligatoria y puede ser pasada) | `PoliticaDescuentoResponse`. Agrega una versión vigente desde esa fecha, o corrige la que ya había en la misma fecha. Cada cargo toma la versión vigente en la fecha de su servicio, al nacer y al consolidar el mes (decidido el 20/10). 400 en el campo; 400 si el servicio no es `CONSULTA`, `LABORATORIO` ni `FARMACIA` (la cuota no lleva descuento) | HU-19 |
