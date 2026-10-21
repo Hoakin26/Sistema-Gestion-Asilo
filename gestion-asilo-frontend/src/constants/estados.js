@@ -94,6 +94,18 @@ export const TIPOS_DONANTE = {
   PARTICULAR: "Persona particular",
 };
 
+/** YS-149. En qué gasta el asilo (RF-16), con las claves de `TipoGasto` del backend y en su orden. */
+export const TIPOS_GASTO = {
+  LUZ: "Luz",
+  AGUA: "Agua",
+  TELEFONO_INTERNET: "Teléfono e internet",
+  GAS: "Gas",
+  ALIMENTACION: "Alimentación",
+  LIMPIEZA: "Limpieza",
+  MANTENIMIENTO: "Mantenimiento",
+  OTRO: "Otro",
+};
+
 /** YS-137. Los tipos de servicio con descuento de la fundación, en el orden de `TipoServicio`. */
 export const TIPOS_SERVICIO = ["CONSULTA", "LABORATORIO", "FARMACIA"];
 
