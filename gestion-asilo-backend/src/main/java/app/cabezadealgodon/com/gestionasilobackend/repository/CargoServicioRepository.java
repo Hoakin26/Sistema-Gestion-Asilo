@@ -2,6 +2,7 @@ package app.cabezadealgodon.com.gestionasilobackend.repository;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -40,6 +41,27 @@ public interface CargoServicioRepository extends JpaRepository<CargoServicio, Lo
             """)
     List<CargoServicio> delInternoEntre(@Param("internoId") Long internoId, @Param("desde") LocalDate desde,
             @Param("hasta") LocalDate hasta);
+
+    /**
+     * YS-142. Los cargos de las citas que caen entre dos momentos, de los
+     * pacientes que coinciden por nombre o DPI: la base del listado de citas
+     * pendientes de pago (HU-21). La misma búsqueda que las bandejas del
+     * laboratorio y la farmacia: el nombre sin mayúsculas ni tildes, el DPI
+     * tal cual, y con la búsqueda vacía el patrón "%%" trae todos. Con la
+     * cuenta en que se consolidó cada uno, para repartir lo pagado, y la
+     * solicitud, por su número.
+     */
+    @EntityGraph(attributePaths = { "cuenta", "interno", "visita", "visita.cita", "visita.cita.solicitud" })
+    @Query("""
+            select c from CargoServicio c
+            where c.visita.cita.fechaHora >= :desde and c.visita.cita.fechaHora < :hasta
+              and (lower(function('translate', c.interno.nombreCompleto,
+                        'áéíóúüñÁÉÍÓÚÜÑ', 'aeiouunAEIOUUN')) like :patron escape '\\'
+                   or c.interno.dpi like :patron escape '\\')
+            order by c.visita.cita.fechaHora, c.visita.id, c.id
+            """)
+    List<CargoServicio> deCitasEntre(@Param("desde") LocalDateTime desde, @Param("hasta") LocalDateTime hasta,
+            @Param("patron") String patron);
 
     /**
      * YS-139. Lo que suman los cargos de cada mes y tipo de servicio: lo que el
