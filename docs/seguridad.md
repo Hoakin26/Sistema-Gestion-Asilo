@@ -1048,7 +1048,21 @@ Decidido el 21/10: lo adeudado es siempre la suma del neto de los cargos, y no s
 
 Si la fundación define después un descuento que ya regía ese mes, al reconsolidar la cuenta del familiar el neto de los cargos baja, y con él lo adeudado. El saldo nunca queda negativo: la deuda queda Pagada con lo pagado a la vista, y la diferencia se corrige anulando el pago y registrando el correcto.
 
-## 40. Qué falta
+## 40. Las citas pendientes de pago (HU-21)
+
+### Quién las ve
+
+`GET /api/servicios-pendientes` está en `ServicioPendienteController`, bajo `@SoloAdministradorAsilo`, como la cuenta del familiar de la que sale. `VisitaMedicaTest` barre los otros seis roles y todos reciben 403. En la pantalla es una pestaña de "Cuentas por cobrar", así que no agrega una entrada al menú: el menú de cada rol sigue siendo el del diseño.
+
+### Lo que dice cada cita, y lo que no
+
+Es otra vista financiera de datos clínicos: cada cita es una visita médica. Por eso, como el estado de cuenta (sección 36), va por tipo de servicio y nunca por nombre: "1 consulta · 2 exámenes · 1 medicamento", con sus montos, y sin la especialidad, los exámenes, los medicamentos ni el diagnóstico (RNF-03). La prueba busca en la respuesta el examen, el medicamento, el diagnóstico y la especialidad, y no aparece ninguno. El número de solicitud sí va, como en el estado de cuenta, para ubicar la cita sin decir de qué fue.
+
+### Lo pagado no se inventa
+
+Decidido el 21/10: el familiar paga la cuenta del mes entera, y lo pagado se reparte entre sus citas en proporción. Nada de eso se guarda: sale cada vez de lo pagado de la cuenta y del neto de cada cargo, así que el listado no puede contradecir a la cuenta. Una cita sale del listado solo cuando sus cuentas quedan pagadas completas, como dice RF-22 ("los servicios quedan pendientes hasta cubrir el total"). La búsqueda por paciente escapa los comodines de `LIKE`, como las bandejas del laboratorio y la farmacia.
+
+## 41. Qué falta
 
 Nada pendiente de HU-30, HU-31 ni HU-32. Lo que queda abierto, sin historia asignada todavía:
 
