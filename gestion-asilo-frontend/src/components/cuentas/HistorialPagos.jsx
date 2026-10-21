@@ -3,82 +3,14 @@ import { Ban } from "lucide-react";
 
 import { FORMAS_PAGO } from "../../constants/estados";
 import { useToast } from "../../hooks/useToast";
-import { erroresPorCampo, mensajeDeError } from "../../services/api";
+import { mensajeDeError } from "../../services/api";
 import { formatearFecha, formatearFechaHora } from "../../utils/fechas";
 import { formatearQuetzales } from "../../utils/formato";
-import { enfocarPrimerError } from "../../utils/formularios";
 import { Alert } from "../ui/Alert";
 import { Button } from "../ui/Button";
-import { FormField } from "../ui/FormField";
-import { Textarea } from "../ui/Input";
+import { FormularioAnulacion } from "../ui/FormularioAnulacion";
 import { Modal } from "../ui/Modal";
 import { Barra } from "../ui/TablaSkeleton";
-
-function FormularioAnulacion({ pago, anular, alCerrar, alAnular }) {
-  const refFormulario = useRef(null);
-  const [motivo, setMotivo] = useState("");
-  const [error, setError] = useState(null);
-  const [errorGeneral, setErrorGeneral] = useState(null);
-  const [guardando, setGuardando] = useState(false);
-
-  const enviar = async (evento) => {
-    evento.preventDefault();
-    if (!motivo.trim()) {
-      setError("Escriba el motivo de la anulación");
-      enfocarPrimerError(refFormulario.current);
-      return;
-    }
-    setGuardando(true);
-    setErrorGeneral(null);
-    try {
-      alAnular(await anular(pago.id, motivo.trim()));
-    } catch (fallo) {
-      // 409: otra persona ya lo anuló.
-      const porCampo = erroresPorCampo(fallo);
-      if (porCampo?.motivo) {
-        setError(porCampo.motivo);
-        enfocarPrimerError(refFormulario.current);
-      } else setErrorGeneral(mensajeDeError(fallo, "No se pudo anular el pago"));
-    } finally {
-      setGuardando(false);
-    }
-  };
-
-  return (
-    <form ref={refFormulario} onSubmit={enviar} noValidate>
-      <div className="flex flex-col gap-6 px-4 py-6 sm:px-6">
-        {errorGeneral && <Alert>{errorGeneral}</Alert>}
-        <Alert tipo="info" rol="status">
-          El pago de {formatearQuetzales(pago.monto)} del {formatearFecha(pago.fecha)} vuelve al saldo. No se borra:
-          queda en el historial como anulado, con el motivo.
-        </Alert>
-        <FormField etiqueta="Motivo de la anulación" obligatorio error={error}>
-          {(campo) => (
-            <Textarea
-              {...campo}
-              rows={3}
-              maxLength={300}
-              value={motivo}
-              onChange={(evento) => {
-                setMotivo(evento.target.value);
-                setError(null);
-              }}
-              placeholder="Ej.: se registró Q1500 en lugar de Q150"
-            />
-          )}
-        </FormField>
-      </div>
-      <div className="sticky bottom-0 flex flex-wrap justify-end gap-3 border-t border-divisor bg-superficie px-4 py-4 sm:px-6">
-        <Button type="button" variante="secundario" onClick={alCerrar} disabled={guardando}>
-          Cancelar
-        </Button>
-        <Button type="submit" variante="peligro" cargando={guardando}>
-          Anular pago
-        </Button>
-      </div>
-    </form>
-  );
-}
 
 /**
  * HU-34 (YS-177). El historial de pagos de una cuenta, del más reciente al
@@ -180,8 +112,9 @@ export function HistorialPagos({ clave, cargar, anular, alCambiar }) {
         {enAnulacion && (
           <FormularioAnulacion
             key={aperturas}
-            pago={enAnulacion}
-            anular={anular}
+            aviso={`El pago de ${formatearQuetzales(enAnulacion.monto)} del ${formatearFecha(enAnulacion.fecha)} vuelve al saldo. No se borra: queda en el historial como anulado, con el motivo.`}
+            etiquetaBoton="Anular pago"
+            anular={(motivo) => anular(enAnulacion.id, motivo)}
             alCerrar={() => setEnAnulacion(null)}
             alAnular={(historial) => {
               setEnAnulacion(null);
