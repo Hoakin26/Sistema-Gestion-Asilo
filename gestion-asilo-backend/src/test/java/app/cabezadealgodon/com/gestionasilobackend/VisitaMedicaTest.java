@@ -90,8 +90,9 @@ import tools.jackson.databind.ObjectMapper;
  * farmacia recibe las recetas, desde HU-16 (YS-128) su despacho y desde
  * HU-17 (YS-131) su costo. Desde HU-18 (YS-135), la cuenta del familiar que
  * reúne los cargos de los tres, desde HU-19 (YS-138), los descuentos de la
- * fundación que se le aplican, y desde HU-34 (YS-178), los pagos del familiar
- * sobre esa cuenta, su anulación y la mora.
+ * fundación que se le aplican, desde HU-34 (YS-178), los pagos del familiar
+ * sobre esa cuenta, su anulación y la mora, y desde HU-20 (YS-141), lo que el
+ * asilo le debe a la fundación por esos mismos cargos y sus pagos.
  * Desde HU-02 (YS-67), el historial médico centralizado del Médico General,
  * que se arma con todo lo anterior.
  *
@@ -1919,6 +1920,197 @@ class VisitaMedicaTest extends PruebaConBaseDeDatos {
                 .andExpect(status().isForbidden());
     }
 
+    // ---- YS-141: las cuentas por pagar a la fundación (HU-20) ----
+
+    /**
+     * Decidido el 21/10: la deuda es el neto de los cargos del mes, siempre al
+     * día. Los cargos se mueven a un mes propio de la prueba, porque el mes en
+     * curso suma los de todas. La política de descuento se borra al terminar.
+     */
+    @Test
+    @DisplayName("La deuda con la fundación es el neto de los cargos de cada mes y servicio, al día y sin nada clínico")
+    void laDeudaSaleDeLosCargos() throws Exception {
+        YearMonth mes = YearMonth.of(2001, 1);
+        try {
+            tarifaDe(6, "410.00");
+            definirDescuento("CONSULTA", "PORCENTAJE", "20", LocalDate.of(2000, 1, 1)).andExpect(status().isOk());
+            Especialista especialista = nuevoEspecialista(6);
+            Cita cita = citaEl(especialista, HOY.atTime(8, 0));
+            long visita = conLosTresCargos(cita, especialista, "Hemoglobina glicosilada (HbA1c)", "120.00", "Clozapina",
+                    "35.50");
+            cargosAlMes(visita, mes);
+
+            String cuerpo = cuentasPorPagar()
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath(deuda(mes, "CONSULTA") + ".cantidadServicios").value(1))
+                    // El neto: 410 con el 20 % de la fundación.
+                    .andExpect(jsonPath(deuda(mes, "CONSULTA") + ".totalAdeudado").value(328.00))
+                    .andExpect(jsonPath(deuda(mes, "CONSULTA") + ".totalPagado").value(0.00))
+                    .andExpect(jsonPath(deuda(mes, "CONSULTA") + ".saldo").value(328.00))
+                    .andExpect(jsonPath(deuda(mes, "CONSULTA") + ".estado").value("PENDIENTE"))
+                    .andExpect(jsonPath(deuda(mes, "LABORATORIO") + ".totalAdeudado").value(120.00))
+                    .andExpect(jsonPath(deuda(mes, "FARMACIA") + ".totalAdeudado").value(35.50))
+                    .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
+            assertThat(cuerpo).doesNotContain("Hemoglobina", "Clozapina", "Hipertensión", "Interno con visita");
+
+            // Siempre al día: otra consulta de ese mes entra sola, sin consolidar nada.
+            cargosAlMes(consultaFinalizada(especialista, HOY.atTime(9, 0)), mes);
+            cuentasPorPagar()
+                    .andExpect(jsonPath(deuda(mes, "CONSULTA") + ".cantidadServicios").value(2))
+                    .andExpect(jsonPath(deuda(mes, "CONSULTA") + ".totalAdeudado").value(656.00));
+        } finally {
+            politicaRepository.deleteAll();
+        }
+    }
+
+    @Test
+    @DisplayName("Un pago parcial baja el saldo; el que lo completa deja la deuda Pagada, y un cargo nuevo del mes la regresa a Pendiente")
+    void pagarALaFundacion() throws Exception {
+        YearMonth mes = YearMonth.of(2001, 2);
+        tarifaDe(6, "410.00");
+        Especialista especialista = nuevoEspecialista(6);
+        cargosAlMes(consultaFinalizada(especialista, HOY.atTime(8, 0)), mes);
+
+        pagarALaFundacion(mes, "CONSULTA", "100", HOY, "EFECTIVO")
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.cuenta.periodo").value("2001-02"))
+                .andExpect(jsonPath("$.cuenta.tipoServicio").value("CONSULTA"))
+                .andExpect(jsonPath("$.cuenta.totalAdeudado").value(410.00))
+                .andExpect(jsonPath("$.cuenta.totalPagado").value(100.00))
+                .andExpect(jsonPath("$.cuenta.saldo").value(310.00))
+                .andExpect(jsonPath("$.cuenta.estado").value("PENDIENTE"))
+                .andExpect(jsonPath("$.pagos.length()").value(1))
+                .andExpect(jsonPath("$.pagos[0].formaPago").value("EFECTIVO"))
+                .andExpect(jsonPath("$.pagos[0].registradoPor").value("Persona de prueba"));
+        pagarALaFundacion(mes, "CONSULTA", "310", HOY, "TRANSFERENCIA")
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.cuenta.saldo").value(0.00))
+                .andExpect(jsonPath("$.cuenta.estado").value("PAGADA"))
+                .andExpect(jsonPath("$.pagos.length()").value(2));
+        pagarALaFundacion(mes, "CONSULTA", "1", HOY, "EFECTIVO")
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.mensaje").value("Esta deuda ya está pagada completa"));
+        cuentasPorPagar()
+                .andExpect(jsonPath(deuda(mes, "CONSULTA") + ".totalPagado").value(410.00))
+                .andExpect(jsonPath(deuda(mes, "CONSULTA") + ".estado").value("PAGADA"));
+
+        // Decidido el 21/10: si la deuda crece después de pagarla, vuelve a Pendiente.
+        cargosAlMes(consultaFinalizada(especialista, HOY.atTime(9, 0)), mes);
+        cuentasPorPagar()
+                .andExpect(jsonPath(deuda(mes, "CONSULTA") + ".totalAdeudado").value(820.00))
+                .andExpect(jsonPath(deuda(mes, "CONSULTA") + ".saldo").value(410.00))
+                .andExpect(jsonPath(deuda(mes, "CONSULTA") + ".estado").value("PENDIENTE"));
+        pagosDeLaFundacion(mes, "CONSULTA")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.cuenta.estado").value("PENDIENTE"))
+                .andExpect(jsonPath("$.pagos.length()").value(2));
+    }
+
+    @Test
+    @DisplayName("El pago a la fundación tiene que ser mayor que cero y no pasar del saldo; sin deuda no hay nada que pagar")
+    void pagoALaFundacionInvalido() throws Exception {
+        YearMonth mes = YearMonth.of(2001, 3);
+        tarifaDe(6, "410.00");
+        cargosAlMes(consultaFinalizada(nuevoEspecialista(6), HOY.atTime(8, 0)), mes);
+
+        pagarALaFundacion(mes, "CONSULTA", "0", HOY, "EFECTIVO")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errores.monto").value("El monto tiene que ser mayor que cero"));
+        pagarALaFundacion(mes, "CONSULTA", "410.01", HOY, "EFECTIVO")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errores.monto").value("El pago no puede pasar del saldo pendiente, Q410.00"));
+        pagarALaFundacion(mes, "CONSULTA", "100", HOY.plusDays(1), "EFECTIVO")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errores.fecha").value("La fecha del pago no puede estar en el futuro"));
+        mvc.perform(post("/api/cuentas-por-pagar/{periodo}/{tipo}/pagos", mes, "CONSULTA")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(RolNombre.ADMINISTRADOR_ASILO))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errores.monto").value("Indique el monto del pago"))
+                .andExpect(jsonPath("$.errores.fecha").value("Indique la fecha del pago"))
+                .andExpect(jsonPath("$.errores.formaPago").value("Elija la forma de pago"));
+
+        // Un mes sin servicios de ese tipo no debe nada.
+        pagarALaFundacion(YearMonth.of(2001, 11), "LABORATORIO", "100", HOY, "EFECTIVO")
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.mensaje").value("No hay nada que pagarle a la fundación por ese servicio en ese mes"));
+        pagosDeLaFundacion(YearMonth.of(2001, 11), "FARMACIA")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.cuenta.totalAdeudado").value(0.00))
+                .andExpect(jsonPath("$.pagos").isEmpty());
+        // La cuota no es un servicio de la fundación, y el mes va como "2026-10".
+        pagarALaFundacion(mes, "CUOTA", "100", HOY, "EFECTIVO").andExpect(status().isBadRequest());
+        mvc.perform(get("/api/cuentas-por-pagar/{periodo}/{tipo}/pagos", "octubre", "CONSULTA")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(RolNombre.ADMINISTRADOR_ASILO)))
+                .andExpect(status().isBadRequest());
+        mvc.perform(get("/api/cuentas-por-pagar")).andExpect(status().isUnauthorized());
+
+        // Nada de eso quedó registrado.
+        cuentasPorPagar()
+                .andExpect(jsonPath(deuda(mes, "CONSULTA") + ".totalPagado").value(0.00))
+                .andExpect(jsonPath(deuda(mes, "CONSULTA") + ".saldo").value(410.00));
+    }
+
+    @Test
+    @DisplayName("Anular un pago a la fundación devuelve su monto al saldo; queda en el historial con el motivo y no se anula dos veces")
+    void anularPagoALaFundacion() throws Exception {
+        YearMonth mes = YearMonth.of(2001, 4);
+        tarifaDe(6, "410.00");
+        cargosAlMes(consultaFinalizada(nuevoEspecialista(6), HOY.atTime(8, 0)), mes);
+        String respuesta = pagarALaFundacion(mes, "CONSULTA", "410", HOY, "CHEQUE")
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.cuenta.estado").value("PAGADA"))
+                .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
+        long pago = ((Number) JsonPath.read(respuesta, "$.pagos[0].id")).longValue();
+
+        anularPagoDeLaFundacion(pago, "   ")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errores.motivo").value("Escriba el motivo de la anulación"));
+        anularPagoDeLaFundacion(pago, "  El cheque salió sin fondos  ")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.cuenta.totalPagado").value(0.00))
+                .andExpect(jsonPath("$.cuenta.saldo").value(410.00))
+                .andExpect(jsonPath("$.cuenta.estado").value("PENDIENTE"))
+                .andExpect(jsonPath("$.pagos[0].anulado").value(true))
+                .andExpect(jsonPath("$.pagos[0].motivoAnulacion").value("El cheque salió sin fondos"))
+                .andExpect(jsonPath("$.pagos[0].anuladoPor").value("Persona de prueba"));
+        anularPagoDeLaFundacion(pago, "Otra vez")
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.mensaje").value("Este pago ya está anulado"));
+        anularPagoDeLaFundacion(999_999L, "No existe").andExpect(status().isNotFound());
+
+        // Lo anulado ya no cuenta.
+        pagarALaFundacion(mes, "CONSULTA", "41", HOY, "EFECTIVO")
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.cuenta.totalPagado").value(41.00))
+                .andExpect(jsonPath("$.cuenta.saldo").value(369.00))
+                .andExpect(jsonPath("$.pagos.length()").value(2));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @EnumSource(value = RolNombre.class, names = "ADMINISTRADOR_ASILO", mode = EnumSource.Mode.EXCLUDE)
+    @DisplayName("Los otros seis roles no ven las cuentas por pagar, ni registran ni anulan pagos a la fundación: 403")
+    void soloElAdministradorDelAsiloPagaALaFundacion(RolNombre rol) throws Exception {
+        String token = "Bearer " + tokenDe(rol);
+        mvc.perform(get("/api/cuentas-por-pagar").header(HttpHeaders.AUTHORIZATION, token))
+                .andExpect(status().isForbidden());
+        mvc.perform(get("/api/cuentas-por-pagar/{periodo}/{tipo}/pagos", "2001-05", "CONSULTA")
+                .header(HttpHeaders.AUTHORIZATION, token))
+                .andExpect(status().isForbidden());
+        // Con cuerpos válidos: la validación corre antes que la seguridad del método.
+        mvc.perform(post("/api/cuentas-por-pagar/{periodo}/{tipo}/pagos", "2001-05", "CONSULTA")
+                .header(HttpHeaders.AUTHORIZATION, token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"monto\": 100, \"fecha\": \"%s\", \"formaPago\": \"EFECTIVO\"}".formatted(HOY)))
+                .andExpect(status().isForbidden());
+        mvc.perform(post("/api/pagos-fundacion/{id}/anulacion", 999_999)
+                .header(HttpHeaders.AUTHORIZATION, token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"motivo\": \"Error de digitación\"}"))
+                .andExpect(status().isForbidden());
+    }
+
     // ---- YS-107: el diagnóstico y el cierre de la visita (HU-09) ----
 
     @Test
@@ -2385,6 +2577,56 @@ class VisitaMedicaTest extends PruebaConBaseDeDatos {
         diagnosticar(visita, especialista, "Hipertensión arterial", null).andExpect(status().isOk());
         finalizar(visita, especialista).andExpect(status().isOk());
         return visita;
+    }
+
+    /** YS-141. Una visita finalizada con solo su consulta: un cargo con la tarifa de la especialidad. */
+    private long consultaFinalizada(Especialista especialista, LocalDateTime momento) throws Exception {
+        Cita cita = citaEl(especialista, momento);
+        long visita = idDe(iniciar(cita.getId(), especialista));
+        diagnosticar(visita, especialista, "Control", null).andExpect(status().isOk());
+        finalizar(visita, especialista).andExpect(status().isOk());
+        return visita;
+    }
+
+    /**
+     * YS-141. Mueve los cargos de la visita a un mes propio de la prueba: la
+     * base es compartida, y la deuda del mes en curso suma los cargos de todas.
+     */
+    private void cargosAlMes(long visitaId, YearMonth mes) {
+        List<CargoServicio> cargos = cargoRepository.findByVisitaIdOrderByIdAsc(visitaId);
+        cargos.forEach(cargo -> cargo.setFecha(mes.atDay(15)));
+        cargoRepository.saveAll(cargos);
+    }
+
+    /** YS-141. La deuda de un mes y servicio dentro de la lista de cuentas por pagar. */
+    private static String deuda(YearMonth mes, String tipoServicio) {
+        return "$[?(@.periodo == '%s' && @.tipoServicio == '%s')]".formatted(mes, tipoServicio);
+    }
+
+    private ResultActions cuentasPorPagar() throws Exception {
+        return mvc.perform(get("/api/cuentas-por-pagar")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(RolNombre.ADMINISTRADOR_ASILO)));
+    }
+
+    /** YS-141. El Administrador del Asilo le paga a la fundación; {@code monto} va tal cual en el JSON. */
+    private ResultActions pagarALaFundacion(YearMonth mes, String tipoServicio, String monto, LocalDate fecha,
+            String formaPago) throws Exception {
+        return mvc.perform(post("/api/cuentas-por-pagar/{periodo}/{tipo}/pagos", mes, tipoServicio)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(RolNombre.ADMINISTRADOR_ASILO))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"monto\": %s, \"fecha\": \"%s\", \"formaPago\": \"%s\"}".formatted(monto, fecha, formaPago)));
+    }
+
+    private ResultActions pagosDeLaFundacion(YearMonth mes, String tipoServicio) throws Exception {
+        return mvc.perform(get("/api/cuentas-por-pagar/{periodo}/{tipo}/pagos", mes, tipoServicio)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(RolNombre.ADMINISTRADOR_ASILO)));
+    }
+
+    private ResultActions anularPagoDeLaFundacion(long pagoId, String motivo) throws Exception {
+        return mvc.perform(post("/api/pagos-fundacion/{id}/anulacion", pagoId)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(RolNombre.ADMINISTRADOR_ASILO))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json.writeValueAsString(Map.of("motivo", motivo))));
     }
 
     /** YS-178. Consolida el mes en curso y devuelve la cuenta del interno. */

@@ -9,7 +9,7 @@ import app.cabezadealgodon.com.gestionasilobackend.models.FormaPago;
 /**
  * YS-133. Un pago del historial de la cuenta (HU-34), con quién lo registró.
  * YS-176: si se anuló, con el motivo, quién y cuándo; sin anular, esos tres
- * van vacíos.
+ * van vacíos. YS-139: también un pago a la fundación (HU-20).
  */
 public record PagoResponse(
         Long id,

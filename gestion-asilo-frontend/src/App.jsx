@@ -3,6 +3,7 @@ import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { puedeEntrar } from "./constants/modulos";
 import { useAuth } from "./hooks/useAuth";
 import { CuentasPorCobrarPage } from "./pages/CuentasPorCobrarPage";
+import { CuentasPorPagarPage } from "./pages/CuentasPorPagarPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { HistorialMedicoPage } from "./pages/HistorialMedicoPage";
 import { InternoPerfilPage } from "./pages/InternoPerfilPage";
@@ -212,6 +213,14 @@ function App() {
         element={
           <RutaPrivada>
             <CuentasPorCobrarPage />
+          </RutaPrivada>
+        }
+      />
+      <Route
+        path="/cuentas-por-pagar"
+        element={
+          <RutaPrivada>
+            <CuentasPorPagarPage />
           </RutaPrivada>
         }
       />

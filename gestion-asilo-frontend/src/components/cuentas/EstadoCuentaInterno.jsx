@@ -3,7 +3,7 @@ import { Banknote, History, Receipt, Search } from "lucide-react";
 
 import { CONCEPTOS_CUENTA, SERVICIOS } from "../../constants/estados";
 import { erroresPorCampo, mensajeDeError } from "../../services/api";
-import { obtenerEstadoCuenta } from "../../services/cuentaService";
+import { anularPago, obtenerEstadoCuenta, obtenerPagos } from "../../services/cuentaService";
 import { formatearFecha, formatearPeriodo, hoyISO, inicioDeMesISO } from "../../utils/fechas";
 import { formatearQuetzales } from "../../utils/formato";
 import { Alert } from "../ui/Alert";
@@ -12,8 +12,8 @@ import { FormField } from "../ui/FormField";
 import { Input } from "../ui/Input";
 import { StatusBadge } from "../ui/StatusBadge";
 import { Barra } from "../ui/TablaSkeleton";
-import { PagoFormModal } from "./PagoFormModal";
-import { PagosCuenta } from "./PagosCuenta";
+import { HistorialPagos } from "./HistorialPagos";
+import { PagoCuentaMensualModal } from "./PagoFormModal";
 
 const TARJETA = "rounded-tarjeta border border-divisor bg-superficie p-4 shadow-tarjeta sm:p-6";
 
@@ -338,7 +338,13 @@ function Detalle({ estado, alCambiarCuenta }) {
                   {abierta && (
                     <div id={`pagos-cuenta-${cuenta.id}`}>
                       {/* La clave cambia con cada pago nuevo: así el historial abierto lo incluye. */}
-                      <PagosCuenta key={pagosRegistrados} cuentaId={cuenta.id} alCambiar={alCambiarCuenta} />
+                      <HistorialPagos
+                        key={pagosRegistrados}
+                        clave={cuenta.id}
+                        cargar={() => obtenerPagos(cuenta.id)}
+                        anular={anularPago}
+                        alCambiar={alCambiarCuenta}
+                      />
                     </div>
                   )}
                 </li>
@@ -348,7 +354,7 @@ function Detalle({ estado, alCambiarCuenta }) {
         )}
       </div>
 
-      <PagoFormModal
+      <PagoCuentaMensualModal
         abierto={enPago !== null}
         cuenta={enPago}
         claveFormulario={aperturas}

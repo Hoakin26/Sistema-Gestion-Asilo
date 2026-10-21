@@ -16,6 +16,7 @@ import app.cabezadealgodon.com.gestionasilobackend.exception.ConflictoException;
 import app.cabezadealgodon.com.gestionasilobackend.exception.RecursoNoEncontradoException;
 import app.cabezadealgodon.com.gestionasilobackend.models.CuentaMensual;
 import app.cabezadealgodon.com.gestionasilobackend.models.Pago;
+import app.cabezadealgodon.com.gestionasilobackend.models.PagoRegistrado;
 import app.cabezadealgodon.com.gestionasilobackend.models.Usuario;
 import app.cabezadealgodon.com.gestionasilobackend.repository.CuentaMensualRepository;
 import app.cabezadealgodon.com.gestionasilobackend.repository.PagoRepository;
@@ -107,7 +108,8 @@ public class PagoService {
                 .orElseThrow(() -> new RecursoNoEncontradoException("No existe una cuenta mensual con id " + cuentaId));
     }
 
-    private static PagoResponse respuesta(Pago pago) {
+    /** YS-139. Package-private: el pago a la fundación (HU-20) responde igual. */
+    static PagoResponse respuesta(PagoRegistrado pago) {
         return new PagoResponse(
                 pago.getId(),
                 pago.getMonto(),
@@ -123,11 +125,11 @@ public class PagoService {
     }
 
     /** "Q2,176.30", como lo lee el Administrador del Asilo en pantalla. */
-    private static String quetzales(BigDecimal monto) {
+    static String quetzales(BigDecimal monto) {
         return String.format(Locale.US, "Q%,.2f", monto);
     }
 
-    private static String opcional(String texto) {
+    static String opcional(String texto) {
         if (texto == null || texto.isBlank()) {
             return null;
         }

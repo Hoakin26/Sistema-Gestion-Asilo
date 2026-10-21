@@ -1030,7 +1030,25 @@ Decidido el 20/10. Al reconsolidar una cuenta con pagos, los cargos que ya estab
 
 Decidido el 20/10. La cuenta vence al final del mes siguiente a su período: la de octubre, el 30 de noviembre. Pasada esa fecha, con saldo, está En Mora; un pago parcial no la saca y el del total sí. El estado no se cambia a mano. `CuentaMensual.estadoAl` lo calcula con el saldo, lo pagado y la fecha, y cada lectura lo recalcula con la fecha del día, porque la mora llega sin que nadie toque la cuenta. `CuentaMensualTest` cubre los bordes: el día en que vence, el siguiente, el cambio de año y febrero bisiesto.
 
-## 39. Qué falta
+## 39. Las cuentas por pagar a la fundación (HU-20)
+
+### Quién las ve
+
+`GET /api/cuentas-por-pagar`, el historial y el registro de pagos de cada deuda, y `POST /api/pagos-fundacion/{id}/anulacion` están en `CuentaPorPagarController`, bajo `@SoloAdministradorAsilo`: es el que lleva las finanzas del asilo y el que le paga a la fundación. `VisitaMedicaTest` barre los otros seis roles en los cuatro endpoints y todos reciben 403, con cuerpos válidos por la misma razón de la sección 38. El Administrador de la Fundación tampoco entra; así lo pide la historia (YS-141).
+
+### Lo que dice la deuda, y lo que no
+
+La deuda sale de los mismos cargos que la cuenta del familiar, pero agrupados por mes y tipo de servicio: cuántos servicios hubo y cuánto suman. No lleva pacientes, ni exámenes, ni medicamentos (RNF-03). La prueba lo comprueba buscando en la respuesta el examen, el medicamento, el diagnóstico y el nombre del interno: no aparece ninguno.
+
+### Lo adeudado no se puede editar
+
+Decidido el 21/10: lo adeudado es siempre la suma del neto de los cargos, y no se guarda. Nadie puede escribir a mano cuánto se le debe a la fundación; solo cambia cuando cambian los cargos. Se guarda lo pagado, en una fila por mes y servicio que nace con el primer pago, con restricción única y `@Version`: dos pagos simultáneos no pasan juntos del saldo, y dos primeros pagos simultáneos tampoco crean dos filas (el segundo recibe 409). Los pagos se anulan con motivo y no se borran, como los del familiar.
+
+### Si lo adeudado baja después de pagar
+
+Si la fundación define después un descuento que ya regía ese mes, al reconsolidar la cuenta del familiar el neto de los cargos baja, y con él lo adeudado. El saldo nunca queda negativo: la deuda queda Pagada con lo pagado a la vista, y la diferencia se corrige anulando el pago y registrando el correcto.
+
+## 40. Qué falta
 
 Nada pendiente de HU-30, HU-31 ni HU-32. Lo que queda abierto, sin historia asignada todavía:
 
