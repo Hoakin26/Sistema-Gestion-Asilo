@@ -71,7 +71,14 @@ public class CuentaFamiliarService {
      * cargo que llegó después (un resultado cargado tarde, un despacho
      * pendiente) entra al volver a consolidar, y también una cuota que se fijó
      * después. Mientras no haya pagos (HU-34), recalcular no le quita nada a
-     * nadie; HU-34 decidirá qué pasa con una cuenta que ya tiene pagos.
+     * nadie.
+     *
+     * <p>
+     * YS-176. Con pagos, decidido el 20/10: lo ya cobrado se congela. Los cargos
+     * que ya estaban en la cuenta conservan su monto y su descuento, y la cuota
+     * y el familiar, los que tenía; solo se suman los cargos que llegaron
+     * después, y el saldo crece. Una cuenta Completamente Cancelada que recibe
+     * un cargo nuevo vuelve a Pago Parcial.
      *
      * <p>
      * YS-136. Antes de sumar, cada cargo vuelve a tomar el descuento de la
@@ -92,12 +99,7 @@ public class CuentaFamiliarService {
 
         Map<Long, Interno> internos = new LinkedHashMap<>();
         Map<Long, List<CargoServicio>> cargosPorInterno = new HashMap<>();
-        List<PoliticaDescuento> politicas = calculadora.politicas();
         for (CargoServicio cargo : cargoRepository.entre(periodo.atDay(1), periodo.atEndOfMonth())) {
-            DesgloseCosto desglose = calculadora.calcular(cargo.getTipo(), cargo.getMontoOriginal(), cargo.getFecha(),
-                    politicas);
-            cargo.setDescuento(desglose.descuento());
-            cargo.setMontoNeto(desglose.montoNeto());
             internos.putIfAbsent(cargo.getInterno().getId(), cargo.getInterno());
             cargosPorInterno.computeIfAbsent(cargo.getInterno().getId(), id -> new ArrayList<>()).add(cargo);
         }
@@ -109,6 +111,8 @@ public class CuentaFamiliarService {
             internos.putIfAbsent(cuenta.getInterno().getId(), cuenta.getInterno());
         }
 
+        List<PoliticaDescuento> politicas = calculadora.politicas();
+        LocalDate hoy = LocalDate.now();
         LocalDateTime ahora = LocalDateTime.now();
         List<CuentaMensual> consolidadas = new ArrayList<>();
         for (Interno interno : internos.values()) {
@@ -118,8 +122,19 @@ public class CuentaFamiliarService {
                 cuenta.setInterno(interno);
                 cuenta.setPeriodo(clave);
             }
+            boolean congelada = cuenta.getId() != null && cuenta.tienePagos();
             List<CargoServicio> cargos = cargosPorInterno.getOrDefault(interno.getId(), List.of());
-            calcular(cuenta, interno, cargos, ahora);
+            for (CargoServicio cargo : cargos) {
+                // YS-176. Lo que ya se cobró en una cuenta con pagos no se toca.
+                if (congelada && cargo.getCuenta() != null) {
+                    continue;
+                }
+                DesgloseCosto desglose = calculadora.calcular(cargo.getTipo(), cargo.getMontoOriginal(),
+                        cargo.getFecha(), politicas);
+                cargo.setDescuento(desglose.descuento());
+                cargo.setMontoNeto(desglose.montoNeto());
+            }
+            calcular(cuenta, interno, cargos, congelada, hoy, ahora);
             CuentaMensual guardada = cuentaRepository.save(cuenta);
             cargos.forEach(cargo -> cargo.setCuenta(guardada));
             consolidadas.add(guardada);
@@ -183,22 +198,25 @@ public class CuentaFamiliarService {
     /**
      * Los totales de la cuenta con los cargos del mes. La cuota es la que el
      * interno tiene hoy; la de uno que ya egresó no cambia al reconsolidar: se
-     * queda la que tenía su cuenta.
+     * queda la que tenía su cuenta. YS-176: en una cuenta con pagos
+     * ({@code congelada}) tampoco cambian la cuota ni el familiar. El saldo
+     * descuenta lo pagado (HU-34).
      */
     private static void calcular(CuentaMensual cuenta, Interno interno, List<CargoServicio> cargos,
-            LocalDateTime ahora) {
-        BigDecimal cuota = interno.isActivo()
+            boolean congelada, LocalDate hoy, LocalDateTime ahora) {
+        BigDecimal cuota = interno.isActivo() && !congelada
                 ? Objects.requireNonNullElse(interno.getCuotaMensual(), BigDecimal.ZERO)
                 : Objects.requireNonNullElse(cuenta.getCuotaBase(), BigDecimal.ZERO);
         BigDecimal neto = suma(cargos, CargoServicio::getMontoNeto);
 
-        cuenta.setFamiliar(interno.getFamiliarResponsable());
+        if (!congelada) {
+            cuenta.setFamiliar(interno.getFamiliarResponsable());
+        }
         cuenta.setCuotaBase(cuota.setScale(2));
         cuenta.setTotalServicios(suma(cargos, CargoServicio::getMontoOriginal));
         cuenta.setTotalDescuentos(suma(cargos, CargoServicio::getDescuento));
         cuenta.setTotalAPagar(cuota.add(neto).setScale(2));
-        // HU-34 le resta los pagos.
-        cuenta.setSaldo(cuenta.getTotalAPagar());
+        cuenta.actualizarSaldo(hoy);
         cuenta.setFechaConsolidacion(ahora);
     }
 
@@ -206,7 +224,12 @@ public class CuentaFamiliarService {
         return elementos.stream().map(monto).reduce(BigDecimal.ZERO, BigDecimal::add).setScale(2);
     }
 
-    private static CuentaMensualResumenResponse resumen(CuentaMensual cuenta) {
+    /**
+     * La cuenta como la ve el Administrador del Asilo. YS-133: el estado se
+     * calcula con la fecha de hoy, porque la mora llega con el calendario
+     * aunque nadie toque la cuenta.
+     */
+    static CuentaMensualResumenResponse resumen(CuentaMensual cuenta) {
         return new CuentaMensualResumenResponse(
                 cuenta.getId(),
                 new ResumenPersona(cuenta.getInterno().getId(), cuenta.getInterno().getNombreCompleto()),
@@ -216,8 +239,10 @@ public class CuentaFamiliarService {
                 cuenta.getTotalServicios(),
                 cuenta.getTotalDescuentos(),
                 cuenta.getTotalAPagar(),
+                cuenta.getTotalPagado(),
                 cuenta.getSaldo(),
-                cuenta.getEstado(),
+                cuenta.estadoAl(LocalDate.now()),
+                cuenta.getFechaVencimiento(),
                 cuenta.getFechaConsolidacion());
     }
 

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Receipt, Search } from "lucide-react";
+import { Banknote, History, Receipt, Search } from "lucide-react";
 
 import { CONCEPTOS_CUENTA, SERVICIOS } from "../../constants/estados";
 import { erroresPorCampo, mensajeDeError } from "../../services/api";
@@ -12,6 +12,8 @@ import { FormField } from "../ui/FormField";
 import { Input } from "../ui/Input";
 import { StatusBadge } from "../ui/StatusBadge";
 import { Barra } from "../ui/TablaSkeleton";
+import { PagoFormModal } from "./PagoFormModal";
+import { PagosCuenta } from "./PagosCuenta";
 
 const TARJETA = "rounded-tarjeta border border-divisor bg-superficie p-4 shadow-tarjeta sm:p-6";
 
@@ -22,7 +24,8 @@ const MONTO = "px-4 py-3 text-right tabular-nums slashed-zero";
  * HU-18 (YS-134). El estado de cuenta del interno, dentro de su vista
  * administrativa: lo que se le cobra al familiar entre dos fechas, desglosado
  * por servicio, con el detalle de cada cargo, las cuentas mensuales que caen en
- * el rango y lo que debe en total.
+ * el rango y lo que debe en total. HU-34 (YS-177): en cada cuenta mensual se
+ * registran los pagos del familiar y se consulta su historial.
  *
  * Por tipo de servicio y nunca por nombre (RNF-03): el backend no manda ni la
  * especialidad, ni el examen, ni el medicamento, y aquí tampoco se piden.
@@ -37,6 +40,9 @@ export function EstadoCuentaInterno({ internoId }) {
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState(null);
   const [errores, setErrores] = useState({});
+  // HU-34 (YS-177). Un pago o una anulación cambian el saldo: se vuelve a pedir el estado de cuenta.
+  const [recargas, setRecargas] = useState(0);
+  const recargar = () => setRecargas((valor) => valor + 1);
 
   useEffect(() => {
     let vigente = true;
@@ -58,7 +64,7 @@ export function EstadoCuentaInterno({ internoId }) {
     return () => {
       vigente = false;
     };
-  }, [internoId, rango]);
+  }, [internoId, rango, recargas]);
 
   const consultar = (evento) => {
     evento.preventDefault();
@@ -136,13 +142,27 @@ export function EstadoCuentaInterno({ internoId }) {
           <Barra className="w-48" />
         </div>
       ) : (
-        estado && <Detalle estado={estado} />
+        estado && <Detalle estado={estado} alCambiarCuenta={recargar} />
       )}
     </section>
   );
 }
 
-function Detalle({ estado }) {
+function Detalle({ estado, alCambiarCuenta }) {
+  // HU-34 (YS-177). Las cuentas con su historial de pagos a la vista, y la cuenta que se está pagando.
+  const [conPagos, setConPagos] = useState(() => new Set());
+  const [enPago, setEnPago] = useState(null);
+  const [aperturas, setAperturas] = useState(0);
+  const [pagosRegistrados, setPagosRegistrados] = useState(0);
+
+  const alternarPagos = (cuentaId) =>
+    setConPagos((previas) => {
+      const siguientes = new Set(previas);
+      if (siguientes.has(cuentaId)) siguientes.delete(cuentaId);
+      else siguientes.add(cuentaId);
+      return siguientes;
+    });
+
   return (
     <div className="mt-6 flex flex-col gap-6">
       <p className="text-texto-secundario">
@@ -274,19 +294,71 @@ function Detalle({ estado }) {
           </p>
         ) : (
           <ul className="mt-2 divide-y divide-divisor rounded-tarjeta border border-divisor">
-            {estado.cuentas.map((cuenta) => (
-              <li key={cuenta.id} className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 px-4 py-3">
-                <span className="font-medium text-texto first-letter:uppercase">{formatearPeriodo(cuenta.periodo)}</span>
-                <span className="text-auxiliar text-texto-secundario">A cargo de {cuenta.familiar.nombreCompleto}</span>
-                <span className="tabular-nums slashed-zero">
-                  Total {formatearQuetzales(cuenta.totalAPagar)} · Saldo {formatearQuetzales(cuenta.saldo)}
-                </span>
-                <StatusBadge estado={cuenta.estado} />
-              </li>
-            ))}
+            {estado.cuentas.map((cuenta) => {
+              const abierta = conPagos.has(cuenta.id);
+              return (
+                <li key={cuenta.id}>
+                  <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 px-4 py-3">
+                    <div className="min-w-0">
+                      <p className="font-medium text-texto first-letter:uppercase">{formatearPeriodo(cuenta.periodo)}</p>
+                      <p className="text-auxiliar text-texto-secundario">
+                        A cargo de {cuenta.familiar.nombreCompleto}
+                        {cuenta.saldo > 0 && ` · Vence el ${formatearFecha(cuenta.fechaVencimiento)}`}
+                      </p>
+                    </div>
+                    <p className="tabular-nums slashed-zero">
+                      Total {formatearQuetzales(cuenta.totalAPagar)} · Pagado {formatearQuetzales(cuenta.totalPagado)}{" "}
+                      · Saldo <span className="font-semibold">{formatearQuetzales(cuenta.saldo)}</span>
+                    </p>
+                    <StatusBadge estado={cuenta.estado} />
+                    <div className="flex flex-wrap gap-3">
+                      <Button
+                        variante="secundario"
+                        aria-expanded={abierta}
+                        aria-controls={`pagos-cuenta-${cuenta.id}`}
+                        onClick={() => alternarPagos(cuenta.id)}
+                      >
+                        <History aria-hidden="true" size={20} />
+                        {abierta ? "Ocultar pagos" : "Ver pagos"}
+                      </Button>
+                      {cuenta.saldo > 0 && (
+                        <Button
+                          onClick={() => {
+                            setAperturas((valor) => valor + 1);
+                            setEnPago(cuenta);
+                          }}
+                          aria-label={`Registrar un pago en la cuenta de ${formatearPeriodo(cuenta.periodo)}`}
+                        >
+                          <Banknote aria-hidden="true" size={20} />
+                          Registrar pago
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                  {abierta && (
+                    <div id={`pagos-cuenta-${cuenta.id}`}>
+                      {/* La clave cambia con cada pago nuevo: así el historial abierto lo incluye. */}
+                      <PagosCuenta key={pagosRegistrados} cuentaId={cuenta.id} alCambiar={alCambiarCuenta} />
+                    </div>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>
+
+      <PagoFormModal
+        abierto={enPago !== null}
+        cuenta={enPago}
+        claveFormulario={aperturas}
+        alCerrar={() => setEnPago(null)}
+        alRegistrar={() => {
+          setEnPago(null);
+          setPagosRegistrados((valor) => valor + 1);
+          alCambiarCuenta();
+        }}
+      />
     </div>
   );
 }
