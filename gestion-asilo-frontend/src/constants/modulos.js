@@ -102,7 +102,8 @@ const CATALOGO = {
   },
   // HU-18 (YS-134). La cuenta mensual de cada familiar.
   cuentasPorCobrar: { etiqueta: "Cuentas por cobrar", Icono: Receipt, ruta: "/cuentas-por-cobrar" },
-  cuentasPorPagar: { etiqueta: "Cuentas por pagar", Icono: Wallet, ruta: null },
+  // HU-20 (YS-140). Lo que el asilo le debe a la fundación.
+  cuentasPorPagar: { etiqueta: "Cuentas por pagar", Icono: Wallet, ruta: "/cuentas-por-pagar" },
   donaciones: { etiqueta: "Donaciones", Icono: Gift, ruta: null },
   gastos: { etiqueta: "Gastos", Icono: CircleDollarSign, ruta: null },
   reportes: { etiqueta: "Reportes", Icono: FileText, ruta: null },
