@@ -1062,7 +1062,21 @@ Es otra vista financiera de datos clínicos: cada cita es una visita médica. Po
 
 Decidido el 21/10: el familiar paga la cuenta del mes entera, y lo pagado se reparte entre sus citas en proporción. Nada de eso se guarda: sale cada vez de lo pagado de la cuenta y del neto de cada cargo, así que el listado no puede contradecir a la cuenta. Una cita sale del listado solo cuando sus cuentas quedan pagadas completas, como dice RF-22 ("los servicios quedan pendientes hasta cubrir el total"). La búsqueda por paciente escapa los comodines de `LIKE`, como las bandejas del laboratorio y la farmacia.
 
-## 41. Qué falta
+## 41. Las donaciones (HU-22)
+
+### Quién las registra
+
+`POST /api/donaciones`, el histórico y la anulación están en `DonacionController`, bajo `@SoloAdministradorAsilo`: las donaciones son ingresos del asilo, y es él quien lleva sus finanzas. Su prueba, `DonacionTest`, barre los otros seis roles en los tres endpoints y todos reciben 403, con cuerpos válidos por la razón de la sección 38.
+
+### Un ingreso no se borra
+
+Como los pagos (sección 38), una donación no se edita ni se borra: si se registró mal, se anula con un motivo obligatorio y queda en el histórico tachada, con quién la anuló y cuándo. Deja de contar en los totales del histórico y, cuando exista, en el reporte de entradas (RF-20b). Así lo que se recibió y lo que se corrigió quedan escritos.
+
+### El monto se valida en los dos lados
+
+Mayor que cero, con hasta dos decimales y hasta diez enteros (`numeric(12,2)`, como pide el diseño para los montos), y la fecha no puede estar en el futuro. El formulario repite las mismas reglas para avisar antes de enviar, pero la que cuenta es la del backend (`DonacionRequest`).
+
+## 42. Qué falta
 
 Nada pendiente de HU-30, HU-31 ni HU-32. Lo que queda abierto, sin historia asignada todavía:
 

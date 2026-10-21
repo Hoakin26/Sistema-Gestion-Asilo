@@ -4,6 +4,7 @@ import { puedeEntrar } from "./constants/modulos";
 import { useAuth } from "./hooks/useAuth";
 import { CuentasPorCobrarPage } from "./pages/CuentasPorCobrarPage";
 import { CuentasPorPagarPage } from "./pages/CuentasPorPagarPage";
+import { DonacionesPage } from "./pages/DonacionesPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { HistorialMedicoPage } from "./pages/HistorialMedicoPage";
 import { InternoPerfilPage } from "./pages/InternoPerfilPage";
@@ -221,6 +222,14 @@ function App() {
         element={
           <RutaPrivada>
             <CuentasPorPagarPage />
+          </RutaPrivada>
+        }
+      />
+      <Route
+        path="/donaciones"
+        element={
+          <RutaPrivada>
+            <DonacionesPage />
           </RutaPrivada>
         }
       />

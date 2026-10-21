@@ -104,7 +104,8 @@ const CATALOGO = {
   cuentasPorCobrar: { etiqueta: "Cuentas por cobrar", Icono: Receipt, ruta: "/cuentas-por-cobrar" },
   // HU-20 (YS-140). Lo que el asilo le debe a la fundación.
   cuentasPorPagar: { etiqueta: "Cuentas por pagar", Icono: Wallet, ruta: "/cuentas-por-pagar" },
-  donaciones: { etiqueta: "Donaciones", Icono: Gift, ruta: null },
+  // HU-22 (YS-146). Las donaciones monetarias al asilo.
+  donaciones: { etiqueta: "Donaciones", Icono: Gift, ruta: "/donaciones" },
   gastos: { etiqueta: "Gastos", Icono: CircleDollarSign, ruta: null },
   reportes: { etiqueta: "Reportes", Icono: FileText, ruta: null },
   configuracion: { etiqueta: "Configuración", Icono: Settings, ruta: null },
