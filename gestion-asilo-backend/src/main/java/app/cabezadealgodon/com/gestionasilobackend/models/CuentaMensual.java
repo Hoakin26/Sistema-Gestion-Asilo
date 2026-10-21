@@ -1,7 +1,9 @@
 package app.cabezadealgodon.com.gestionasilobackend.models;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.YearMonth;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -38,10 +40,15 @@ import lombok.Setter;
  * quién se le cobró. Lo mismo la cuota base.
  *
  * <p>
- * {@code saldo} es lo que falta pagar. Hoy es igual al total, porque los pagos
- * llegan con HU-34 (RF-22), que es la que lo descuenta y cambia el estado
- * (DE-04). {@code version} queda lista para ese momento: dos pagos o un pago y
- * una reconsolidación simultáneos no se pisarán.
+ * {@code saldo} es lo que falta pagar: el total menos lo pagado (HU-34,
+ * RF-22). {@code version} activa el bloqueo optimista: dos pagos, o un pago y
+ * una reconsolidación, simultáneos no se pisan; el segundo recibe 409.
+ *
+ * <p>
+ * YS-133. El estado (DE-04) sale del saldo, de lo pagado y de la fecha, y no
+ * se cambia a mano: ver {@link #estadoAl}. Se guarda cada vez que la cuenta
+ * cambia, y al leerla se vuelve a calcular con la fecha del día, porque la mora
+ * llega sola con el calendario, sin que nadie toque la cuenta.
  */
 @Entity
 @Table(name = "cuenta_mensual", uniqueConstraints = {
@@ -88,11 +95,21 @@ public class CuentaMensual {
     @Column(name = "total_a_pagar", nullable = false, precision = 10, scale = 2)
     private BigDecimal totalAPagar;
 
-    /** Lo que falta pagar. HU-34 le resta los pagos. */
+    /**
+     * YS-133. Lo pagado por el familiar, sin los pagos anulados (HU-34). El
+     * valor por defecto va en la columna, como en {@code Usuario}: la tabla ya
+     * tiene filas, y las cuentas que existían no tenían pagos.
+     */
+    @Column(name = "total_pagado", nullable = false, columnDefinition = "numeric(10,2) not null default 0")
+    @Setter(AccessLevel.NONE)
+    private BigDecimal totalPagado = BigDecimal.ZERO.setScale(2);
+
+    /** Lo que falta pagar: el total menos lo pagado. Sin setter: sale de {@link #actualizarSaldo}. */
     @Column(nullable = false, precision = 10, scale = 2)
+    @Setter(AccessLevel.NONE)
     private BigDecimal saldo;
 
-    /** Sin setter: las transiciones de DE-04 llegan con HU-34. */
+    /** Sin setter: sale del saldo, de lo pagado y de la fecha ({@link #estadoAl}). */
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
     @Setter(AccessLevel.NONE)
@@ -104,4 +121,57 @@ public class CuentaMensual {
 
     @Version
     private Long version;
+
+    /**
+     * YS-176. El último día para pagarla: el fin del mes siguiente a su período
+     * (decidido el 20/10). La de octubre vence el 30 de noviembre.
+     */
+    public LocalDate getFechaVencimiento() {
+        return YearMonth.parse(periodo).plusMonths(1).atEndOfMonth();
+    }
+
+    /** YS-133. Si tiene pagos vigentes; los anulados no cuentan. */
+    public boolean tienePagos() {
+        return totalPagado.signum() > 0;
+    }
+
+    /**
+     * YS-133. El estado de la cuenta en {@code dia} (DE-04):
+     *
+     * <ul>
+     * <li>sin saldo, Completamente Cancelada: el pago total cancela los
+     * servicios incluidos (HU-34);</li>
+     * <li>con saldo y ya vencida, En Mora, haya pagado una parte o no: un pago
+     * parcial no la saca de la mora (YS-176);</li>
+     * <li>con saldo y sin vencer, Pago Parcial si ya pagó algo, o Pendiente de
+     * Pago si todavía no.</li>
+     * </ul>
+     */
+    public EstadoCuenta estadoAl(LocalDate dia) {
+        if (saldo.signum() == 0) {
+            return EstadoCuenta.COMPLETAMENTE_CANCELADA;
+        }
+        if (dia.isAfter(getFechaVencimiento())) {
+            return EstadoCuenta.EN_MORA;
+        }
+        return tienePagos() ? EstadoCuenta.PAGO_PARCIAL : EstadoCuenta.PENDIENTE_PAGO;
+    }
+
+    /** YS-133. El saldo con el total y lo pagado de ahora, y el estado que le toca hoy. */
+    public void actualizarSaldo(LocalDate hoy) {
+        saldo = totalAPagar.subtract(totalPagado).max(BigDecimal.ZERO).setScale(2);
+        estado = estadoAl(hoy);
+    }
+
+    /** YS-133. Suma un pago; el servicio ya comprobó que no pase del saldo. */
+    public void registrarPago(BigDecimal monto, LocalDate hoy) {
+        totalPagado = totalPagado.add(monto).setScale(2);
+        actualizarSaldo(hoy);
+    }
+
+    /** YS-176. Resta un pago anulado: su monto vuelve al saldo. */
+    public void anularPago(BigDecimal monto, LocalDate hoy) {
+        totalPagado = totalPagado.subtract(monto).max(BigDecimal.ZERO).setScale(2);
+        actualizarSaldo(hoy);
+    }
 }
