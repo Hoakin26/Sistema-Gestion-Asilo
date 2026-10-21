@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Calculator, Inbox } from "lucide-react";
+import { Banknote, Calculator, Inbox } from "lucide-react";
 
 import { DescuentosVigentes } from "../components/cuentas/DescuentosVigentes";
+import { PagoFormModal } from "../components/cuentas/PagoFormModal";
 import { Alert } from "../components/ui/Alert";
 import { Button } from "../components/ui/Button";
 import { FormField } from "../components/ui/FormField";
@@ -13,7 +14,7 @@ import { useToast } from "../hooks/useToast";
 import { AppLayout } from "../layouts/AppLayout";
 import { erroresPorCampo, mensajeDeError } from "../services/api";
 import { consolidarCuentas, listarCuentas } from "../services/cuentaService";
-import { formatearFechaHora, formatearPeriodo, mesActualISO } from "../utils/fechas";
+import { formatearFecha, formatearFechaHora, formatearPeriodo, mesActualISO } from "../utils/fechas";
 import { formatearQuetzales } from "../utils/formato";
 
 const ENCABEZADO =
@@ -29,7 +30,9 @@ function centavos(monto) {
  * HU-18 (YS-134). "Cuentas por cobrar" del Administrador del Asilo (CU-006,
  * paso 1): la cuenta mensual de cada familiar, con la cuota base del asilo más
  * las consultas, los exámenes y la farmacia del mes. Se consolida desde aquí;
- * el detalle de cada una está en el perfil del interno.
+ * el detalle de cada una está en el perfil del interno. HU-34 (YS-177): aquí
+ * también se registra el pago del familiar, y la fila toma el saldo y el
+ * estado nuevos; el historial de pagos está en el perfil.
  *
  * Nada clínico, como en todo lo del Administrador del Asilo (RNF-03): ni aquí
  * ni en el backend aparece de qué fue cada servicio.
@@ -42,6 +45,8 @@ export function CuentasPorCobrarPage() {
   const [error, setError] = useState(null);
   const [errorPeriodo, setErrorPeriodo] = useState(null);
   const [consolidando, setConsolidando] = useState(false);
+  const [enPago, setEnPago] = useState(null);
+  const [aperturas, setAperturas] = useState(0);
 
   useEffect(() => {
     if (!periodo) return undefined;
@@ -93,8 +98,14 @@ export function CuentasPorCobrarPage() {
     }
   };
 
+  const alRegistrarPago = (historial) => {
+    setEnPago(null);
+    setCuentas((previas) => previas.map((cuenta) => (cuenta.id === historial.cuenta.id ? historial.cuenta : cuenta)));
+  };
+
   const lista = cuentas ?? [];
   const totalACobrar = lista.reduce((suma, cuenta) => suma + centavos(cuenta.totalAPagar), 0) / 100;
+  const totalPagado = lista.reduce((suma, cuenta) => suma + centavos(cuenta.totalPagado), 0) / 100;
   const saldoPendiente = lista.reduce((suma, cuenta) => suma + centavos(cuenta.saldo), 0) / 100;
 
   return (
@@ -125,7 +136,8 @@ export function CuentasPorCobrarPage() {
       </div>
       <p className="mt-2 text-auxiliar text-texto-secundario">
         Suma la cuota base y los cargos del mes de cada interno, con los descuentos de la fundación vigentes en la
-        fecha de cada servicio. Puede volver a consolidar un mes: se recalcula sin duplicar nada.
+        fecha de cada servicio. Puede volver a consolidar un mes: se recalcula sin duplicar nada. Si una cuenta ya
+        tiene pagos, lo cobrado se queda como estaba y solo se le suman los cargos nuevos.
       </p>
 
       {/* HU-19 (YS-137). El asilo los consulta; los define la fundación. */}
@@ -156,15 +168,17 @@ export function CuentasPorCobrarPage() {
               className="pb-3 text-auxiliar text-texto-secundario tabular-nums slashed-zero"
             >
               {lista.length} {lista.length === 1 ? "cuenta" : "cuentas"} · Total a cobrar{" "}
-              {formatearQuetzales(totalACobrar)} · Saldo pendiente {formatearQuetzales(saldoPendiente)}
+              {formatearQuetzales(totalACobrar)} · Pagado {formatearQuetzales(totalPagado)} · Saldo pendiente{" "}
+              {formatearQuetzales(saldoPendiente)}
             </p>
 
             {/* relative: los sr-only de la tabla son absolutos; sin él escapan del
                 recorte, estiran la página y el teléfono la achica a una esquina (YS-175). */}
             <div className="relative overflow-x-auto rounded-tarjeta border border-divisor bg-superficie shadow-tarjeta">
-              <table className="w-full min-w-3xl border-collapse text-left">
+              <table className="w-full min-w-5xl border-collapse text-left">
                 <caption className="sr-only">
-                  Cuentas de {periodo && formatearPeriodo(periodo)}: interno, familiar responsable, montos y estado
+                  Cuentas de {periodo && formatearPeriodo(periodo)}: interno, familiar responsable, montos, pagos y
+                  estado
                 </caption>
                 <thead>
                   <tr className="border-b border-divisor bg-fondo">
@@ -187,10 +201,16 @@ export function CuentasPorCobrarPage() {
                       Total a pagar
                     </th>
                     <th scope="col" className={`${ENCABEZADO} text-right`}>
+                      Pagado
+                    </th>
+                    <th scope="col" className={`${ENCABEZADO} text-right`}>
                       Saldo
                     </th>
                     <th scope="col" className={ENCABEZADO}>
                       Estado
+                    </th>
+                    <th scope="col" className={ENCABEZADO}>
+                      <span className="sr-only">Acciones</span>
                     </th>
                   </tr>
                 </thead>
@@ -219,9 +239,31 @@ export function CuentasPorCobrarPage() {
                           : formatearQuetzales(cuenta.totalDescuentos)}
                       </td>
                       <td className={`${MONTO} font-semibold`}>{formatearQuetzales(cuenta.totalAPagar)}</td>
-                      <td className={MONTO}>{formatearQuetzales(cuenta.saldo)}</td>
+                      <td className={MONTO}>{formatearQuetzales(cuenta.totalPagado)}</td>
+                      <td className={`${MONTO} font-semibold`}>{formatearQuetzales(cuenta.saldo)}</td>
                       <td className="px-4 py-4 xl:px-6">
                         <StatusBadge estado={cuenta.estado} />
+                        {/* HU-34 (YS-176). Vence al final del mes siguiente; pasado eso, en mora mientras haya saldo. */}
+                        {centavos(cuenta.saldo) > 0 && (
+                          <span className="mt-1 block text-auxiliar text-texto-secundario tabular-nums slashed-zero">
+                            Vence el {formatearFecha(cuenta.fechaVencimiento)}
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-4 text-right xl:px-6">
+                        {centavos(cuenta.saldo) > 0 && (
+                          <Button
+                            variante="secundario"
+                            onClick={() => {
+                              setAperturas((valor) => valor + 1);
+                              setEnPago(cuenta);
+                            }}
+                            aria-label={`Registrar un pago de ${cuenta.interno.nombreCompleto}`}
+                          >
+                            <Banknote aria-hidden="true" size={20} />
+                            Registrar pago
+                          </Button>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -231,6 +273,14 @@ export function CuentasPorCobrarPage() {
           </>
         )}
       </div>
+
+      <PagoFormModal
+        abierto={enPago !== null}
+        cuenta={enPago}
+        claveFormulario={aperturas}
+        alCerrar={() => setEnPago(null)}
+        alRegistrar={alRegistrarPago}
+      />
     </AppLayout>
   );
 }

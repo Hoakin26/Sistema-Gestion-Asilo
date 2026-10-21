@@ -63,6 +63,15 @@ export const SERVICIOS = {
   FARMACIA: "Farmacia",
 };
 
+/** YS-177. Cómo pagó el familiar, con las claves de `FormaPago` del backend. */
+export const FORMAS_PAGO = {
+  EFECTIVO: "Efectivo",
+  TRANSFERENCIA: "Transferencia bancaria",
+  DEPOSITO: "Depósito bancario",
+  TARJETA: "Tarjeta",
+  CHEQUE: "Cheque",
+};
+
 /** YS-137. Los tipos de servicio con descuento de la fundación, en el orden de `TipoServicio`. */
 export const TIPOS_SERVICIO = ["CONSULTA", "LABORATORIO", "FARMACIA"];
 
