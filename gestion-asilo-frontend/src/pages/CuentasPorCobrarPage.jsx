@@ -14,12 +14,13 @@ import { useToast } from "../hooks/useToast";
 import { AppLayout } from "../layouts/AppLayout";
 import { erroresPorCampo, mensajeDeError } from "../services/api";
 import { consolidarCuentas, listarCuentas } from "../services/cuentaService";
-import { formatearFecha, formatearFechaHora, formatearPeriodo, mesActualISO } from "../utils/fechas";
+import { formatearFechaCorta, formatearFechaHora, formatearPeriodo, mesActualISO } from "../utils/fechas";
 import { formatearQuetzales } from "../utils/formato";
 
-const ENCABEZADO =
-  "px-4 py-4 text-auxiliar font-semibold text-texto-secundario uppercase xl:px-6";
-const MONTO = "px-4 py-4 text-right tabular-nums slashed-zero xl:px-6";
+// YS-179. Sin el de las demás tablas: con seis columnas, esos 16 px de más por lado
+// eran justo lo que le faltaba al interno para no partirse en cuatro líneas.
+const ENCABEZADO = "px-4 py-4 text-auxiliar font-semibold text-texto-secundario uppercase";
+const MONTO = "px-4 py-4 text-right tabular-nums slashed-zero";
 
 /* En centavos: sumar y restar montos como números de JavaScript deja restos como 0.30000000000000004. */
 function centavos(monto) {
@@ -175,41 +176,35 @@ export function CuentasPorCobrarPage() {
             {/* relative: los sr-only de la tabla son absolutos; sin él escapan del
                 recorte, estiran la página y el teléfono la achica a una esquina (YS-175). */}
             <div className="relative overflow-x-auto rounded-tarjeta border border-divisor bg-superficie shadow-tarjeta">
-              <table className="w-full min-w-5xl border-collapse text-left">
+              {/* YS-179. Seis columnas y no diez: el familiar va bajo el interno, el desglose en una
+                  sola columna y lo pagado bajo el total, para que el botón quepa sin desplazarse.
+                  Las de montos, estado y acción, con w-px: toman lo justo y el resto queda para el
+                  interno, que es la que tiene texto largo. */}
+              <table className="w-full min-w-4xl border-collapse text-left">
                 <caption className="sr-only">
-                  Cuentas de {periodo && formatearPeriodo(periodo)}: interno, familiar responsable, montos, pagos y
-                  estado
+                  Cuentas de {periodo && formatearPeriodo(periodo)}: interno y familiar responsable, desglose, total,
+                  pagado, saldo y estado
                 </caption>
                 <thead>
                   <tr className="border-b border-divisor bg-fondo">
-                    <th scope="col" className={ENCABEZADO}>
+                    {/* Con un mínimo: cuando la tabla no cabe y se desplaza, el navegador encogería
+                        esta columna hasta la palabra más larga. */}
+                    <th scope="col" className={`${ENCABEZADO} min-w-56`}>
                       Interno
                     </th>
-                    <th scope="col" className={ENCABEZADO}>
-                      Familiar responsable
+                    <th scope="col" className={`${ENCABEZADO} w-px text-right whitespace-nowrap`}>
+                      Desglose
                     </th>
-                    <th scope="col" className={`${ENCABEZADO} text-right`}>
-                      Cuota base
-                    </th>
-                    <th scope="col" className={`${ENCABEZADO} text-right`}>
-                      Servicios
-                    </th>
-                    <th scope="col" className={`${ENCABEZADO} text-right`}>
-                      Descuento
-                    </th>
-                    <th scope="col" className={`${ENCABEZADO} text-right`}>
+                    <th scope="col" className={`${ENCABEZADO} w-px text-right whitespace-nowrap`}>
                       Total a pagar
                     </th>
-                    <th scope="col" className={`${ENCABEZADO} text-right`}>
-                      Pagado
-                    </th>
-                    <th scope="col" className={`${ENCABEZADO} text-right`}>
+                    <th scope="col" className={`${ENCABEZADO} w-px text-right whitespace-nowrap`}>
                       Saldo
                     </th>
-                    <th scope="col" className={ENCABEZADO}>
+                    <th scope="col" className={`${ENCABEZADO} w-px whitespace-nowrap`}>
                       Estado
                     </th>
-                    <th scope="col" className={ENCABEZADO}>
+                    <th scope="col" className={`${ENCABEZADO} w-px`}>
                       <span className="sr-only">Acciones</span>
                     </th>
                   </tr>
@@ -217,7 +212,7 @@ export function CuentasPorCobrarPage() {
                 <tbody>
                   {lista.map((cuenta) => (
                     <tr key={cuenta.id} className="border-b border-divisor align-top last:border-b-0">
-                      <td className="px-4 py-4 xl:px-6">
+                      <td className="px-4 py-4">
                         {/* El estado de cuenta desglosado vive en el perfil del interno. */}
                         <Link
                           to={`/internos/${cuenta.interno.id}`}
@@ -225,32 +220,45 @@ export function CuentasPorCobrarPage() {
                         >
                           {cuenta.interno.nombreCompleto}
                         </Link>
+                        <span className="block text-auxiliar text-texto-secundario">
+                          A cargo de {cuenta.familiar.nombreCompleto}
+                        </span>
                         <span className="block text-auxiliar text-texto-secundario tabular-nums slashed-zero">
                           Consolidada: {formatearFechaHora(cuenta.fechaConsolidacion)}
                         </span>
                       </td>
-                      <td className="px-4 py-4 xl:px-6">{cuenta.familiar.nombreCompleto}</td>
-                      <td className={MONTO}>{formatearQuetzales(cuenta.cuotaBase)}</td>
-                      {/* HU-19: el costo original y lo que descontó la fundación; el total ya es neto. */}
-                      <td className={MONTO}>{formatearQuetzales(cuenta.totalServicios)}</td>
-                      <td className={MONTO}>
-                        {centavos(cuenta.totalDescuentos) > 0
-                          ? `− ${formatearQuetzales(cuenta.totalDescuentos)}`
-                          : formatearQuetzales(cuenta.totalDescuentos)}
+                      <td className="px-4 py-4">
+                        {/* HU-19: el costo original y lo que descontó la fundación; el total ya es neto. */}
+                        <dl className="ml-auto grid w-max grid-cols-[auto_auto] gap-x-4 text-auxiliar tabular-nums slashed-zero">
+                          <dt className="text-texto-secundario">Cuota base</dt>
+                          <dd className="text-right">{formatearQuetzales(cuenta.cuotaBase)}</dd>
+                          <dt className="text-texto-secundario">Servicios</dt>
+                          <dd className="text-right">{formatearQuetzales(cuenta.totalServicios)}</dd>
+                          <dt className="text-texto-secundario">Descuento</dt>
+                          <dd className="text-right">
+                            {centavos(cuenta.totalDescuentos) > 0
+                              ? `− ${formatearQuetzales(cuenta.totalDescuentos)}`
+                              : formatearQuetzales(cuenta.totalDescuentos)}
+                          </dd>
+                        </dl>
                       </td>
-                      <td className={`${MONTO} font-semibold`}>{formatearQuetzales(cuenta.totalAPagar)}</td>
-                      <td className={MONTO}>{formatearQuetzales(cuenta.totalPagado)}</td>
+                      <td className={MONTO}>
+                        <span className="font-semibold">{formatearQuetzales(cuenta.totalAPagar)}</span>
+                        <span className="block text-auxiliar whitespace-nowrap text-texto-secundario">
+                          Pagado {formatearQuetzales(cuenta.totalPagado)}
+                        </span>
+                      </td>
                       <td className={`${MONTO} font-semibold`}>{formatearQuetzales(cuenta.saldo)}</td>
-                      <td className="px-4 py-4 xl:px-6">
+                      <td className="px-4 py-4">
                         <StatusBadge estado={cuenta.estado} />
                         {/* HU-34 (YS-176). Vence al final del mes siguiente; pasado eso, en mora mientras haya saldo. */}
                         {centavos(cuenta.saldo) > 0 && (
-                          <span className="mt-1 block text-auxiliar text-texto-secundario tabular-nums slashed-zero">
-                            Vence el {formatearFecha(cuenta.fechaVencimiento)}
+                          <span className="mt-1 block text-auxiliar whitespace-nowrap text-texto-secundario tabular-nums slashed-zero">
+                            Vence el {formatearFechaCorta(cuenta.fechaVencimiento)}
                           </span>
                         )}
                       </td>
-                      <td className="px-4 py-4 text-right xl:px-6">
+                      <td className="px-4 py-4 text-right whitespace-nowrap">
                         {centavos(cuenta.saldo) > 0 && (
                           <Button
                             variante="secundario"
