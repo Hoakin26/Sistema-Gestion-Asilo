@@ -5,6 +5,7 @@ import { useAuth } from "./hooks/useAuth";
 import { CuentasPorCobrarPage } from "./pages/CuentasPorCobrarPage";
 import { CuentasPorPagarPage } from "./pages/CuentasPorPagarPage";
 import { DonacionesPage } from "./pages/DonacionesPage";
+import { GastosPage } from "./pages/GastosPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { HistorialMedicoPage } from "./pages/HistorialMedicoPage";
 import { InternoPerfilPage } from "./pages/InternoPerfilPage";
@@ -230,6 +231,14 @@ function App() {
         element={
           <RutaPrivada>
             <DonacionesPage />
+          </RutaPrivada>
+        }
+      />
+      <Route
+        path="/gastos"
+        element={
+          <RutaPrivada>
+            <GastosPage />
           </RutaPrivada>
         }
       />

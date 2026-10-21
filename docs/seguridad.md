@@ -1076,7 +1076,17 @@ Como los pagos (sección 38), una donación no se edita ni se borra: si se regis
 
 Mayor que cero, con hasta dos decimales y hasta diez enteros (`numeric(12,2)`, como pide el diseño para los montos), y la fecha no puede estar en el futuro. El formulario repite las mismas reglas para avisar antes de enviar, pero la que cuenta es la del backend (`DonacionRequest`).
 
-## 42. Qué falta
+## 42. Los gastos operativos (HU-23)
+
+### Quién los registra
+
+`POST /api/gastos-operativos`, el histórico y la anulación están en `GastoOperativoController`, bajo `@SoloAdministradorAsilo`, como las donaciones: son egresos del asilo, y él lleva sus finanzas. `GastoOperativoTest` barre los otros seis roles en los tres endpoints y todos reciben 403, con cuerpos válidos por la razón de la sección 38.
+
+### Las mismas reglas que las donaciones
+
+Un gasto no se edita ni se borra: se anula con un motivo obligatorio, queda en el histórico tachado y deja de contar en los totales (sección 41). El monto se valida igual, mayor que cero con hasta dos decimales, y la fecha no puede estar en el futuro. La regla propia de los gastos depende de dos campos y la revisa el servicio: con el tipo Otro, la descripción es obligatoria, porque es lo único que dice en qué se gastó. El formulario la repite para avisar antes de enviar.
+
+## 43. Qué falta
 
 Nada pendiente de HU-30, HU-31 ni HU-32. Lo que queda abierto, sin historia asignada todavía:
 
