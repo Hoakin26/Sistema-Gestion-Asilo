@@ -86,6 +86,14 @@ export const SERVICIOS_CONTADOS = {
   FARMACIA: ["medicamento", "medicamentos"],
 };
 
+/** YS-146. Quién dona (RF-15), con las claves de `TipoDonante` del backend y en su orden. */
+export const TIPOS_DONANTE = {
+  EMPRESA_INTERNACIONAL: "Empresa internacional",
+  EMPRESA_NACIONAL: "Empresa nacional",
+  GOBIERNO: "Gobierno",
+  PARTICULAR: "Persona particular",
+};
+
 /** YS-137. Los tipos de servicio con descuento de la fundación, en el orden de `TipoServicio`. */
 export const TIPOS_SERVICIO = ["CONSULTA", "LABORATORIO", "FARMACIA"];
 
