@@ -47,6 +47,9 @@ export const ETIQUETAS_ESTADO = {
   // YS-140 · Deuda con la fundación. "PENDIENTE" es el mismo de la orden de
   // laboratorio, a propósito: un Pendiente se ve igual en todos los módulos.
   PAGADA: "Pagada",
+
+  // YS-143 · Cita pendiente de pago (RF-14). "PAGO_PARCIAL" es el de DE-04.
+  SIN_PAGO: "Sin Pago",
 };
 
 /**
@@ -74,6 +77,13 @@ export const FORMAS_PAGO = {
   DEPOSITO: "Depósito bancario",
   TARJETA: "Tarjeta",
   CHEQUE: "Cheque",
+};
+
+/** YS-143. Cuántos servicios de un tipo tuvo una cita, en singular y en plural. */
+export const SERVICIOS_CONTADOS = {
+  CONSULTA: ["consulta", "consultas"],
+  LABORATORIO: ["examen", "exámenes"],
+  FARMACIA: ["medicamento", "medicamentos"],
 };
 
 /** YS-137. Los tipos de servicio con descuento de la fundación, en el orden de `TipoServicio`. */
