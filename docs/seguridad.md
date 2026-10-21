@@ -1086,7 +1086,21 @@ Mayor que cero, con hasta dos decimales y hasta diez enteros (`numeric(12,2)`, c
 
 Un gasto no se edita ni se borra: se anula con un motivo obligatorio, queda en el histórico tachado y deja de contar en los totales (sección 41). El monto se valida igual, mayor que cero con hasta dos decimales, y la fecha no puede estar en el futuro. La regla propia de los gastos depende de dos campos y la revisa el servicio: con el tipo Otro, la descripción es obligatoria, porque es lo único que dice en qué se gastó. El formulario la repite para avisar antes de enviar.
 
-## 43. Qué falta
+## 43. El reporte de costos por cita (HU-24)
+
+### Quién lo genera
+
+`GET /api/reportes/costos-por-cita` está en `ReporteController` con `@SoloAdministradorAsilo` en el método, no en la clase: el controlador va a reunir los cinco reportes, y los clínicos (HU-25, HU-28) serán de otros roles. `VisitaMedicaTest` barre los otros seis roles y todos reciben 403.
+
+### Por tipo de servicio y nunca por nombre
+
+RF-17 pide desglosar los exámenes y los medicamentos de cada cita, y el Administrador del Asilo no puede ver datos clínicos (RNF-03): el nombre de un medicamento lo es. Por eso cada cita dice cuántos exámenes y cuántos medicamentos tuvo y cuánto costaron, sin decir cuáles, como el estado de cuenta (sección 36). La prueba busca en la respuesta el examen, el medicamento, el diagnóstico y la especialidad: no aparece ninguno.
+
+### El PDF no sale del navegador
+
+"Exportar a PDF" usa la impresión del navegador ("Guardar como PDF"), con una hoja de estilos que deja solo el reporte. El PDF se arma en la computadora de quien lo pide con los datos que ya tenía en pantalla: no hay un servicio externo de conversión ni una copia del reporte guardada en el servidor.
+
+## 44. Qué falta
 
 Nada pendiente de HU-30, HU-31 ni HU-32. Lo que queda abierto, sin historia asignada todavía:
 

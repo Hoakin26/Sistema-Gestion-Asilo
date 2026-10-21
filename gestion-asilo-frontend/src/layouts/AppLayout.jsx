@@ -23,6 +23,10 @@ import { useAuth } from "../hooks/useAuth";
  * que flote sobre donde el usuario estaba en vez de sacarlo de contexto. La
  * obligatoria se abre sola y no se puede descartar; la voluntaria la abre el
  * menú de usuario.
+ *
+ * YS-152. Al imprimir (los reportes se exportan a PDF con la impresión del
+ * navegador) solo queda el contenido: sin menú ni barra, y sin la altura fija
+ * ni el desplazamiento propio, que cortarían la hoja en lo que cabe en pantalla.
  */
 export function AppLayout({ migas, children }) {
   const { debeCambiarPassword } = useAuth();
@@ -37,20 +41,25 @@ export function AppLayout({ migas, children }) {
   };
 
   return (
-    <div className="flex h-dvh overflow-hidden bg-fondo">
-      <Sidebar />
-      <CajonNavegacion abierto={cajonAbierto} alCerrar={() => setCajonAbierto(false)} />
+    <div className="flex h-dvh overflow-hidden bg-fondo print:block print:h-auto print:overflow-visible print:bg-superficie">
+      {/* contents: el envoltorio no cuenta en el flex; print:hidden lo quita al imprimir. */}
+      <div className="contents print:hidden">
+        <Sidebar />
+        <CajonNavegacion abierto={cajonAbierto} alCerrar={() => setCajonAbierto(false)} />
+      </div>
 
-      <div className="flex min-w-0 flex-1 flex-col">
-        <Navbar
-          migas={migas}
-          menuAbierto={cajonAbierto}
-          alAbrirMenu={() => setCajonAbierto(true)}
-          alCambiarPassword={abrirCambioPassword}
-        />
+      <div className="flex min-w-0 flex-1 flex-col print:block">
+        <div className="contents print:hidden">
+          <Navbar
+            migas={migas}
+            menuAbierto={cajonAbierto}
+            alAbrirMenu={() => setCajonAbierto(true)}
+            alCambiarPassword={abrirCambioPassword}
+          />
+        </div>
         {/* px-4 en teléfono: con px-6 los márgenes se comían 48 de los 375px
             disponibles, que es justo lo que le falta a la tabla (YS-80). */}
-        <main className="flex-1 overflow-y-auto px-4 py-8 sm:px-6">{children}</main>
+        <main className="flex-1 overflow-y-auto px-4 py-8 sm:px-6 print:overflow-visible print:p-0">{children}</main>
       </div>
 
       {/* La obligatoria gana: mientras la marca esté puesta no hay nada que
