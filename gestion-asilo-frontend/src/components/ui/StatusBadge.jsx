@@ -32,8 +32,8 @@ const ESTILOS = {
  * texto sale de constants/estados.js.
  *
  * DE-01 (la solicitud de referencia), DE-02 (la orden de laboratorio), DE-03
- * (la receta), DE-04 (la cuenta mensual, desde HU-18), el aviso al familiar y
- * la visita.
+ * (la receta), DE-04 (la cuenta mensual, desde HU-18), el aviso al familiar,
+ * la visita y la deuda con la fundación (HU-20).
  */
 const ESTADOS = {
   ACTIVO: { Icono: CircleCheck, tono: "exito" },
@@ -74,6 +74,9 @@ const ESTADOS = {
   PAGO_PARCIAL: { Icono: CircleDollarSign, tono: "proceso" },
   COMPLETAMENTE_CANCELADA: { Icono: CircleCheck, tono: "exito" },
   EN_MORA: { Icono: TriangleAlert, tono: "error" },
+
+  // YS-140 · Deuda con la fundación: Pendiente es el de DE-02, de arriba.
+  PAGADA: { Icono: CircleCheck, tono: "exito" },
 };
 
 /**

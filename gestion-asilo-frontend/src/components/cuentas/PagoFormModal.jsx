@@ -40,7 +40,7 @@ function validar({ monto, fecha, formaPago }, saldo) {
   return errores;
 }
 
-function FormularioPago({ cuenta, alCerrar, alRegistrar }) {
+function FormularioPago({ montos, registrar, alCerrar, alRegistrar }) {
   const { mostrar } = useToast();
   const refFormulario = useRef(null);
   const [valores, setValores] = useState({ monto: "", fecha: hoyISO(), formaPago: "", referencia: "" });
@@ -60,7 +60,7 @@ function FormularioPago({ cuenta, alCerrar, alRegistrar }) {
 
   const enviar = async (evento) => {
     evento.preventDefault();
-    const encontrados = validar(valores, cuenta.saldo);
+    const encontrados = validar(valores, montos.saldo);
     if (Object.keys(encontrados).length > 0) {
       fallar(encontrados);
       return;
@@ -68,7 +68,7 @@ function FormularioPago({ cuenta, alCerrar, alRegistrar }) {
     setGuardando(true);
     setErrorGeneral(null);
     try {
-      const historial = await registrarPago(cuenta.id, {
+      const historial = await registrar({
         monto: normalizarMonto(valores.monto),
         fecha: valores.fecha,
         formaPago: valores.formaPago,
@@ -77,11 +77,11 @@ function FormularioPago({ cuenta, alCerrar, alRegistrar }) {
       mostrar(
         historial.cuenta.saldo > 0
           ? `Se registró el pago de ${formatearQuetzales(normalizarMonto(valores.monto))}. Saldo pendiente: ${formatearQuetzales(historial.cuenta.saldo)}.`
-          : `Se registró el pago de ${formatearQuetzales(normalizarMonto(valores.monto))}. La cuenta quedó pagada completa.`,
+          : `Se registró el pago de ${formatearQuetzales(normalizarMonto(valores.monto))}. Ya no queda saldo pendiente.`,
       );
       alRegistrar(historial);
     } catch (fallo) {
-      // 409: la cuenta ya estaba pagada, o alguien registró otro pago al mismo tiempo.
+      // 409: ya estaba pagada, o alguien registró otro pago al mismo tiempo.
       const porCampo = erroresPorCampo(fallo);
       if (porCampo) fallar(porCampo);
       else setErrorGeneral(mensajeDeError(fallo, "No se pudo registrar el pago"));
@@ -97,17 +97,17 @@ function FormularioPago({ cuenta, alCerrar, alRegistrar }) {
 
         <dl className="grid gap-4 rounded-tarjeta bg-fondo px-4 py-3 sm:grid-cols-3">
           <div>
-            <dt className="text-auxiliar text-texto-secundario">Total de la cuenta</dt>
-            <dd className="mt-1 text-texto tabular-nums slashed-zero">{formatearQuetzales(cuenta.totalAPagar)}</dd>
+            <dt className="text-auxiliar text-texto-secundario">{montos.etiquetaTotal}</dt>
+            <dd className="mt-1 text-texto tabular-nums slashed-zero">{formatearQuetzales(montos.total)}</dd>
           </div>
           <div>
             <dt className="text-auxiliar text-texto-secundario">Pagado</dt>
-            <dd className="mt-1 text-texto tabular-nums slashed-zero">{formatearQuetzales(cuenta.totalPagado)}</dd>
+            <dd className="mt-1 text-texto tabular-nums slashed-zero">{formatearQuetzales(montos.pagado)}</dd>
           </div>
           <div>
             <dt className="text-auxiliar text-texto-secundario">Saldo pendiente</dt>
             <dd className="mt-1 font-semibold text-texto tabular-nums slashed-zero">
-              {formatearQuetzales(cuenta.saldo)}
+              {formatearQuetzales(montos.saldo)}
             </dd>
           </div>
         </dl>
@@ -116,7 +116,7 @@ function FormularioPago({ cuenta, alCerrar, alRegistrar }) {
           etiqueta="Monto"
           obligatorio
           error={errores.monto}
-          ayuda="En quetzales. Un pago parcial se descuenta del saldo; el pago del total cancela la cuenta."
+          ayuda="En quetzales. Un pago parcial se descuenta del saldo; el que cubre el saldo completo lo deja en cero."
         >
           {(campo) => (
             <div className="flex flex-wrap items-center gap-3">
@@ -125,7 +125,7 @@ function FormularioPago({ cuenta, alCerrar, alRegistrar }) {
                 type="button"
                 variante="secundario"
                 onClick={() => {
-                  setValores((previos) => ({ ...previos, monto: Number(cuenta.saldo).toFixed(2) }));
+                  setValores((previos) => ({ ...previos, monto: Number(montos.saldo).toFixed(2) }));
                   setErrores((previos) => ({ ...previos, monto: undefined }));
                 }}
               >
@@ -185,23 +185,44 @@ function FormularioPago({ cuenta, alCerrar, alRegistrar }) {
 }
 
 /**
- * HU-34 (YS-177). El pago del familiar sobre una cuenta mensual (CU-006, paso
- * 6), con el saldo pendiente a la vista. Se valida igual que en el backend: más
- * de cero y no más que el saldo.
+ * HU-34 (YS-177). Un pago con el saldo pendiente a la vista. Se valida igual
+ * que en el backend: más de cero y no más que el saldo.
+ *
+ * YS-140. Sirve para el pago del familiar (HU-34) y para el pago a la
+ * fundación (HU-20): `montos` trae `{ etiquetaTotal, total, pagado, saldo }`
+ * y `registrar(datos)` llama a su API y responde `{ cuenta, pagos }`.
  */
-export function PagoFormModal({ abierto, cuenta, claveFormulario, alCerrar, alRegistrar }) {
+export function PagoFormModal({ abierto, descripcion, montos, claveFormulario, registrar, alCerrar, alRegistrar }) {
   return (
-    <Modal
-      abierto={abierto}
-      alCerrar={alCerrar}
-      titulo="Registrar pago"
+    <Modal abierto={abierto} alCerrar={alCerrar} titulo="Registrar pago" descripcion={descripcion}>
+      {montos && (
+        <FormularioPago
+          key={claveFormulario}
+          montos={montos}
+          registrar={registrar}
+          alCerrar={alCerrar}
+          alRegistrar={alRegistrar}
+        />
+      )}
+    </Modal>
+  );
+}
+
+/** HU-34 (YS-177). El pago del familiar sobre una cuenta mensual (CU-006, paso 6). */
+export function PagoCuentaMensualModal({ cuenta, ...props }) {
+  return (
+    <PagoFormModal
+      {...props}
       descripcion={
         cuenta ? `${cuenta.interno.nombreCompleto} · cuenta de ${formatearPeriodo(cuenta.periodo)}` : undefined
       }
-    >
-      {cuenta && (
-        <FormularioPago key={claveFormulario} cuenta={cuenta} alCerrar={alCerrar} alRegistrar={alRegistrar} />
-      )}
-    </Modal>
+      montos={
+        cuenta
+          ? { etiquetaTotal: "Total de la cuenta", total: cuenta.totalAPagar, pagado: cuenta.totalPagado, saldo: cuenta.saldo }
+          : null
+      }
+      // Con la guarda: el React Compiler lee `cuenta.id` al memoizar la función, aunque nadie la llame.
+      registrar={cuenta ? (datos) => registrarPago(cuenta.id, datos) : undefined}
+    />
   );
 }

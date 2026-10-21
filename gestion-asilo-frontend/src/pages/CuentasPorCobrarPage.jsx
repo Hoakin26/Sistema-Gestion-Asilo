@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { Banknote, Calculator, Inbox } from "lucide-react";
 
 import { DescuentosVigentes } from "../components/cuentas/DescuentosVigentes";
-import { PagoFormModal } from "../components/cuentas/PagoFormModal";
+import { PagoCuentaMensualModal } from "../components/cuentas/PagoFormModal";
 import { Alert } from "../components/ui/Alert";
 import { Button } from "../components/ui/Button";
 import { FormField } from "../components/ui/FormField";
@@ -274,7 +274,7 @@ export function CuentasPorCobrarPage() {
         )}
       </div>
 
-      <PagoFormModal
+      <PagoCuentaMensualModal
         abierto={enPago !== null}
         cuenta={enPago}
         claveFormulario={aperturas}

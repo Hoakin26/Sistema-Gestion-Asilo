@@ -43,6 +43,10 @@ export const ETIQUETAS_ESTADO = {
   PAGO_PARCIAL: "Pago Parcial",
   COMPLETAMENTE_CANCELADA: "Completamente Cancelada",
   EN_MORA: "En Mora",
+
+  // YS-140 · Deuda con la fundación. "PENDIENTE" es el mismo de la orden de
+  // laboratorio, a propósito: un Pendiente se ve igual en todos los módulos.
+  PAGADA: "Pagada",
 };
 
 /**
