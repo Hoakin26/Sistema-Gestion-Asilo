@@ -3,6 +3,7 @@ package app.cabezadealgodon.com.gestionasilobackend;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.startsWith;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -2663,6 +2664,111 @@ class VisitaMedicaTest extends PruebaConBaseDeDatos {
                 .andExpect(status().isForbidden());
     }
 
+    // ---- YS-165: los reportes de exámenes y de medicamentos (HU-28) ----
+
+    /**
+     * Un paciente con un examen y un medicamento de hoy y otros de hace 40
+     * días, más un examen ordenado y un medicamento recetado que todavía no se
+     * dieron; otro paciente con los suyos de hoy. Cada reporte trae solo lo
+     * realizado o entregado a ese paciente en el rango.
+     */
+    @Test
+    @DisplayName("Los reportes de exámenes y de medicamentos traen solo lo realizado o entregado al paciente en el rango, con su fecha y su detalle")
+    void losReportesDeExamenesYMedicamentos() throws Exception {
+        tarifaDe(6, "410.00");
+        Especialista especialista = nuevoEspecialista(6);
+        Cita cita = citaEl(especialista, HOY.atTime(8, 0));
+        Long interno = cita.getSolicitud().getInterno().getId();
+        conLosTresCargos(cita, especialista, "Perfil lipídico", "120.00", "Olanzapina", "35.50");
+        long anterior = conLosTresCargos(citaEl(especialista, HOY.minusDays(40).atTime(9, 0), interno), especialista,
+                "Glucosa en ayunas", "60.00", "Quetiapina", "20.00");
+        alMomento(anterior, HOY.minusDays(40).atTime(15, 0));
+        // Otro paciente, con lo suyo de hoy.
+        Cita deOtro = citaEl(especialista, HOY.atTime(11, 0));
+        Long otro = deOtro.getSolicitud().getInterno().getId();
+        conLosTresCargos(deOtro, especialista, "Glucosa en ayunas", "60.00", "Clozapina", "40.00");
+        // Ordenado y recetado, pero sin resultado ni entrega: no está en los reportes.
+        long enCurso = idDe(iniciar(citaEl(especialista, HOY.minusDays(1).atTime(10, 0), interno).getId(), especialista));
+        ordenar(enCurso, especialista, examen("Hemoglobina glicosilada (HbA1c)", null)).andExpect(status().isCreated());
+        recetar(enCurso, especialista, null, medicamento("Sertralina", "50 mg", 14, "Cada mañana"))
+                .andExpect(status().isCreated());
+
+        String medico = tokenDe(RolNombre.MEDICO_GENERAL);
+        reporteClinico("examenes", interno, HOY.minusDays(7), HOY, medico)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paciente.id").value(interno.intValue()))
+                .andExpect(jsonPath("$.paciente.nombreCompleto").value("Interno con visita"))
+                .andExpect(jsonPath("$.desde").value(HOY.minusDays(7).toString()))
+                .andExpect(jsonPath("$.examenes[*].examen").value(contains("Perfil lipídico")))
+                .andExpect(jsonPath("$.examenes[0].resultado").value("Dentro de lo normal"))
+                .andExpect(jsonPath("$.examenes[0].fechaResultado").value(startsWith(HOY.toString())))
+                .andExpect(jsonPath("$.examenes[0].especialidad.id").value(idEspecialidad(6).intValue()))
+                .andExpect(jsonPath("$.examenes[0].especialista.nombreCompleto").isNotEmpty());
+        reporteClinico("examenes", interno, HOY.minusDays(60), HOY, medico)
+                .andExpect(jsonPath("$.examenes[*].examen").value(contains("Glucosa en ayunas", "Perfil lipídico")));
+        reporteClinico("examenes", interno, HOY.minusYears(1), HOY.minusYears(1).plusDays(10), medico)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.examenes").isEmpty());
+
+        reporteClinico("medicamentos", interno, HOY.minusDays(7), HOY, medico)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paciente.id").value(interno.intValue()))
+                .andExpect(jsonPath("$.medicamentos[*].medicamento").value(contains("Olanzapina")))
+                .andExpect(jsonPath("$.medicamentos[0].dosis").value("25 mg"))
+                .andExpect(jsonPath("$.medicamentos[0].cantidad").value(30))
+                .andExpect(jsonPath("$.medicamentos[0].formaAplicacion").value("Cada noche"))
+                .andExpect(jsonPath("$.medicamentos[0].fechaEntrega").value(startsWith(HOY.toString())))
+                .andExpect(jsonPath("$.medicamentos[0].fechaReceta").isNotEmpty());
+        reporteClinico("medicamentos", interno, HOY.minusDays(60), HOY, medico)
+                .andExpect(jsonPath("$.medicamentos[*].medicamento").value(contains("Quetiapina", "Olanzapina")));
+        reporteClinico("medicamentos", interno, HOY.minusDays(60), HOY.minusDays(30), medico)
+                .andExpect(jsonPath("$.medicamentos[*].medicamento").value(contains("Quetiapina")));
+
+        // El especialista, del paciente de su visita activa; del otro, 403.
+        String suyo = tokenDe(especialista);
+        reporteClinico("examenes", interno, HOY.minusDays(60), HOY, suyo)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.examenes.length()").value(2));
+        reporteClinico("medicamentos", interno, HOY.minusDays(60), HOY, suyo)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.medicamentos.length()").value(2));
+        reporteClinico("examenes", otro, HOY.minusDays(60), HOY, suyo)
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.mensaje").value(containsString("mientras su visita siga activa")));
+        reporteClinico("medicamentos", otro, HOY.minusDays(60), HOY, suyo).andExpect(status().isForbidden());
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @ValueSource(strings = { "examenes", "medicamentos" })
+    @DisplayName("Los reportes de exámenes y de medicamentos rechazan un rango al revés (400), un paciente que no existe (404) o que falta (400); sin fechas, van del 1 de enero a hoy")
+    void reportesClinicosInvalidos(String reporte) throws Exception {
+        String medico = tokenDe(RolNombre.MEDICO_GENERAL);
+        long interno = crearInterno(medico);
+        reporteClinico(reporte, interno, HOY, HOY.minusDays(1), medico)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errores.hasta").value("La fecha final no puede ser anterior a la inicial"));
+        reporteClinico(reporte, 999_999L, HOY.withDayOfMonth(1), HOY, medico).andExpect(status().isNotFound());
+        reporteClinico(reporte, interno, null, null, medico)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.desde").value(HOY.withDayOfYear(1).toString()))
+                .andExpect(jsonPath("$.hasta").value(HOY.toString()));
+        mvc.perform(get("/api/reportes/{reporte}", reporte).header(HttpHeaders.AUTHORIZATION, "Bearer " + medico))
+                .andExpect(status().isBadRequest());
+        mvc.perform(get("/api/reportes/{reporte}", reporte).param("internoId", Long.toString(interno)))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @EnumSource(value = RolNombre.class, names = { "MEDICO_GENERAL", "MEDICO_ESPECIALISTA" },
+            mode = EnumSource.Mode.EXCLUDE)
+    @DisplayName("Los roles que no son médicos, el Administrador del Asilo incluido, no generan los reportes de exámenes ni de medicamentos: 403")
+    void soloLosMedicosGeneranLosReportesClinicos(RolNombre rol) throws Exception {
+        long interno = crearInterno(tokenDe(RolNombre.MEDICO_GENERAL));
+        String token = tokenDe(rol);
+        reporteClinico("examenes", interno, null, null, token).andExpect(status().isForbidden());
+        reporteClinico("medicamentos", interno, null, null, token).andExpect(status().isForbidden());
+    }
+
     // ---- YS-107: el diagnóstico y el cierre de la visita (HU-09) ----
 
     @Test
@@ -3183,6 +3289,38 @@ class VisitaMedicaTest extends PruebaConBaseDeDatos {
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(RolNombre.ADMINISTRADOR_ASILO))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json.writeValueAsString(Map.of("motivo", motivo))));
+    }
+
+    /**
+     * YS-165. El reporte de exámenes o de medicamentos ({@code reporte}) de un
+     * interno, con el token de quien lo pide; {@code null} omite la fecha.
+     */
+    private ResultActions reporteClinico(String reporte, long internoId, LocalDate desde, LocalDate hasta,
+            String token) throws Exception {
+        MockHttpServletRequestBuilder peticion = get("/api/reportes/{reporte}", reporte)
+                .param("internoId", Long.toString(internoId))
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token);
+        if (desde != null) {
+            peticion.param("desde", desde.toString());
+        }
+        if (hasta != null) {
+            peticion.param("hasta", hasta.toString());
+        }
+        return mvc.perform(peticion);
+    }
+
+    /**
+     * YS-165. Pasa a {@code momento} el resultado de los exámenes y la entrega
+     * de los medicamentos de una visita: los reportes de HU-28 van por esas
+     * fechas, y por la API siempre son las de ahora.
+     */
+    private void alMomento(long visitaId, LocalDateTime momento) {
+        List<OrdenLaboratorio> ordenes = ordenRepository.findByVisitaIdOrderByIdAsc(visitaId);
+        ordenes.forEach(orden -> orden.setFechaResultado(momento));
+        ordenRepository.saveAll(ordenes);
+        Receta receta = recetaRepository.findByVisitaId(visitaId).orElseThrow();
+        receta.getMedicamentos().forEach(detalle -> detalle.entregar(momento, detalle.getCosto()));
+        recetaRepository.save(receta);
     }
 
     /** YS-156. El reporte de análisis médico de un interno, con el token de quien lo pide. */

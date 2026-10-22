@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { ChevronRight, ClipboardList, HandCoins, Landmark, PiggyBank, ReceiptText } from "lucide-react";
+import { ChevronRight, ClipboardList, FlaskConical, HandCoins, Landmark, PiggyBank, ReceiptText } from "lucide-react";
 
 import { useAuth } from "../hooks/useAuth";
 import { AppLayout } from "../layouts/AppLayout";
@@ -47,13 +47,22 @@ const REPORTES = [
     Icono: PiggyBank,
     roles: ["ADMINISTRADOR_ASILO"],
   },
+  // HU-28: los dos en una pantalla, que elige el tipo de reporte (YS-164).
+  {
+    ruta: "/reportes/examenes-medicamentos",
+    titulo: "Exámenes y medicamentos",
+    descripcion: "Los exámenes realizados o los medicamentos entregados a un paciente en un período.",
+    Icono: FlaskConical,
+    roles: ["MEDICO_GENERAL", "MEDICO_ESPECIALISTA"],
+  },
 ];
 
 /**
  * HU-24 (YS-152). "Reportes": la entrada a cada reporte del rol. Cada uno se
  * genera con sus filtros y se exporta a PDF. HU-25 (YS-155) le suma el de
  * análisis médico, para los médicos; HU-26 (YS-158), el de cobros, y HU-27
- * (YS-161), los de pagos a la fundación y entradas.
+ * (YS-161), los de pagos a la fundación y entradas; HU-28 (YS-164), el de
+ * exámenes y medicamentos, de los médicos.
  */
 export function ReportesPage() {
   const { usuario } = useAuth();
