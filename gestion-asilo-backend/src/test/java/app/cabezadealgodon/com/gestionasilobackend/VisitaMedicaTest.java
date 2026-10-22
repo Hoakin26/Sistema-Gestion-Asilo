@@ -94,7 +94,8 @@ import tools.jackson.databind.ObjectMapper;
  * sobre esa cuenta, su anulación y la mora, y desde HU-20 (YS-141), lo que el
  * asilo le debe a la fundación por esos mismos cargos y sus pagos, y desde
  * HU-21 (YS-144), las citas que el familiar todavía no termina de pagar, y desde
- * HU-24 (YS-153), el reporte de costos por cita que sale de esos mismos cargos.
+ * HU-24 (YS-153), el reporte de costos por cita que sale de esos mismos cargos,
+ * y desde HU-25 (YS-156), el reporte de análisis médico con todo lo clínico.
  * Desde HU-02 (YS-67), el historial médico centralizado del Médico General,
  * que se arma con todo lo anterior.
  *
@@ -2322,6 +2323,88 @@ class VisitaMedicaTest extends PruebaConBaseDeDatos {
                 .andExpect(status().isForbidden());
     }
 
+    // ---- YS-156: el reporte de análisis médico (HU-25) ----
+
+    @Test
+    @DisplayName("El reporte de análisis médico trae la ficha con el motivo de reclusión, las visitas con su diagnóstico, los medicamentos recetados y los exámenes")
+    void elReporteDeAnalisisMedico() throws Exception {
+        tarifaDe(6, "410.00");
+        Especialista especialista = nuevoEspecialista(6);
+        Cita cita = citaEl(especialista, HOY.atTime(8, 0));
+        Long interno = cita.getSolicitud().getInterno().getId();
+        String medicoGeneral = tokenDe(RolNombre.MEDICO_GENERAL);
+        mvc.perform(put("/api/internos/{id}/ficha-medica", interno)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + medicoGeneral)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"tipoSangre": "O+",
+                         "alergias": "Penicilina",
+                         "motivoIngreso": "Deterioro cognitivo",
+                         "psicopatologias": [{"nombre": "Demencia senil", "observaciones": "Progresiva"}],
+                         "medicamentosHabituales": [{"nombre": "Donepezilo", "dosis": "10 mg", "frecuencia": "Cada 24 horas"}]}
+                        """))
+                .andExpect(status().isOk());
+        long visita = conLosTresCargos(cita, especialista, "Glucosa en ayunas", "120.00", "Quetiapina", "35.50");
+
+        reporteMedico(interno, medicoGeneral)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paciente.id").value(interno.intValue()))
+                .andExpect(jsonPath("$.paciente.nombreCompleto").value("Interno con visita"))
+                .andExpect(jsonPath("$.paciente.dpi").value(dpiDe(cita)))
+                .andExpect(jsonPath("$.ficha.motivoIngreso").value("Deterioro cognitivo"))
+                .andExpect(jsonPath("$.ficha.alergias").value("Penicilina"))
+                .andExpect(jsonPath("$.ficha.psicopatologias[0].nombre").value("Demencia senil"))
+                .andExpect(jsonPath("$.ficha.medicamentosHabituales[0].nombre").value("Donepezilo"))
+                .andExpect(jsonPath("$.historial.visitas.length()").value(1))
+                .andExpect(jsonPath("$.historial.visitas[0].id").value((int) visita))
+                .andExpect(jsonPath("$.historial.visitas[0].diagnostico").value("Hipertensión arterial"))
+                .andExpect(jsonPath("$.historial.recetas[0].medicamentos[0].medicamento").value("Quetiapina"))
+                .andExpect(jsonPath("$.historial.examenes[0].examen.nombre").value("Glucosa en ayunas"));
+
+        reporteMedico(999_999L, medicoGeneral).andExpect(status().isNotFound());
+        mvc.perform(get("/api/reportes/analisis-medico").header(HttpHeaders.AUTHORIZATION, "Bearer " + medicoGeneral))
+                .andExpect(status().isBadRequest());
+        mvc.perform(get("/api/reportes/analisis-medico").param("internoId", interno.toString()))
+                .andExpect(status().isUnauthorized());
+    }
+
+    /** Decidido el 21/10: como los antecedentes de HU-08, solo con la visita en curso. */
+    @Test
+    @DisplayName("El especialista genera el reporte solo del paciente de su visita activa: de otro paciente, de la visita de otro o ya finalizada, 403")
+    void elEspecialistaSoloConSuVisitaActiva() throws Exception {
+        tarifaDe(6, "410.00");
+        Especialista especialista = nuevoEspecialista(6);
+        Cita cita = citaEl(especialista, HOY.atTime(10, 0));
+        Long interno = cita.getSolicitud().getInterno().getId();
+        long visita = idDe(iniciar(cita.getId(), especialista));
+        String token = tokenDe(especialista);
+
+        reporteMedico(interno, token)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paciente.id").value(interno.intValue()))
+                // La visita en curso también está en el reporte, aunque no tenga diagnóstico todavía.
+                .andExpect(jsonPath("$.historial.visitas[0].estado").value("ACTIVA"));
+
+        long otroPaciente = crearInterno(tokenDe(RolNombre.MEDICO_GENERAL));
+        reporteMedico(otroPaciente, token)
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.mensaje").value(containsString("mientras su visita siga activa")));
+        reporteMedico(interno, tokenDe(nuevoEspecialista(6))).andExpect(status().isForbidden());
+
+        diagnosticar(visita, especialista, "Control", null).andExpect(status().isOk());
+        finalizar(visita, especialista).andExpect(status().isOk());
+        reporteMedico(interno, token).andExpect(status().isForbidden());
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @EnumSource(value = RolNombre.class, names = { "MEDICO_GENERAL", "MEDICO_ESPECIALISTA" },
+            mode = EnumSource.Mode.EXCLUDE)
+    @DisplayName("Los roles que no son médicos, el Administrador del Asilo incluido, no generan el reporte de análisis médico: 403")
+    void soloLosMedicosGeneranElAnalisisMedico(RolNombre rol) throws Exception {
+        long interno = crearInterno(tokenDe(RolNombre.MEDICO_GENERAL));
+        reporteMedico(interno, tokenDe(rol)).andExpect(status().isForbidden());
+    }
+
     // ---- YS-107: el diagnóstico y el cierre de la visita (HU-09) ----
 
     @Test
@@ -2788,6 +2871,13 @@ class VisitaMedicaTest extends PruebaConBaseDeDatos {
         diagnosticar(visita, especialista, "Hipertensión arterial", null).andExpect(status().isOk());
         finalizar(visita, especialista).andExpect(status().isOk());
         return visita;
+    }
+
+    /** YS-156. El reporte de análisis médico de un interno, con el token de quien lo pide. */
+    private ResultActions reporteMedico(long internoId, String token) throws Exception {
+        return mvc.perform(get("/api/reportes/analisis-medico")
+                .param("internoId", Long.toString(internoId))
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token));
     }
 
     /** YS-153. El reporte de costos por cita; {@code null} omite el parámetro. */
