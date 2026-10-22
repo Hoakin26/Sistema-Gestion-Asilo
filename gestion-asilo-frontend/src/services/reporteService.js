@@ -35,6 +35,21 @@ export async function obtenerReporteEntradas({ desde, hasta }) {
 }
 
 /**
+ * HU-28 (YS-164). Los exámenes realizados a un paciente (RF-21a) entre dos
+ * fechas del resultado ("AAAA-MM-DD"). Los permisos del análisis médico.
+ */
+export async function obtenerReporteExamenes({ internoId, desde, hasta }) {
+  const { data } = await api.get("/reportes/examenes", { params: { internoId, desde, hasta } });
+  return data;
+}
+
+/** HU-28 (YS-164). Los medicamentos entregados a un paciente (RF-21b) entre dos fechas de entrega. */
+export async function obtenerReporteMedicamentos({ internoId, desde, hasta }) {
+  const { data } = await api.get("/reportes/medicamentos", { params: { internoId, desde, hasta } });
+  return data;
+}
+
+/**
  * HU-25 (YS-155). El reporte de análisis médico de un paciente: sus datos, su
  * ficha y su historial. El especialista, solo del paciente de su visita activa.
  */
