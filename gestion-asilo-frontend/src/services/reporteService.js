@@ -10,3 +10,12 @@ export async function obtenerReporteCostos({ internoId, desde, hasta }) {
   });
   return data;
 }
+
+/**
+ * HU-25 (YS-155). El reporte de análisis médico de un paciente: sus datos, su
+ * ficha y su historial. El especialista, solo del paciente de su visita activa.
+ */
+export async function obtenerReporteAnalisisMedico(internoId) {
+  const { data } = await api.get("/reportes/analisis-medico", { params: { internoId } });
+  return data;
+}

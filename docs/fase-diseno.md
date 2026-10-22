@@ -1338,7 +1338,7 @@ stateDiagram-v2
 | Citas pendientes de pago | `ServicioPendienteService`, `EstadoPagoServicio` (sobre `CargoServicio` y `CuentaMensual`) | HU-21 | Implementado (21/10) |
 | Donaciones | `Donacion`, `TipoDonante`, `DonacionService` | HU-22 | Implementado (21/10) |
 | Gastos operativos | `GastoOperativo`, `TipoGasto`, `GastoOperativoService` | HU-23 | Implementado (21/10) |
-| Reportes | `ReporteService`, `ReporteController`; en el frontend, `PrintableReportLayout`, que se exporta a PDF con la impresión del navegador | HU-24 a HU-28 | HU-24 implementada (21/10); HU-25 a HU-28, Sprint 3 |
+| Reportes | `ReporteService`, `ReporteController`; en el frontend, `PrintableReportLayout`, que se exporta a PDF con la impresión del navegador | HU-24 a HU-28 | HU-24 y HU-25 implementadas (21/10); HU-26 a HU-28, Sprint 3 |
 
 ---
 
@@ -1385,9 +1385,9 @@ Todos los roles entran a un **Dashboard** común y navegan con un menú lateral 
 
 | Rol | Módulos del menú |
 |---|---|
-| Médico General | Dashboard · Internos · Historial médico · Solicitudes de referencia |
+| Médico General | Dashboard · Internos · Historial médico · Solicitudes de referencia · Reportes (HU-25) |
 | Administrador de la Fundación | Dashboard · Solicitudes entrantes · Agenda y asignación · Médicos y disponibilidad |
-| Médico Especialista | Dashboard · Mi agenda del día · Visitas médicas · Órdenes de laboratorio · Recetas |
+| Médico Especialista | Dashboard · Mi agenda del día · Visitas médicas · Órdenes de laboratorio · Recetas · Reportes (HU-25) |
 | Administrador del Asilo | Dashboard · Usuarios y roles · Internos (vista administrativa) · Cuentas por cobrar (con las pestañas "Cuentas del mes" y "Citas pendientes", HU-21) · Cuentas por pagar · Donaciones · Gastos · Reportes · Configuración |
 | Enfermería | Dashboard · Internos · Solicitudes asignadas · Citas |
 | Laboratorio | Dashboard · Órdenes pendientes · Registro de resultados |
@@ -1984,6 +1984,7 @@ classDiagram
 | GET | `/api/gastos-operativos?desde=&hasta=&tipo=` | AA | — | `HistoricoGastosResponse`: los gastos entre las dos fechas (incluidas) y de los tipos pedidos (`tipo` se puede repetir; sin él, todos), del más reciente al más antiguo, los anulados incluidos; el total del período y el total y la cantidad por tipo, sin los anulados. 400 si `hasta` es anterior a `desde` o con un tipo que no existe | HU-23 |
 | POST | `/api/gastos-operativos/{id}/anulacion` | AA | `AnulacionPagoRequest` (`motivo`, obligatorio) | `GastoOperativoResponse`. Como las donaciones: no se borra, queda anulado con el motivo y deja de contar en los totales. 400 sin motivo; 404 si no existe; 409 si ya estaba anulado | HU-23 |
 | GET | `/api/reportes/costos-por-cita?internoId=&desde=&hasta=` | AA | — | `ReporteCostosResponse`: las citas entre las dos fechas de la cita (incluidas; sin ellas, del inicio del mes a hoy), agrupadas por paciente y por nombre, de la más antigua a la más reciente. Cada cita con su número de solicitud y lo que costaron su consulta, sus exámenes y sus medicamentos (cuántos y cuánto, sin nombres), el total, el descuento y el neto; cada paciente y el reporte con sus totales y su promedio por cita. Sin `internoId`, de todos. 400 si `hasta` es anterior a `desde`; 404 si el interno no existe | HU-24 |
+| GET | `/api/reportes/analisis-medico?internoId=` | MG, ME (solo del paciente de su visita activa) | — | `ReporteAnalisisMedicoResponse`: los datos generales del paciente, su ficha médica (con el motivo de ingreso, que es el de reclusión) y su historial completo como en HU-02: las visitas con su diagnóstico, las recetas con sus medicamentos y los exámenes con su resultado. 403 para el especialista sin una visita activa de ese paciente; 404 si el interno no existe; 400 sin `internoId` | HU-25 |
 | GET | `/api/cuentas-por-pagar` | AA | — | `List<CuentaPorPagarResponse>`: el histórico de lo que el asilo le debe a la fundación, una fila por mes y tipo de servicio con servicios, del mes más reciente al más antiguo: cuántos servicios hubo, lo adeudado (el neto de sus cargos, con el descuento de la fundación), lo pagado, el saldo y el estado (`PENDIENTE` o `PAGADA`). Siempre al día con los cargos; sin nombres de pacientes, exámenes ni medicamentos | HU-20 |
 | GET | `/api/cuentas-por-pagar/{periodo}/{tipoServicio}/pagos` | AA | — | `HistorialPagosFundacionResponse`: esa deuda (`2026-10`, `CONSULTA`) con sus pagos, del más reciente al más antiguo, los anulados incluidos. Un mes sin servicios de ese tipo responde en cero. 400 con un mes mal escrito o un tipo que no sea `CONSULTA`, `LABORATORIO` ni `FARMACIA` | HU-20 |
 | POST | `/api/cuentas-por-pagar/{periodo}/{tipoServicio}/pagos` | AA | `PagoRequest`, el mismo del pago del familiar | 201, `HistorialPagosFundacionResponse` con el saldo y el estado nuevos (`PAGADA` si cubre el saldo). 400 en el campo, y en `monto` si pasa del saldo pendiente; 409 si la deuda ya está pagada, si ese mes no tiene servicios de ese tipo o si otro pago la cambió al mismo tiempo | HU-20 |
