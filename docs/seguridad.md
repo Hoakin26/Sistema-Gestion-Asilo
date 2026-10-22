@@ -1136,7 +1136,17 @@ Decidido el 22/10: HU-27 son dos reportes y no uno consolidado, como los separó
 
 El de pagos a la fundación dice de cada pago solo el concepto (consulta, laboratorio o farmacia), el mes de la deuda y el monto, como las cuentas por pagar (sección 39): ni pacientes ni servicios. El de entradas nombra al paciente de cada cobro, que es un dato personal que el Administrador del Asilo ya ve en su vista de internos, y nada clínico. En los dos, lo anulado no aparece ni suma: un pago o una donación anulada no se movió. Las pruebas anulan uno de cada uno y comprueban que su id no está en la respuesta. El PDF se arma en el navegador, como el de costos (sección 43).
 
-## 47. Qué falta
+## 47. Los reportes de exámenes y medicamentos (HU-28)
+
+### Los permisos del análisis médico
+
+Los dos reportes son datos clínicos: el nombre de un examen y su resultado, y el de un medicamento. `GET /api/reportes/examenes` y `GET /api/reportes/medicamentos` llevan `@MedicoGeneralOEspecialista`, y el servicio aplica la misma regla que el análisis médico (sección 44): el Médico General, de cualquier paciente; el especialista, solo del paciente de una visita suya que siga activa. Esa comprobación quedó en un solo método de `ReporteService` que usan los tres reportes, para que no puedan divergir. `VisitaMedicaTest` barre los cinco roles que no son médicos, el Administrador del Asilo incluido (403, RNF-03), y prueba al especialista con su paciente (200) y con otro (403).
+
+### El archivo del resultado
+
+En pantalla, el examen con archivo trae el botón para descargarlo, que pasa por el mismo endpoint del laboratorio (HU-13) y sus permisos. En el PDF solo queda el nombre del archivo: el reporte no incrusta el contenido ni deja un enlace que funcione fuera del sistema.
+
+## 48. Qué falta
 
 Nada pendiente de HU-30, HU-31 ni HU-32. Lo que queda abierto, sin historia asignada todavía:
 
