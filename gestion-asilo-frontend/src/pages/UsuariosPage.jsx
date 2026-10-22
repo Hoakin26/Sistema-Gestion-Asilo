@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Filter,
   KeyRound,
@@ -56,22 +56,31 @@ export function UsuariosPage() {
   const [modalPasswordAbierto, setModalPasswordAbierto] = useState(false);
   const [aperturasPassword, setAperturasPassword] = useState(0);
 
+  // Guardar, desactivar o reactivar cambia la lista: se vuelve a pedir (YS-184).
+  const [recargas, setRecargas] = useState(0);
+
   // No enciende el estado de carga: en la primera vez ya arranca encendido, y
   // al recargar tras guardar es preferible no parpadear la tabla completa.
-  const cargar = useCallback(async () => {
-    try {
-      setUsuarios(await listarUsuarios());
-      setError(null);
-    } catch (fallo) {
-      setError(mensajeDeError(fallo, "No se pudieron cargar los usuarios"));
-    } finally {
-      setCargando(false);
-    }
-  }, []);
-
   useEffect(() => {
-    cargar();
-  }, [cargar]);
+    let vigente = true;
+    listarUsuarios()
+      .then((lista) => {
+        if (!vigente) return;
+        setUsuarios(lista);
+        setError(null);
+      })
+      .catch((fallo) => {
+        if (vigente) setError(mensajeDeError(fallo, "No se pudieron cargar los usuarios"));
+      })
+      .finally(() => {
+        if (vigente) setCargando(false);
+      });
+    return () => {
+      vigente = false;
+    };
+  }, [recargas]);
+
+  const recargar = () => setRecargas((valor) => valor + 1);
 
   const abrir = (usuario) => {
     setEnEdicion(usuario);
@@ -94,7 +103,7 @@ export function UsuariosPage() {
           ? `${usuario.nombreCompleto} puede volver a ingresar al sistema.`
           : `${usuario.nombreCompleto} ya no puede ingresar al sistema.`,
       );
-      cargar();
+      recargar();
     } catch (fallo) {
       mostrar(mensajeDeError(fallo, "No se pudo cambiar el estado"), "error");
     }
@@ -322,7 +331,7 @@ export function UsuariosPage() {
               ? `Se guardaron los cambios de ${nombre}.`
               : `${nombre} ya puede ingresar al sistema.`,
           );
-          cargar();
+          recargar();
         }}
       />
 
