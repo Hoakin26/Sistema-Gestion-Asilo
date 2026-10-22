@@ -300,6 +300,7 @@ export function ReporteCostosPage() {
                 <div className="sm:w-80">
                   <SearchAutocomplete
                     {...campo}
+                    flotante
                     buscar={buscarInternos}
                     alElegir={(opcion) => setInterno(opcion.interno)}
                     placeholder="Todos los pacientes"

@@ -109,6 +109,7 @@ export function PacienteMedico({ paciente, alElegir, error }) {
           ) : (
             <SearchAutocomplete
               {...campo}
+              flotante
               buscar={buscarInternos}
               alElegir={(opcion) => alElegir(opcion.interno)}
               placeholder="Escriba el nombre o el DPI…"
