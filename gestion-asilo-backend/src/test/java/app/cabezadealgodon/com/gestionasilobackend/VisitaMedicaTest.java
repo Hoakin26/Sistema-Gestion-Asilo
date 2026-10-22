@@ -29,6 +29,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -2472,7 +2473,9 @@ class VisitaMedicaTest extends PruebaConBaseDeDatos {
                 .andExpect(jsonPath("$.porFormaPago[*].cantidad").value(contains(1, 1, 0, 0, 0)))
                 .andExpect(jsonPath("$.porFormaPago[*].total").value(contains(500.00, 300.00, 0.00, 0.00, 0.00)))
                 .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
-        assertThat(cuerpo).doesNotContain("Perfil lipídico", "Olanzapina", "Hipertensión", "\"id\":" + anulado + ",");
+        assertThat(cuerpo).doesNotContain("Perfil lipídico", "Olanzapina", "Hipertensión");
+        List<Integer> cobrados = JsonPath.read(cuerpo, "$.pacientes[0].pagos[*].id");
+        assertThat(cobrados).doesNotContain((int) anulado);
 
         // El rango deja fuera lo que no cae en él, y lo cobrado de la cuenta es solo lo de ese rango.
         reporteDeCobros(interno, HOY.minusDays(5), HOY.minusDays(5))
@@ -2516,6 +2519,147 @@ class VisitaMedicaTest extends PruebaConBaseDeDatos {
     @DisplayName("Los otros seis roles no generan el reporte de cobros: 403")
     void soloElAdministradorDelAsiloVeElReporteDeCobros(RolNombre rol) throws Exception {
         mvc.perform(get("/api/reportes/cobros").header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(rol)))
+                .andExpect(status().isForbidden());
+    }
+
+    // ---- YS-162: los reportes financieros (HU-27) ----
+
+    /**
+     * RF-20a. Los pagos se fechan en 2003, un año que ninguna otra prueba usa:
+     * el reporte va por la fecha del pago, y la base es compartida.
+     */
+    @Test
+    @DisplayName("El reporte de pagos a la fundación trae cada pago del rango con su fecha, concepto y monto, sin los anulados, y el total por concepto")
+    void elReporteDePagosALaFundacion() throws Exception {
+        YearMonth mes = YearMonth.of(2003, 1);
+        tarifaDe(6, "410.00");
+        Especialista especialista = nuevoEspecialista(6);
+        Cita cita = citaEl(especialista, HOY.atTime(8, 0));
+        cargosAlMes(conLosTresCargos(cita, especialista, "Perfil lipídico", "120.00", "Olanzapina", "35.50"), mes);
+
+        pagarALaFundacion(mes, "CONSULTA", "100", LocalDate.of(2003, 2, 5), "EFECTIVO")
+                .andExpect(status().isCreated());
+        pagarALaFundacion(mes, "LABORATORIO", "120", LocalDate.of(2003, 2, 20), "TRANSFERENCIA")
+                .andExpect(status().isCreated());
+        String respuesta = pagarALaFundacion(mes, "FARMACIA", "10", LocalDate.of(2003, 2, 21), "EFECTIVO")
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        long anulado = ((Number) JsonPath.read(respuesta, "$.pagos[0].id")).longValue();
+        anularPagoDeLaFundacion(anulado, "Monto equivocado").andExpect(status().isOk());
+        pagarALaFundacion(mes, "FARMACIA", "25.50", LocalDate.of(2003, 3, 1), "CHEQUE")
+                .andExpect(status().isCreated());
+
+        String cuerpo = reportePagosFundacion(LocalDate.of(2003, 2, 1), LocalDate.of(2003, 2, 28))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.desde").value("2003-02-01"))
+                .andExpect(jsonPath("$.cantidadPagos").value(2))
+                .andExpect(jsonPath("$.totalPagado").value(220.00))
+                // Del más antiguo al más reciente, cada uno con su concepto y el mes de la deuda.
+                .andExpect(jsonPath("$.pagos[*].fecha").value(contains("2003-02-05", "2003-02-20")))
+                .andExpect(jsonPath("$.pagos[*].concepto").value(contains("CONSULTA", "LABORATORIO")))
+                .andExpect(jsonPath("$.pagos[*].monto").value(contains(100.00, 120.00)))
+                .andExpect(jsonPath("$.pagos[*].periodo").value(contains("2003-01", "2003-01")))
+                .andExpect(jsonPath("$.pagos[1].formaPago").value("TRANSFERENCIA"))
+                .andExpect(jsonPath("$.porConcepto[*].concepto").value(contains("CONSULTA", "LABORATORIO", "FARMACIA")))
+                .andExpect(jsonPath("$.porConcepto[*].cantidad").value(contains(1, 1, 0)))
+                .andExpect(jsonPath("$.porConcepto[*].total").value(contains(100.00, 120.00, 0.00)))
+                .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
+        assertThat(cuerpo).doesNotContain("Perfil lipídico", "Olanzapina", "Hipertensión", "Interno con visita");
+        List<Integer> pagados = JsonPath.read(cuerpo, "$.pagos[*].id");
+        assertThat(pagados).doesNotContain((int) anulado);
+
+        // El del 1 de marzo entra al ampliar el rango; un mes sin pagos sale vacío.
+        reportePagosFundacion(LocalDate.of(2003, 2, 1), LocalDate.of(2003, 3, 31))
+                .andExpect(jsonPath("$.cantidadPagos").value(3))
+                .andExpect(jsonPath("$.totalPagado").value(245.50))
+                .andExpect(jsonPath("$.porConcepto[*].total").value(contains(100.00, 120.00, 25.50)));
+        reportePagosFundacion(LocalDate.of(2003, 4, 1), LocalDate.of(2003, 4, 30))
+                .andExpect(jsonPath("$.cantidadPagos").value(0))
+                .andExpect(jsonPath("$.pagos").isEmpty())
+                .andExpect(jsonPath("$.totalPagado").value(0.00));
+    }
+
+    /** RF-20b. Las donaciones y los cobros se fechan en 2004, que ninguna otra prueba usa. */
+    @Test
+    @DisplayName("El reporte de entradas trae las donaciones y los cobros a familiares del rango, sin los anulados, con el total de cada tipo y el de las entradas")
+    void elReporteDeEntradas() throws Exception {
+        idDe(donar("1000", LocalDate.of(2004, 5, 3), "Distribuidora del Sur", "EMPRESA_NACIONAL"));
+        idDe(donar("250.50", LocalDate.of(2004, 5, 15), "María López", "PARTICULAR"));
+        long anulada = idDe(donar("500", LocalDate.of(2004, 5, 16), "Municipalidad de Mazatenango", "GOBIERNO"));
+        anularDonacion(anulada, "Era una promesa, no llegó").andExpect(status().isOk());
+        idDe(donar("75", LocalDate.of(2004, 6, 1), "Juan Pérez", "PARTICULAR"));
+
+        long interno = crearInterno(tokenDe(RolNombre.MEDICO_GENERAL));
+        long cuenta = cuentaAntesDeVencer(interno, YearMonth.of(2004, 4), "800.00");
+        pagar(cuenta, "300", LocalDate.of(2004, 5, 10), "EFECTIVO").andExpect(status().isCreated());
+        pagar(cuenta, "200", LocalDate.of(2004, 5, 20), "CHEQUE").andExpect(status().isCreated());
+        String respuesta = pagar(cuenta, "50", LocalDate.of(2004, 5, 21), "EFECTIVO")
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        long anulado = ((Number) JsonPath.read(respuesta, "$.pagos[0].id")).longValue();
+        anular(anulado, "Se registró dos veces").andExpect(status().isOk());
+        pagar(cuenta, "100", LocalDate.of(2004, 6, 2), "EFECTIVO").andExpect(status().isCreated());
+
+        String cuerpo = reporteEntradas(LocalDate.of(2004, 5, 1), LocalDate.of(2004, 5, 31))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.donaciones.length()").value(2))
+                .andExpect(jsonPath("$.donaciones[*].fecha").value(contains("2004-05-03", "2004-05-15")))
+                .andExpect(jsonPath("$.donaciones[*].donante").value(contains("Distribuidora del Sur", "María López")))
+                .andExpect(jsonPath("$.donaciones[*].tipoDonante").value(contains("EMPRESA_NACIONAL", "PARTICULAR")))
+                .andExpect(jsonPath("$.totalDonaciones").value(1250.50))
+                .andExpect(jsonPath("$.porTipoDonante[*].tipoDonante")
+                        .value(contains("EMPRESA_INTERNACIONAL", "EMPRESA_NACIONAL", "GOBIERNO", "PARTICULAR")))
+                .andExpect(jsonPath("$.porTipoDonante[*].cantidad").value(contains(0, 1, 0, 1)))
+                .andExpect(jsonPath("$.porTipoDonante[*].total").value(contains(0.00, 1000.00, 0.00, 250.50)))
+                .andExpect(jsonPath("$.cobros.length()").value(2))
+                .andExpect(jsonPath("$.cobros[*].fecha").value(contains("2004-05-10", "2004-05-20")))
+                .andExpect(jsonPath("$.cobros[*].monto").value(contains(300.00, 200.00)))
+                .andExpect(jsonPath("$.cobros[*].formaPago").value(contains("EFECTIVO", "CHEQUE")))
+                .andExpect(jsonPath("$.cobros[0].paciente.id").value((int) interno))
+                .andExpect(jsonPath("$.cobros[0].periodo").value("2004-04"))
+                .andExpect(jsonPath("$.totalCobros").value(500.00))
+                .andExpect(jsonPath("$.totalEntradas").value(1750.50))
+                .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
+        List<Integer> donadas = JsonPath.read(cuerpo, "$.donaciones[*].id");
+        assertThat(donadas).doesNotContain((int) anulada);
+        List<Integer> cobrados = JsonPath.read(cuerpo, "$.cobros[*].id");
+        assertThat(cobrados).doesNotContain((int) anulado);
+
+        // Junio suma la donación y el pago que quedaban fuera; julio sale vacío.
+        reporteEntradas(LocalDate.of(2004, 5, 1), LocalDate.of(2004, 6, 30))
+                .andExpect(jsonPath("$.donaciones.length()").value(3))
+                .andExpect(jsonPath("$.totalDonaciones").value(1325.50))
+                .andExpect(jsonPath("$.cobros.length()").value(3))
+                .andExpect(jsonPath("$.totalCobros").value(600.00))
+                .andExpect(jsonPath("$.totalEntradas").value(1925.50));
+        reporteEntradas(LocalDate.of(2004, 7, 1), LocalDate.of(2004, 7, 31))
+                .andExpect(jsonPath("$.donaciones").isEmpty())
+                .andExpect(jsonPath("$.cobros").isEmpty())
+                .andExpect(jsonPath("$.totalEntradas").value(0.00));
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @ValueSource(strings = { "/api/reportes/pagos-fundacion", "/api/reportes/entradas" })
+    @DisplayName("Los reportes financieros rechazan un rango al revés (400); sin fechas, van del inicio del mes a hoy, y sin sesión, 401")
+    void reportesFinancierosInvalidos(String ruta) throws Exception {
+        reporteFinanciero(ruta, HOY, HOY.minusDays(1))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errores.hasta").value("La fecha final no puede ser anterior a la inicial"));
+        reporteFinanciero(ruta, null, null)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.desde").value(HOY.withDayOfMonth(1).toString()))
+                .andExpect(jsonPath("$.hasta").value(HOY.toString()));
+        mvc.perform(get(ruta)).andExpect(status().isUnauthorized());
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @EnumSource(value = RolNombre.class, names = "ADMINISTRADOR_ASILO", mode = EnumSource.Mode.EXCLUDE)
+    @DisplayName("Los otros seis roles no generan los reportes financieros: 403")
+    void soloElAdministradorDelAsiloVeLosReportesFinancieros(RolNombre rol) throws Exception {
+        String token = "Bearer " + tokenDe(rol);
+        mvc.perform(get("/api/reportes/pagos-fundacion").header(HttpHeaders.AUTHORIZATION, token))
+                .andExpect(status().isForbidden());
+        mvc.perform(get("/api/reportes/entradas").header(HttpHeaders.AUTHORIZATION, token))
                 .andExpect(status().isForbidden());
     }
 
@@ -3001,6 +3145,44 @@ class VisitaMedicaTest extends PruebaConBaseDeDatos {
             peticion.param("hasta", hasta.toString());
         }
         return mvc.perform(peticion);
+    }
+
+    /** YS-162. El reporte de pagos a la fundación (RF-20a); {@code null} omite el parámetro. */
+    private ResultActions reportePagosFundacion(LocalDate desde, LocalDate hasta) throws Exception {
+        return reporteFinanciero("/api/reportes/pagos-fundacion", desde, hasta);
+    }
+
+    /** YS-162. El reporte de entradas (RF-20b); {@code null} omite el parámetro. */
+    private ResultActions reporteEntradas(LocalDate desde, LocalDate hasta) throws Exception {
+        return reporteFinanciero("/api/reportes/entradas", desde, hasta);
+    }
+
+    private ResultActions reporteFinanciero(String ruta, LocalDate desde, LocalDate hasta) throws Exception {
+        MockHttpServletRequestBuilder peticion = get(ruta)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(RolNombre.ADMINISTRADOR_ASILO));
+        if (desde != null) {
+            peticion.param("desde", desde.toString());
+        }
+        if (hasta != null) {
+            peticion.param("hasta", hasta.toString());
+        }
+        return mvc.perform(peticion);
+    }
+
+    /** YS-162. El Administrador del Asilo registra una donación (HU-22); {@code monto} va tal cual en el JSON. */
+    private ResultActions donar(String monto, LocalDate fecha, String donante, String tipo) throws Exception {
+        return mvc.perform(post("/api/donaciones")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(RolNombre.ADMINISTRADOR_ASILO))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"monto\": %s, \"fecha\": \"%s\", \"donante\": %s, \"tipoDonante\": \"%s\"}"
+                        .formatted(monto, fecha, json.writeValueAsString(donante), tipo)));
+    }
+
+    private ResultActions anularDonacion(long id, String motivo) throws Exception {
+        return mvc.perform(post("/api/donaciones/{id}/anulacion", id)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(RolNombre.ADMINISTRADOR_ASILO))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json.writeValueAsString(Map.of("motivo", motivo))));
     }
 
     /** YS-156. El reporte de análisis médico de un interno, con el token de quien lo pide. */

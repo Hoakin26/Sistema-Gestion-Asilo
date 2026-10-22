@@ -27,4 +27,16 @@ public interface DonacionRepository extends JpaRepository<Donacion, Long> {
             """)
     List<Donacion> historico(@Param("desde") LocalDate desde, @Param("hasta") LocalDate hasta,
             @Param("tipos") Collection<TipoDonante> tipos);
+
+    /**
+     * YS-160. Las donaciones recibidas entre dos fechas, las dos incluidas,
+     * para el reporte de entradas (HU-27, RF-20b): sin las anuladas, que no
+     * entraron, de la más antigua a la más reciente.
+     */
+    @Query("""
+            select d from Donacion d
+            where d.anulada = false and d.fecha between :desde and :hasta
+            order by d.fecha, d.id
+            """)
+    List<Donacion> recibidasEntre(@Param("desde") LocalDate desde, @Param("hasta") LocalDate hasta);
 }

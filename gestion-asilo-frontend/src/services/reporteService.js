@@ -22,6 +22,18 @@ export async function obtenerReporteCobros({ internoId, desde, hasta }) {
   return data;
 }
 
+/** HU-27 (YS-161). Los pagos a la fundación (RF-20a) entre dos fechas ("AAAA-MM-DD"). */
+export async function obtenerReportePagosFundacion({ desde, hasta }) {
+  const { data } = await api.get("/reportes/pagos-fundacion", { params: { desde, hasta } });
+  return data;
+}
+
+/** HU-27 (YS-161). Las entradas (RF-20b) entre dos fechas: las donaciones y los cobros a familiares. */
+export async function obtenerReporteEntradas({ desde, hasta }) {
+  const { data } = await api.get("/reportes/entradas", { params: { desde, hasta } });
+  return data;
+}
+
 /**
  * HU-25 (YS-155). El reporte de análisis médico de un paciente: sus datos, su
  * ficha y su historial. El especialista, solo del paciente de su visita activa.
