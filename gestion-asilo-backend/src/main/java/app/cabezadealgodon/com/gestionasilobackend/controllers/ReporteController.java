@@ -12,10 +12,13 @@ import org.springframework.web.bind.annotation.RestController;
 import app.cabezadealgodon.com.gestionasilobackend.dto.ReporteAnalisisMedicoResponse;
 import app.cabezadealgodon.com.gestionasilobackend.dto.ReporteCobrosResponse;
 import app.cabezadealgodon.com.gestionasilobackend.dto.ReporteCostosResponse;
+import app.cabezadealgodon.com.gestionasilobackend.dto.ReporteEntradasResponse;
+import app.cabezadealgodon.com.gestionasilobackend.dto.ReportePagosFundacionResponse;
 import app.cabezadealgodon.com.gestionasilobackend.security.MedicoGeneralOEspecialista;
 import app.cabezadealgodon.com.gestionasilobackend.security.SoloAdministradorAsilo;
 import app.cabezadealgodon.com.gestionasilobackend.security.UsuarioAutenticado;
 import app.cabezadealgodon.com.gestionasilobackend.services.ReporteCobrosService;
+import app.cabezadealgodon.com.gestionasilobackend.services.ReporteFinancieroService;
 import app.cabezadealgodon.com.gestionasilobackend.services.ReporteService;
 
 /**
@@ -29,10 +32,13 @@ public class ReporteController {
 
     private final ReporteService reporteService;
     private final ReporteCobrosService cobrosService;
+    private final ReporteFinancieroService financieroService;
 
-    public ReporteController(ReporteService reporteService, ReporteCobrosService cobrosService) {
+    public ReporteController(ReporteService reporteService, ReporteCobrosService cobrosService,
+            ReporteFinancieroService financieroService) {
         this.reporteService = reporteService;
         this.cobrosService = cobrosService;
+        this.financieroService = financieroService;
     }
 
     /**
@@ -76,6 +82,36 @@ public class ReporteController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate hasta) {
         LocalDate hoy = LocalDate.now();
         return cobrosService.cobros(internoId, desde == null ? hoy.withDayOfMonth(1) : desde,
+                hasta == null ? hoy : hasta);
+    }
+
+    /**
+     * HU-27 (YS-160). Los pagos a la fundación (RF-20a) entre dos fechas del
+     * pago, las dos incluidas, con su concepto y su monto. Sin fechas, del
+     * primer día del mes en curso a hoy.
+     */
+    @GetMapping("/pagos-fundacion")
+    @SoloAdministradorAsilo
+    public ReportePagosFundacionResponse pagosAFundacion(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate desde,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate hasta) {
+        LocalDate hoy = LocalDate.now();
+        return financieroService.pagosAFundacion(desde == null ? hoy.withDayOfMonth(1) : desde,
+                hasta == null ? hoy : hasta);
+    }
+
+    /**
+     * HU-27 (YS-160). Las entradas (RF-20b) entre dos fechas, las dos
+     * incluidas: las donaciones y los cobros a familiares, con el total de
+     * cada tipo. Sin fechas, del primer día del mes en curso a hoy.
+     */
+    @GetMapping("/entradas")
+    @SoloAdministradorAsilo
+    public ReporteEntradasResponse entradas(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate desde,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate hasta) {
+        LocalDate hoy = LocalDate.now();
+        return financieroService.entradas(desde == null ? hoy.withDayOfMonth(1) : desde,
                 hasta == null ? hoy : hasta);
     }
 }

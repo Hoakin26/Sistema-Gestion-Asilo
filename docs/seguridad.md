@@ -1126,7 +1126,17 @@ RF-19 pide el detalle de los gastos médicos de cada cobro, y el Administrador d
 
 El total cobrado es la suma de los pagos registrados (HU-34) cuya fecha cae en el rango (decidido el 22/10), sin los anulados: un pago anulado no se cobró, y su anulación queda en el historial de la cuenta, no en este reporte. La prueba registra un pago, lo anula y comprueba que no aparece ni suma. El PDF se arma en el navegador, como el de costos.
 
-## 46. Qué falta
+## 46. Los reportes financieros (HU-27)
+
+### Dos reportes, los dos del Administrador del Asilo
+
+Decidido el 22/10: HU-27 son dos reportes y no uno consolidado, como los separó la revisión v1.1 de los requerimientos (RF-20a y RF-20b). `GET /api/reportes/pagos-fundacion` y `GET /api/reportes/entradas` están en `ReporteController` con `@SoloAdministradorAsilo` en cada método, y la lógica va en `ReporteFinancieroService`. `VisitaMedicaTest` barre los otros seis roles contra los dos (403) y los pide sin token (401).
+
+### Qué muestra cada uno
+
+El de pagos a la fundación dice de cada pago solo el concepto (consulta, laboratorio o farmacia), el mes de la deuda y el monto, como las cuentas por pagar (sección 39): ni pacientes ni servicios. El de entradas nombra al paciente de cada cobro, que es un dato personal que el Administrador del Asilo ya ve en su vista de internos, y nada clínico. En los dos, lo anulado no aparece ni suma: un pago o una donación anulada no se movió. Las pruebas anulan uno de cada uno y comprueban que su id no está en la respuesta. El PDF se arma en el navegador, como el de costos (sección 43).
+
+## 47. Qué falta
 
 Nada pendiente de HU-30, HU-31 ni HU-32. Lo que queda abierto, sin historia asignada todavía:
 

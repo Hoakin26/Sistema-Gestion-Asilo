@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { ChevronRight, ClipboardList, HandCoins, ReceiptText } from "lucide-react";
+import { ChevronRight, ClipboardList, HandCoins, Landmark, PiggyBank, ReceiptText } from "lucide-react";
 
 import { useAuth } from "../hooks/useAuth";
 import { AppLayout } from "../layouts/AppLayout";
@@ -32,12 +32,28 @@ const REPORTES = [
     Icono: HandCoins,
     roles: ["ADMINISTRADOR_ASILO"],
   },
+  // HU-27: dos reportes y no uno consolidado (decidido el 22/10), como RF-20a y RF-20b.
+  {
+    ruta: "/reportes/pagos-fundacion",
+    titulo: "Pagos a la fundación",
+    descripcion: "Cada pago a la fundación por consultas, laboratorio y farmacia, con su fecha y su monto.",
+    Icono: Landmark,
+    roles: ["ADMINISTRADOR_ASILO"],
+  },
+  {
+    ruta: "/reportes/entradas",
+    titulo: "Entradas",
+    descripcion: "Las donaciones y los cobros a familiares recibidos, con el total de cada tipo.",
+    Icono: PiggyBank,
+    roles: ["ADMINISTRADOR_ASILO"],
+  },
 ];
 
 /**
  * HU-24 (YS-152). "Reportes": la entrada a cada reporte del rol. Cada uno se
  * genera con sus filtros y se exporta a PDF. HU-25 (YS-155) le suma el de
- * análisis médico, para los médicos, y HU-26 (YS-158) el de cobros.
+ * análisis médico, para los médicos; HU-26 (YS-158), el de cobros, y HU-27
+ * (YS-161), los de pagos a la fundación y entradas.
  */
 export function ReportesPage() {
   const { usuario } = useAuth();
