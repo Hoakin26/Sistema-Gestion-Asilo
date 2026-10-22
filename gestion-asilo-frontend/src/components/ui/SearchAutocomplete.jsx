@@ -20,6 +20,11 @@ const MINIMO_LETRAS = 2;
  * `aria-activedescendant`. La lista va debajo del campo y no flotando encima:
  * dentro de una ventana con desplazamiento propio, una lista flotante quedaba
  * recortada por el borde.
+ *
+ * YS-181: con `flotante`, la lista y el aviso de "nadie coincide" se abren
+ * encima del contenido, sin moverlo. Es para las barras de filtros, que no
+ * están dentro de una ventana: ahí la lista empujaba hacia abajo los demás
+ * campos y los botones, alineados por abajo.
  */
 export function SearchAutocomplete({
   buscar,
@@ -27,6 +32,7 @@ export function SearchAutocomplete({
   placeholder,
   etiquetaLista,
   invalido,
+  flotante = false,
   ...propsCampo
 }) {
   const idLista = useId();
@@ -100,8 +106,11 @@ export function SearchAutocomplete({
     }
   };
 
+  // Flotando, la lista y el aviso salen del flujo, justo debajo del campo.
+  const encima = flotante ? "absolute inset-x-0 top-full z-10" : "";
+
   return (
-    <div>
+    <div className={flotante ? "relative" : undefined}>
       <div className="relative">
         <Search
           aria-hidden="true"
@@ -138,7 +147,7 @@ export function SearchAutocomplete({
         aria-label={etiquetaLista}
         className={
           abierta && visibles.length > 0
-            ? "mt-2 max-h-64 overflow-y-auto rounded-tarjeta border border-divisor bg-superficie shadow-menu"
+            ? `${encima} mt-2 max-h-64 overflow-y-auto rounded-tarjeta border border-divisor bg-superficie shadow-menu`
             : "hidden"
         }
       >
@@ -169,7 +178,12 @@ export function SearchAutocomplete({
         ))}
       </ul>
 
-      <p aria-live="polite" className="mt-2 text-auxiliar text-texto-secundario empty:hidden">
+      <p
+        aria-live="polite"
+        className={`${encima} mt-2 text-auxiliar text-texto-secundario empty:hidden ${
+          flotante ? "rounded-tarjeta border border-divisor bg-superficie px-4 py-2 shadow-menu" : ""
+        }`}
+      >
         {abierta && visibles.length === 0 ? "Nadie coincide con lo que escribió." : ""}
       </p>
     </div>
