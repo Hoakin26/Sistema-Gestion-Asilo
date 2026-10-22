@@ -1100,7 +1100,19 @@ RF-17 pide desglosar los exámenes y los medicamentos de cada cita, y el Adminis
 
 "Exportar a PDF" usa la impresión del navegador ("Guardar como PDF"), con una hoja de estilos que deja solo el reporte. El PDF se arma en la computadora de quien lo pide con los datos que ya tenía en pantalla: no hay un servicio externo de conversión ni una copia del reporte guardada en el servidor.
 
-## 44. Qué falta
+## 44. El reporte de análisis médico (HU-25)
+
+### Solo los médicos, y el especialista solo en su visita
+
+Es el reporte con más información clínica del sistema: la ficha, el motivo de reclusión, los diagnósticos, los medicamentos y los resultados de laboratorio. `GET /api/reportes/analisis-medico` lleva `@MedicoGeneralOEspecialista`; enfermería, el laboratorio, la farmacia y los dos administradores reciben 403 (RNF-03), aunque HU-25 diga "como Médico" sin más. El Médico General lo genera de cualquier paciente, como su historial centralizado (HU-02).
+
+Decidido el 21/10: el especialista, solo del paciente de una visita suya que siga activa, la misma regla de los antecedentes (HU-08). El servicio lo comprueba con las visitas activas del especialista, y si no hay una de ese paciente responde 403. Así el reporte no abre una puerta a fichas que el especialista no podría ver desde su visita. Las pruebas cubren al especialista con su visita activa (200), con otro paciente, con la visita de otro especialista y con la visita ya finalizada (403 en los tres).
+
+### En el menú, y lo que sale al PDF
+
+Los dos médicos tienen "Reportes" en su menú (decidido el 21/10; la matriz del diseño no lo traía), y la lista de reportes de esa pantalla depende del rol. Esa lista solo decide qué tarjetas se ven; quien lo exige es el backend. El PDF se arma en el navegador, como el de costos (sección 43), y la pantalla advierte que el reporte tiene datos clínicos y que se comparta solo con personal médico.
+
+## 45. Qué falta
 
 Nada pendiente de HU-30, HU-31 ni HU-32. Lo que queda abierto, sin historia asignada todavía:
 

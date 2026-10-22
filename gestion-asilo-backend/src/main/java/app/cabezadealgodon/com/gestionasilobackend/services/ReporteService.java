@@ -12,24 +12,30 @@ import java.util.Map;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import app.cabezadealgodon.com.gestionasilobackend.dto.ReporteAnalisisMedicoResponse;
 import app.cabezadealgodon.com.gestionasilobackend.dto.ReporteCostosResponse;
 import app.cabezadealgodon.com.gestionasilobackend.dto.ReporteCostosResponse.CitaCostos;
 import app.cabezadealgodon.com.gestionasilobackend.dto.ReporteCostosResponse.Costos;
 import app.cabezadealgodon.com.gestionasilobackend.dto.ReporteCostosResponse.PacienteCostos;
 import app.cabezadealgodon.com.gestionasilobackend.dto.ResumenPersona;
 import app.cabezadealgodon.com.gestionasilobackend.exception.CampoInvalidoException;
+import app.cabezadealgodon.com.gestionasilobackend.exception.OperacionNoPermitidaException;
 import app.cabezadealgodon.com.gestionasilobackend.exception.RecursoNoEncontradoException;
 import app.cabezadealgodon.com.gestionasilobackend.models.CargoServicio;
+import app.cabezadealgodon.com.gestionasilobackend.models.EstadoVisita;
 import app.cabezadealgodon.com.gestionasilobackend.models.Interno;
+import app.cabezadealgodon.com.gestionasilobackend.models.RolNombre;
 import app.cabezadealgodon.com.gestionasilobackend.models.TipoServicio;
+import app.cabezadealgodon.com.gestionasilobackend.models.Usuario;
 import app.cabezadealgodon.com.gestionasilobackend.models.VisitaMedica;
 import app.cabezadealgodon.com.gestionasilobackend.repository.CargoServicioRepository;
 import app.cabezadealgodon.com.gestionasilobackend.repository.InternoRepository;
+import app.cabezadealgodon.com.gestionasilobackend.repository.VisitaMedicaRepository;
 
 /**
  * YS-151. Los reportes (HU-24 a HU-28, RF-17 a RF-21b), el {@code ReporteService}
- * del diseño. Arranca con el de costos por paciente y cita (HU-24); los demás
- * se le irán sumando.
+ * del diseño. Arranca con el de costos por paciente y cita (HU-24); HU-25 le
+ * suma el de análisis médico, y los demás se le irán sumando.
  */
 @Service
 public class ReporteService {
@@ -38,10 +44,42 @@ public class ReporteService {
 
     private final CargoServicioRepository cargoRepository;
     private final InternoRepository internoRepository;
+    private final VisitaMedicaRepository visitaRepository;
+    private final InternoService internoService;
+    private final HistorialMedicoService historialService;
 
-    public ReporteService(CargoServicioRepository cargoRepository, InternoRepository internoRepository) {
+    public ReporteService(CargoServicioRepository cargoRepository, InternoRepository internoRepository,
+            VisitaMedicaRepository visitaRepository, InternoService internoService,
+            HistorialMedicoService historialService) {
         this.cargoRepository = cargoRepository;
         this.internoRepository = internoRepository;
+        this.visitaRepository = visitaRepository;
+        this.internoService = internoService;
+        this.historialService = historialService;
+    }
+
+    /**
+     * HU-25 (YS-154). El análisis médico de un paciente: sus datos, su ficha y
+     * todo su historial. El Médico General lo genera de cualquier paciente,
+     * como su historial centralizado (HU-02). Decidido el 21/10: el
+     * especialista, solo del paciente de una visita suya que siga activa, como
+     * los antecedentes de HU-08; si no, 403. Un interno que no existe, 404.
+     */
+    @Transactional(readOnly = true)
+    public ReporteAnalisisMedicoResponse analisisMedico(Long internoId, Usuario medico) {
+        if (medico.getRol().getNombre() == RolNombre.MEDICO_ESPECIALISTA
+                && visitaRepository.delEspecialistaEnEstado(medico.getId(), EstadoVisita.ACTIVA).stream()
+                        .noneMatch(visita -> visita.getInterno().getId().equals(internoId))) {
+            throw new OperacionNoPermitidaException(
+                    "Solo puede generar el reporte del paciente que está atendiendo, mientras su visita siga activa");
+        }
+        Interno interno = internoRepository.findById(internoId)
+                .orElseThrow(() -> new RecursoNoEncontradoException("No existe un interno con id " + internoId));
+        return new ReporteAnalisisMedicoResponse(
+                new ReporteAnalisisMedicoResponse.Paciente(interno.getId(), interno.getNombreCompleto(),
+                        interno.getDpi(), interno.getFechaNacimiento(), interno.getFechaIngreso(), interno.isActivo()),
+                internoService.obtenerFicha(internoId),
+                historialService.de(internoId, null));
     }
 
     /**
