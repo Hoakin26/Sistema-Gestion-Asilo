@@ -137,11 +137,11 @@ public class HistorialMedicoService {
                 MapeoReceta.medicamentos(receta));
     }
 
-    private static EspecialidadResponse especialidad(Especialidad especialidad) {
+    static EspecialidadResponse especialidad(Especialidad especialidad) {
         return new EspecialidadResponse(especialidad.getId(), especialidad.getNombre());
     }
 
-    private static ResumenPersona persona(Usuario usuario) {
+    static ResumenPersona persona(Usuario usuario) {
         return new ResumenPersona(usuario.getId(), usuario.getNombreCompleto());
     }
 }

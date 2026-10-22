@@ -1,5 +1,6 @@
 package app.cabezadealgodon.com.gestionasilobackend.repository;
 
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 
@@ -56,4 +57,22 @@ public interface OrdenLaboratorioRepository extends JpaRepository<OrdenLaborator
             """)
     Page<OrdenLaboratorio> bandeja(@Param("estados") Collection<EstadoOrden> estados,
             @Param("patron") String patron, Pageable paginado);
+
+    /**
+     * YS-163. Los exámenes realizados a un interno entre dos momentos, por la
+     * fecha del resultado, para su reporte (HU-28, RF-21a): solo las órdenes
+     * en {@code estado}, que es el de resultados cargados. Con quién lo pidió
+     * de una vez.
+     */
+    @EntityGraph(attributePaths = { "examen", "visita", "visita.cita", "visita.cita.solicitud",
+            "visita.cita.solicitud.especialidad", "visita.especialista", "visita.especialista.usuario" })
+    @Query("""
+            select o from OrdenLaboratorio o
+            where o.visita.interno.id = :internoId and o.estado = :estado
+              and o.fechaResultado >= :desde and o.fechaResultado < :hasta
+            order by o.fechaResultado, o.id
+            """)
+    List<OrdenLaboratorio> delInternoConResultadoEntre(@Param("internoId") Long internoId,
+            @Param("estado") EstadoOrden estado, @Param("desde") LocalDateTime desde,
+            @Param("hasta") LocalDateTime hasta);
 }
