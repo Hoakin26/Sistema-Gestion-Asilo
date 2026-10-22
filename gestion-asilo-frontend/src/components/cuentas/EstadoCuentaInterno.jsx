@@ -99,7 +99,7 @@ export function EstadoCuentaInterno({ internoId }) {
         </div>
       </div>
 
-      <form onSubmit={consultar} noValidate className="mt-6 flex flex-wrap items-end gap-4">
+      <form onSubmit={consultar} noValidate className="mt-6 flex flex-wrap items-start gap-4 sm:[&>button]:mt-8">
         <FormField etiqueta="Desde" error={errores.desde}>
           {(campo) => (
             <Input

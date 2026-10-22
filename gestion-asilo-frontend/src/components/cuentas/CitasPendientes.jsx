@@ -94,7 +94,7 @@ export function CitasPendientes({ version }) {
         en proporción: todas quedan en Pago Parcial hasta cubrir el total.
       </p>
 
-      <form onSubmit={buscar} noValidate className="mt-6 flex flex-wrap items-end gap-4">
+      <form onSubmit={buscar} noValidate className="mt-6 flex flex-wrap items-start gap-4 sm:[&>button]:mt-8">
         <FormField etiqueta="Paciente" error={errores.paciente}>
           {(campo) => (
             <Input

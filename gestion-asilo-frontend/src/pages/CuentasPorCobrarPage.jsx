@@ -148,7 +148,7 @@ export function CuentasPorCobrarPage() {
               etiqueta: "Cuentas del mes",
               contenido: (
                 <>
-                  <div className="mt-6 flex flex-wrap items-end gap-4">
+                  <div className="mt-6 flex flex-wrap items-start gap-4 sm:[&>button]:mt-8">
                     <FormField etiqueta="Mes" error={errorPeriodo}>
                       {(campo) => (
                         <Input
