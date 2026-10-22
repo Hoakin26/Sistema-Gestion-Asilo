@@ -111,6 +111,11 @@ export function inicioDeMesISO() {
   return `${mesActualISO()}-01`;
 }
 
+/** YS-164. El 1 de enero del año en curso, "2026-01-01": el inicio de los reportes clínicos (HU-28). */
+export function inicioDeAnioISO() {
+  return `${hoyISO().slice(0, 4)}-01-01`;
+}
+
 export function edadEnAnios(iso) {
   const nacimiento = aFechaLocal(iso);
   const hoy = new Date();

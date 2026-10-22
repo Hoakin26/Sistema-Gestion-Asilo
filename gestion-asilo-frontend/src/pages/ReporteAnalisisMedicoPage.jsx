@@ -1,37 +1,22 @@
 import { useEffect, useState } from "react";
-import { FileDown, FileText, X } from "lucide-react";
+import { FileDown, FileText } from "lucide-react";
 
 import { Indicador } from "../components/reportes/Indicador";
+import { PacienteMedico } from "../components/reportes/PacienteMedico";
 import { PrintableReportLayout } from "../components/reportes/PrintableReportLayout";
 import { Alert } from "../components/ui/Alert";
 import { Button } from "../components/ui/Button";
-import { FormField } from "../components/ui/FormField";
-import { Select } from "../components/ui/Input";
-import { SearchAutocomplete } from "../components/ui/SearchAutocomplete";
 import { StatusBadge } from "../components/ui/StatusBadge";
 import { TablaSkeleton } from "../components/ui/TablaSkeleton";
 import { useAuth } from "../hooks/useAuth";
 import { AppLayout } from "../layouts/AppLayout";
 import { mensajeDeError } from "../services/api";
-import { listarInternos } from "../services/internoService";
 import { obtenerReporteAnalisisMedico } from "../services/reporteService";
-import { listarVisitas } from "../services/visitaService";
 import { edadEnAnios, formatearFecha, formatearFechaHora } from "../utils/fechas";
 import { formatearDpi } from "../utils/formato";
 import { exportarPdf } from "../utils/imprimir";
 
 const ENCABEZADO = "px-4 py-3 text-auxiliar font-semibold text-texto-secundario uppercase";
-
-/* El Médico General busca entre todos los internos, también los que ya egresaron. */
-async function buscarInternos(termino) {
-  const pagina = await listarInternos({ busqueda: termino });
-  return pagina.content.slice(0, 8).map((interno) => ({
-    clave: interno.id,
-    titulo: interno.nombreCompleto,
-    subtitulo: `DPI ${formatearDpi(interno.dpi)}${interno.activo ? "" : " · Egresado"}`,
-    interno,
-  }));
-}
 
 /* "2026-10-20T15:04:00" → "20 de octubre de 2026": la receta y la entrega traen la hora, aquí basta el día. */
 function fechaDe(fechaHora) {
@@ -269,11 +254,8 @@ function Reporte({ datos }) {
  */
 export function ReporteAnalisisMedicoPage() {
   const { usuario } = useAuth();
-  const esEspecialista = usuario?.rol === "MEDICO_ESPECIALISTA";
 
-  const [interno, setInterno] = useState(null);
-  // El especialista: los pacientes de sus visitas activas.
-  const [enAtencion, setEnAtencion] = useState(null);
+  const [paciente, setPaciente] = useState(null);
   // Cada "Generar" es un pedido nuevo, aunque sea del mismo paciente: así se vuelve a pedir.
   const [pedido, setPedido] = useState(null);
 
@@ -282,26 +264,6 @@ export function ReporteAnalisisMedicoPage() {
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState(null);
   const [errorPaciente, setErrorPaciente] = useState(null);
-
-  useEffect(() => {
-    if (!esEspecialista) return undefined;
-    let vigente = true;
-    listarVisitas("ACTIVA")
-      .then((visitas) => {
-        if (!vigente) return;
-        const unicos = new Map();
-        visitas.forEach((visita) => unicos.set(visita.paciente.id, visita.paciente));
-        setEnAtencion([...unicos.values()]);
-      })
-      .catch((fallo) => {
-        if (!vigente) return;
-        setEnAtencion([]);
-        setError(mensajeDeError(fallo, "No se pudieron cargar sus visitas en curso"));
-      });
-    return () => {
-      vigente = false;
-    };
-  }, [esEspecialista]);
 
   useEffect(() => {
     if (!pedido) return undefined;
@@ -328,7 +290,7 @@ export function ReporteAnalisisMedicoPage() {
 
   const generar = (evento) => {
     evento.preventDefault();
-    const elegido = esEspecialista ? Number(interno) || null : interno?.id;
+    const elegido = paciente?.id;
     if (!elegido) {
       setErrorPaciente("Elija el paciente del reporte");
       return;
@@ -351,68 +313,15 @@ export function ReporteAnalisisMedicoPage() {
           recetados.
         </p>
 
-        {esEspecialista && enAtencion?.length === 0 && (
-          <div className="mt-6">
-            <Alert tipo="info" rol="status">
-              No tiene visitas en curso. El reporte se genera del paciente que está atendiendo, mientras su visita siga
-              activa.
-            </Alert>
-          </div>
-        )}
-
         <form onSubmit={generar} noValidate className="mt-6 flex flex-wrap items-end gap-4">
-          <FormField etiqueta="Paciente" obligatorio error={errorPaciente}>
-            {(campo) =>
-              esEspecialista ? (
-                <Select
-                  {...campo}
-                  value={interno ?? ""}
-                  onChange={(evento) => {
-                    setInterno(evento.target.value);
-                    setErrorPaciente(null);
-                  }}
-                  disabled={!enAtencion || enAtencion.length === 0}
-                  className="sm:w-80"
-                >
-                  <option value="">{enAtencion === null ? "Cargando sus visitas…" : "Elija…"}</option>
-                  {enAtencion?.map((paciente) => (
-                    <option key={paciente.id} value={paciente.id}>
-                      {paciente.nombreCompleto}
-                    </option>
-                  ))}
-                </Select>
-              ) : interno ? (
-                <div
-                  id={campo.id}
-                  className="flex min-h-11 items-center justify-between gap-4 rounded-campo border border-texto-secundario bg-fondo px-4 py-2 sm:w-80"
-                >
-                  <p className="font-medium text-texto">{interno.nombreCompleto}</p>
-                  <Button
-                    type="button"
-                    variante="texto"
-                    aria-label={`Cambiar el paciente elegido, ${interno.nombreCompleto}`}
-                    onClick={() => setInterno(null)}
-                  >
-                    <X aria-hidden="true" size={20} />
-                    Cambiar
-                  </Button>
-                </div>
-              ) : (
-                <div className="sm:w-80">
-                  <SearchAutocomplete
-                    {...campo}
-                    buscar={buscarInternos}
-                    alElegir={(opcion) => {
-                      setInterno(opcion.interno);
-                      setErrorPaciente(null);
-                    }}
-                    placeholder="Escriba el nombre o el DPI…"
-                    etiquetaLista="Internos que coinciden"
-                  />
-                </div>
-              )
-            }
-          </FormField>
+          <PacienteMedico
+            paciente={paciente}
+            alElegir={(elegido) => {
+              setPaciente(elegido);
+              setErrorPaciente(null);
+            }}
+            error={errorPaciente}
+          />
           <Button type="submit" cargando={cargando}>
             {!cargando && <FileText aria-hidden="true" size={20} />}
             Generar reporte
