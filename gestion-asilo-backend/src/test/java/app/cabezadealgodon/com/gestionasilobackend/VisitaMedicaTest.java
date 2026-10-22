@@ -2405,6 +2405,120 @@ class VisitaMedicaTest extends PruebaConBaseDeDatos {
         reporteMedico(interno, tokenDe(rol)).andExpect(status().isForbidden());
     }
 
+    // ---- YS-159: el reporte de cobros (HU-26) ----
+
+    /**
+     * Decidido el 22/10: el rango es de los pagos recibidos. El total sale de
+     * los pagos del período, sin el anulado ni el de otra fecha; la cuenta trae
+     * sus gastos médicos por tipo, sin nombres de exámenes ni medicamentos. Se
+     * pide de los internos de la prueba: la base es compartida.
+     */
+    @Test
+    @DisplayName("El reporte de cobros suma los pagos del período sin los anulados y desglosa la cuenta en cuota y gastos médicos por tipo, sin nombres")
+    void elReporteDeCobros() throws Exception {
+        tarifaDe(6, "410.00");
+        Especialista especialista = nuevoEspecialista(6);
+        Cita cita = citaEl(especialista, HOY.atTime(8, 0));
+        Long interno = cita.getSolicitud().getInterno().getId();
+        cambiarCuota(interno, "1000").andExpect(status().isOk());
+        conLosTresCargos(cita, especialista, "Perfil lipídico", "120.00", "Olanzapina", "35.50");
+        long cuenta = cuentaDelMes(interno);
+
+        pagar(cuenta, "500", HOY, "EFECTIVO").andExpect(status().isCreated());
+        pagarCon(cuenta, """
+                {"monto": 300.00, "fecha": "%s", "formaPago": "TRANSFERENCIA", "referencia": "BI-2026-0099"}
+                """.formatted(HOY)).andExpect(status().isCreated());
+        String respuesta = pagar(cuenta, "100", HOY, "EFECTIVO")
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        long anulado = ((Number) JsonPath.read(respuesta, "$.pagos[0].id")).longValue();
+        anular(anulado, "Se registró dos veces").andExpect(status().isOk());
+        pagar(cuenta, "50", HOY.minusDays(5), "DEPOSITO").andExpect(status().isCreated());
+
+        // Otro paciente que también pagó hoy: el filtro lo deja fuera.
+        long otro = crearInterno(tokenDe(RolNombre.MEDICO_GENERAL));
+        cambiarCuota(otro, "200").andExpect(status().isOk());
+        pagar(cuentaDelMes(otro), "200", HOY, "EFECTIVO").andExpect(status().isCreated());
+
+        String cuerpo = reporteDeCobros(interno, HOY, HOY)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paciente.id").value(interno.intValue()))
+                .andExpect(jsonPath("$.cantidadPagos").value(2))
+                .andExpect(jsonPath("$.totalCobrado").value(800.00))
+                .andExpect(jsonPath("$.pacientes.length()").value(1))
+                .andExpect(jsonPath("$.pacientes[0].paciente.id").value(interno.intValue()))
+                .andExpect(jsonPath("$.pacientes[0].totalCobrado").value(800.00))
+                .andExpect(jsonPath("$.pacientes[0].pagos[*].monto").value(contains(500.00, 300.00)))
+                .andExpect(jsonPath("$.pacientes[0].pagos[*].formaPago").value(contains("EFECTIVO", "TRANSFERENCIA")))
+                .andExpect(jsonPath("$.pacientes[0].pagos[1].referencia").value("BI-2026-0099"))
+                .andExpect(jsonPath("$.pacientes[0].pagos[0].periodo").value(YearMonth.now().toString()))
+                // La cuenta a la que se aplicaron: la cuota y los gastos médicos por tipo.
+                .andExpect(jsonPath("$.pacientes[0].cuentas.length()").value(1))
+                .andExpect(jsonPath("$.pacientes[0].cuentas[0].id").value((int) cuenta))
+                .andExpect(jsonPath("$.pacientes[0].cuentas[0].familiar").value("Familiar de prueba"))
+                .andExpect(jsonPath("$.pacientes[0].cuentas[0].cuotaBase").value(1000.00))
+                .andExpect(jsonPath("$.pacientes[0].cuentas[0].gastos[*].tipo").value(contains("CONSULTA", "LABORATORIO", "FARMACIA")))
+                .andExpect(jsonPath("$.pacientes[0].cuentas[0].gastos[*].cantidad").value(contains(1, 1, 1)))
+                .andExpect(jsonPath("$.pacientes[0].cuentas[0].gastos[*].neto").value(contains(410.00, 120.00, 35.50)))
+                .andExpect(jsonPath("$.pacientes[0].cuentas[0].totalDescuentos").value(0.00))
+                .andExpect(jsonPath("$.pacientes[0].cuentas[0].totalAPagar").value(1565.50))
+                .andExpect(jsonPath("$.pacientes[0].cuentas[0].cobradoEnPeriodo").value(800.00))
+                .andExpect(jsonPath("$.pacientes[0].cuentas[0].totalPagado").value(850.00))
+                .andExpect(jsonPath("$.pacientes[0].cuentas[0].saldo").value(715.50))
+                .andExpect(jsonPath("$.pacientes[0].cuentas[0].estado").value("PAGO_PARCIAL"))
+                // Por forma de pago, en el orden del catálogo; las que no se usaron, en cero.
+                .andExpect(jsonPath("$.porFormaPago[*].formaPago")
+                        .value(contains("EFECTIVO", "TRANSFERENCIA", "DEPOSITO", "TARJETA", "CHEQUE")))
+                .andExpect(jsonPath("$.porFormaPago[*].cantidad").value(contains(1, 1, 0, 0, 0)))
+                .andExpect(jsonPath("$.porFormaPago[*].total").value(contains(500.00, 300.00, 0.00, 0.00, 0.00)))
+                .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
+        assertThat(cuerpo).doesNotContain("Perfil lipídico", "Olanzapina", "Hipertensión", "\"id\":" + anulado + ",");
+
+        // El rango deja fuera lo que no cae en él, y lo cobrado de la cuenta es solo lo de ese rango.
+        reporteDeCobros(interno, HOY.minusDays(5), HOY.minusDays(5))
+                .andExpect(jsonPath("$.cantidadPagos").value(1))
+                .andExpect(jsonPath("$.totalCobrado").value(50.00))
+                .andExpect(jsonPath("$.pacientes[0].pagos[0].formaPago").value("DEPOSITO"))
+                .andExpect(jsonPath("$.pacientes[0].cuentas[0].cobradoEnPeriodo").value(50.00))
+                .andExpect(jsonPath("$.pacientes[0].cuentas[0].totalPagado").value(850.00));
+        reporteDeCobros(interno, HOY.minusDays(5), HOY)
+                .andExpect(jsonPath("$.cantidadPagos").value(3))
+                .andExpect(jsonPath("$.totalCobrado").value(850.00));
+        reporteDeCobros(interno, HOY.minusYears(1), HOY.minusYears(1).plusDays(10))
+                .andExpect(jsonPath("$.cantidadPagos").value(0))
+                .andExpect(jsonPath("$.pacientes").isEmpty())
+                .andExpect(jsonPath("$.totalCobrado").value(0.00));
+
+        // Sin paciente, de todos: los dos de la prueba, cada uno con lo suyo.
+        reporteDeCobros(null, HOY, HOY)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paciente").isEmpty())
+                .andExpect(jsonPath("$.pacientes[?(@.paciente.id == %d)].totalCobrado", interno).value(800.00))
+                .andExpect(jsonPath("$.pacientes[?(@.paciente.id == %d)].totalCobrado", otro).value(200.00));
+    }
+
+    @Test
+    @DisplayName("El reporte de cobros rechaza un rango al revés (400) y un paciente que no existe (404); sin fechas, va del inicio del mes a hoy")
+    void reporteDeCobrosInvalido() throws Exception {
+        reporteDeCobros(null, HOY, HOY.minusDays(1))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errores.hasta").value("La fecha final no puede ser anterior a la inicial"));
+        reporteDeCobros(999_999L, HOY.withDayOfMonth(1), HOY).andExpect(status().isNotFound());
+        reporteDeCobros(null, null, null)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.desde").value(HOY.withDayOfMonth(1).toString()))
+                .andExpect(jsonPath("$.hasta").value(HOY.toString()));
+        mvc.perform(get("/api/reportes/cobros")).andExpect(status().isUnauthorized());
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @EnumSource(value = RolNombre.class, names = "ADMINISTRADOR_ASILO", mode = EnumSource.Mode.EXCLUDE)
+    @DisplayName("Los otros seis roles no generan el reporte de cobros: 403")
+    void soloElAdministradorDelAsiloVeElReporteDeCobros(RolNombre rol) throws Exception {
+        mvc.perform(get("/api/reportes/cobros").header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(rol)))
+                .andExpect(status().isForbidden());
+    }
+
     // ---- YS-107: el diagnóstico y el cierre de la visita (HU-09) ----
 
     @Test
@@ -2871,6 +2985,22 @@ class VisitaMedicaTest extends PruebaConBaseDeDatos {
         diagnosticar(visita, especialista, "Hipertensión arterial", null).andExpect(status().isOk());
         finalizar(visita, especialista).andExpect(status().isOk());
         return visita;
+    }
+
+    /** YS-159. El reporte de cobros; {@code null} omite el parámetro. */
+    private ResultActions reporteDeCobros(Long internoId, LocalDate desde, LocalDate hasta) throws Exception {
+        MockHttpServletRequestBuilder peticion = get("/api/reportes/cobros")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(RolNombre.ADMINISTRADOR_ASILO));
+        if (internoId != null) {
+            peticion.param("internoId", internoId.toString());
+        }
+        if (desde != null) {
+            peticion.param("desde", desde.toString());
+        }
+        if (hasta != null) {
+            peticion.param("hasta", hasta.toString());
+        }
+        return mvc.perform(peticion);
     }
 
     /** YS-156. El reporte de análisis médico de un interno, con el token de quien lo pide. */
