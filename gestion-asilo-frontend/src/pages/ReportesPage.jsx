@@ -1,12 +1,14 @@
 import { Link } from "react-router-dom";
-import { ChevronRight, ReceiptText } from "lucide-react";
+import { ChevronRight, ClipboardList, ReceiptText } from "lucide-react";
 
+import { useAuth } from "../hooks/useAuth";
 import { AppLayout } from "../layouts/AppLayout";
 
 /*
- * Los reportes del Administrador del Asilo, en el orden de las historias. Cada
- * uno se agrega aquí cuando está listo (HU-24 a HU-28); los clínicos (HU-25,
- * HU-28) serán de los roles clínicos, no de este menú (RNF-03).
+ * Los reportes, en el orden de las historias, con los roles que los ven. Cada
+ * uno se agrega aquí cuando está listo (HU-24 a HU-28). Los financieros son
+ * del Administrador del Asilo; los clínicos, de los médicos (RNF-03). El
+ * backend lo exige igual: esta lista solo decide qué tarjetas se muestran.
  */
 const REPORTES = [
   {
@@ -14,21 +16,33 @@ const REPORTES = [
     titulo: "Costos por cita",
     descripcion: "Lo que costó cada cita por paciente, desglosado en consulta, exámenes y medicamentos.",
     Icono: ReceiptText,
+    roles: ["ADMINISTRADOR_ASILO"],
+  },
+  {
+    ruta: "/reportes/analisis-medico",
+    titulo: "Análisis médico",
+    descripcion: "La ficha médica de un paciente, con el motivo de reclusión, sus diagnósticos y sus medicamentos.",
+    Icono: ClipboardList,
+    roles: ["MEDICO_GENERAL", "MEDICO_ESPECIALISTA"],
   },
 ];
 
 /**
- * HU-24 (YS-152). "Reportes" del Administrador del Asilo: la entrada a cada
- * reporte. Cada uno se genera con sus filtros y se exporta a PDF.
+ * HU-24 (YS-152). "Reportes": la entrada a cada reporte del rol. Cada uno se
+ * genera con sus filtros y se exporta a PDF. HU-25 (YS-155) le suma el de
+ * análisis médico, para los médicos.
  */
 export function ReportesPage() {
+  const { usuario } = useAuth();
+  const disponibles = REPORTES.filter((reporte) => reporte.roles.includes(usuario?.rol));
+
   return (
     <AppLayout migas={["Inicio", "Reportes"]}>
       <h1 className="text-h1 font-bold">Reportes</h1>
       <p className="mt-2 text-texto-secundario">Cada reporte se genera con sus filtros y se exporta a PDF.</p>
 
       <ul className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {REPORTES.map(({ ruta, titulo, descripcion, Icono }) => (
+        {disponibles.map(({ ruta, titulo, descripcion, Icono }) => (
           <li key={ruta}>
             <Link
               to={ruta}

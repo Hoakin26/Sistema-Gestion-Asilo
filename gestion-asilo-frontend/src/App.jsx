@@ -6,6 +6,7 @@ import { CuentasPorCobrarPage } from "./pages/CuentasPorCobrarPage";
 import { CuentasPorPagarPage } from "./pages/CuentasPorPagarPage";
 import { DonacionesPage } from "./pages/DonacionesPage";
 import { GastosPage } from "./pages/GastosPage";
+import { ReporteAnalisisMedicoPage } from "./pages/ReporteAnalisisMedicoPage";
 import { ReporteCostosPage } from "./pages/ReporteCostosPage";
 import { ReportesPage } from "./pages/ReportesPage";
 import { DashboardPage } from "./pages/DashboardPage";
@@ -257,6 +258,14 @@ function App() {
         element={
           <RutaPrivada>
             <ReporteCostosPage />
+          </RutaPrivada>
+        }
+      />
+      <Route
+        path="/reportes/analisis-medico"
+        element={
+          <RutaPrivada>
+            <ReporteAnalisisMedicoPage />
           </RutaPrivada>
         }
       />

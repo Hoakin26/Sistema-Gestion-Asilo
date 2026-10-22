@@ -115,7 +115,8 @@ const CATALOGO = {
 
 /** La matriz de menús por rol del diseño (Notion, "Estilo"). */
 const MENU_POR_ROL = {
-  MEDICO_GENERAL: ["dashboard", "internos", "historialMedico", "solicitudesReferencia"],
+  // HU-25. Con "Reportes" (decidido el 21/10): el de análisis médico es de los médicos.
+  MEDICO_GENERAL: ["dashboard", "internos", "historialMedico", "solicitudesReferencia", "reportes"],
   ADMINISTRADOR_FUNDACION: [
     "dashboard",
     "solicitudesEntrantes",
@@ -127,7 +128,7 @@ const MENU_POR_ROL = {
    * HU-08 el especialista ve los antecedentes solo durante su visita activa, y
    * ahí ya los tiene. Un módulo aparte no tendría nada que mostrarle.
    */
-  MEDICO_ESPECIALISTA: ["dashboard", "miAgenda", "visitasMedicas", "ordenesLaboratorio", "recetas"],
+  MEDICO_ESPECIALISTA: ["dashboard", "miAgenda", "visitasMedicas", "ordenesLaboratorio", "recetas", "reportes"],
   ADMINISTRADOR_ASILO: [
     "dashboard",
     "usuarios",
