@@ -752,6 +752,8 @@ El segundo aviso al familiar lleva el especialista, la especialidad, la fecha, l
 
 Hibernate crea, para cada columna enum, una restricción CHECK con los valores de ese momento, y con `ddl-auto=update` no la vuelve a tocar. Al agregar `CITA_ASIGNADA`, la base de desarrollo siguió aceptando solo `SOLICITUD_CREADA`, y asignar una cita respondía 500 al registrar el aviso. Las pruebas no lo veían porque crean el esquema desde cero. `RestriccionesDeEnum` rehace esas restricciones al arrancar, con los valores que el enum tiene hoy; `RestriccionesDeEnumTest` recrea la restricción vieja y comprueba que queda al día.
 
+Hasta el Sprint 3 la lista de `RestriccionesDeEnum` solo tenía las columnas de los avisos, las solicitudes y el laboratorio; las demás se quedaban como nacieron, y el día que su enum creciera, guardar el valor nuevo respondería 500 en producción. Desde YS-183 tiene todas las columnas enum de las entidades, salvo los días de la semana de los horarios, que no van a crecer. `RestriccionesDeEnumTest` recorre las entidades (también lo que heredan de una `@MappedSuperclass`) y falla si alguna columna enum no está en la lista.
+
 ## 23. La visita médica (HU-07)
 
 ### Quién usa cada endpoint
