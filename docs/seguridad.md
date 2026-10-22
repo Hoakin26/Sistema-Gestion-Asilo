@@ -1112,7 +1112,21 @@ Decidido el 21/10: el especialista, solo del paciente de una visita suya que sig
 
 Los dos médicos tienen "Reportes" en su menú (decidido el 21/10; la matriz del diseño no lo traía), y la lista de reportes de esa pantalla depende del rol. Esa lista solo decide qué tarjetas se ven; quien lo exige es el backend. El PDF se arma en el navegador, como el de costos (sección 43), y la pantalla advierte que el reporte tiene datos clínicos y que se comparta solo con personal médico.
 
-## 45. Qué falta
+## 45. El reporte de cobros (HU-26)
+
+### Quién lo genera
+
+`GET /api/reportes/cobros` está en el mismo `ReporteController`, con `@SoloAdministradorAsilo` en el método, como el de costos (sección 43); la lógica va en su propio `ReporteCobrosService`. `VisitaMedicaTest` barre los otros seis roles (403) y la petición sin token (401).
+
+### Los gastos médicos, por tipo y nunca por nombre
+
+RF-19 pide el detalle de los gastos médicos de cada cobro, y el Administrador del Asilo no puede ver datos clínicos (RNF-03). Cada cuenta dice cuántas consultas, cuántos exámenes y cuántos medicamentos tuvo y cuánto costaron, sin decir cuáles, como el estado de cuenta (sección 36) y el reporte de costos. La prueba busca en la respuesta el examen, el medicamento y el diagnóstico de la visita: no aparece ninguno.
+
+### Lo cobrado sale de los pagos
+
+El total cobrado es la suma de los pagos registrados (HU-34) cuya fecha cae en el rango (decidido el 22/10), sin los anulados: un pago anulado no se cobró, y su anulación queda en el historial de la cuenta, no en este reporte. La prueba registra un pago, lo anula y comprueba que no aparece ni suma. El PDF se arma en el navegador, como el de costos.
+
+## 46. Qué falta
 
 Nada pendiente de HU-30, HU-31 ni HU-32. Lo que queda abierto, sin historia asignada todavía:
 
