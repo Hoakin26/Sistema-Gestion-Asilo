@@ -13,6 +13,8 @@ import app.cabezadealgodon.com.gestionasilobackend.dto.ReporteAnalisisMedicoResp
 import app.cabezadealgodon.com.gestionasilobackend.dto.ReporteCobrosResponse;
 import app.cabezadealgodon.com.gestionasilobackend.dto.ReporteCostosResponse;
 import app.cabezadealgodon.com.gestionasilobackend.dto.ReporteEntradasResponse;
+import app.cabezadealgodon.com.gestionasilobackend.dto.ReporteExamenesResponse;
+import app.cabezadealgodon.com.gestionasilobackend.dto.ReporteMedicamentosResponse;
 import app.cabezadealgodon.com.gestionasilobackend.dto.ReportePagosFundacionResponse;
 import app.cabezadealgodon.com.gestionasilobackend.security.MedicoGeneralOEspecialista;
 import app.cabezadealgodon.com.gestionasilobackend.security.SoloAdministradorAsilo;
@@ -113,5 +115,38 @@ public class ReporteController {
         LocalDate hoy = LocalDate.now();
         return financieroService.entradas(desde == null ? hoy.withDayOfMonth(1) : desde,
                 hasta == null ? hoy : hasta);
+    }
+
+    /**
+     * HU-28 (YS-163). Los exámenes realizados a un paciente (RF-21a), entre dos
+     * fechas del resultado, las dos incluidas. Sin fechas, del 1 de enero del
+     * año en curso a hoy: los exámenes son de vez en cuando, y un mes casi
+     * siempre saldría vacío. Los permisos del análisis médico.
+     */
+    @GetMapping("/examenes")
+    @MedicoGeneralOEspecialista
+    public ReporteExamenesResponse examenes(@RequestParam Long internoId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate desde,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate hasta,
+            @AuthenticationPrincipal UsuarioAutenticado medico) {
+        LocalDate hoy = LocalDate.now();
+        return reporteService.examenes(internoId, desde == null ? hoy.withDayOfYear(1) : desde,
+                hasta == null ? hoy : hasta, medico.getUsuario());
+    }
+
+    /**
+     * HU-28 (YS-163). Los medicamentos entregados a un paciente (RF-21b),
+     * entre dos fechas de entrega, las dos incluidas. Sin fechas, del 1 de
+     * enero del año en curso a hoy, como el de exámenes.
+     */
+    @GetMapping("/medicamentos")
+    @MedicoGeneralOEspecialista
+    public ReporteMedicamentosResponse medicamentos(@RequestParam Long internoId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate desde,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate hasta,
+            @AuthenticationPrincipal UsuarioAutenticado medico) {
+        LocalDate hoy = LocalDate.now();
+        return reporteService.medicamentos(internoId, desde == null ? hoy.withDayOfYear(1) : desde,
+                hasta == null ? hoy : hasta, medico.getUsuario());
     }
 }
