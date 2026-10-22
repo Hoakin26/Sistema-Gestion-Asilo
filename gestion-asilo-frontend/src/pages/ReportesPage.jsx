@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { ChevronRight, ClipboardList, ReceiptText } from "lucide-react";
+import { ChevronRight, ClipboardList, HandCoins, ReceiptText } from "lucide-react";
 
 import { useAuth } from "../hooks/useAuth";
 import { AppLayout } from "../layouts/AppLayout";
@@ -25,12 +25,19 @@ const REPORTES = [
     Icono: ClipboardList,
     roles: ["MEDICO_GENERAL", "MEDICO_ESPECIALISTA"],
   },
+  {
+    ruta: "/reportes/cobros",
+    titulo: "Cobros a familiares",
+    descripcion: "Los pagos recibidos por paciente, con las cuentas que cubren y sus gastos médicos por tipo.",
+    Icono: HandCoins,
+    roles: ["ADMINISTRADOR_ASILO"],
+  },
 ];
 
 /**
  * HU-24 (YS-152). "Reportes": la entrada a cada reporte del rol. Cada uno se
  * genera con sus filtros y se exporta a PDF. HU-25 (YS-155) le suma el de
- * análisis médico, para los médicos.
+ * análisis médico, para los médicos, y HU-26 (YS-158) el de cobros.
  */
 export function ReportesPage() {
   const { usuario } = useAuth();

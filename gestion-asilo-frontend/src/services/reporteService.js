@@ -12,6 +12,17 @@ export async function obtenerReporteCostos({ internoId, desde, hasta }) {
 }
 
 /**
+ * HU-26 (YS-158). El reporte de cobros: los pagos recibidos entre dos fechas
+ * ("AAAA-MM-DD"), con las cuentas que cubren; sin `internoId`, de todos.
+ */
+export async function obtenerReporteCobros({ internoId, desde, hasta }) {
+  const { data } = await api.get("/reportes/cobros", {
+    params: { internoId: internoId || undefined, desde, hasta },
+  });
+  return data;
+}
+
+/**
  * HU-25 (YS-155). El reporte de análisis médico de un paciente: sus datos, su
  * ficha y su historial. El especialista, solo del paciente de su visita activa.
  */

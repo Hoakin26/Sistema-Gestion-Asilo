@@ -3,6 +3,7 @@ package app.cabezadealgodon.com.gestionasilobackend.repository;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -18,6 +19,9 @@ public interface CargoServicioRepository extends JpaRepository<CargoServicio, Lo
 
     /** Los cargos que salieron de una visita. */
     List<CargoServicio> findByVisitaIdOrderByIdAsc(Long visitaId);
+
+    /** YS-157. Los cargos consolidados en unas cuentas mensuales: los gastos médicos del reporte de cobros (HU-26). */
+    List<CargoServicio> findByCuentaIdIn(Collection<Long> cuentaIds);
 
     /**
      * YS-132. Los cargos de todos los internos entre dos fechas, para
