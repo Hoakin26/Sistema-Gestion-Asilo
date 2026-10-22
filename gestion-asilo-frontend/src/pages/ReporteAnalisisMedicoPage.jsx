@@ -313,7 +313,7 @@ export function ReporteAnalisisMedicoPage() {
           recetados.
         </p>
 
-        <form onSubmit={generar} noValidate className="mt-6 flex flex-wrap items-end gap-4">
+        <form onSubmit={generar} noValidate className="mt-6 flex flex-wrap items-start gap-4 sm:[&>button]:mt-8">
           <PacienteMedico
             paciente={paciente}
             alElegir={(elegido) => {

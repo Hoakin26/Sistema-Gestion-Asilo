@@ -91,7 +91,7 @@ export function ReportePorFechas({
         <h1 className="text-h1 font-bold">{titulo}</h1>
         <p className="mt-2 text-texto-secundario">{descripcion}</p>
 
-        <form onSubmit={generar} noValidate className="mt-6 flex flex-wrap items-end gap-4">
+        <form onSubmit={generar} noValidate className="mt-6 flex flex-wrap items-start gap-4 sm:[&>button]:mt-8">
           <FormField etiqueta={etiquetaDesde} obligatorio error={errores.desde}>
             {(campo) => (
               <Input

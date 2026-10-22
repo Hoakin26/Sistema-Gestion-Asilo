@@ -61,7 +61,7 @@ export function PacienteMedico({ paciente, alElegir, error }) {
   const sinVisitas = esEspecialista && enAtencion?.length === 0 && !errorCarga;
 
   return (
-    // sm:w-80: sin ancho, la ayuda larga estiraba el campo a toda la fila.
+    // El ancho del campo, como en los demás reportes; la ayuda se ajusta a él (YS-182).
     <div className="w-full sm:w-80">
       <FormField
         etiqueta="Paciente"

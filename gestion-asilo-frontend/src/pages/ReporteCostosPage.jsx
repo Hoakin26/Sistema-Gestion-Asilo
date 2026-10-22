@@ -277,7 +277,7 @@ export function ReporteCostosPage() {
           ni de medicamentos.
         </p>
 
-        <form onSubmit={generar} noValidate className="mt-6 flex flex-wrap items-end gap-4">
+        <form onSubmit={generar} noValidate className="mt-6 flex flex-wrap items-start gap-4 sm:[&>button]:mt-8">
           <FormField etiqueta="Paciente" error={errores.internoId}>
             {(campo) =>
               interno ? (
