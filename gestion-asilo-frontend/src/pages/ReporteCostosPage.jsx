@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { FileDown, FileText, X } from "lucide-react";
 
+import { Indicador } from "../components/reportes/Indicador";
 import { PrintableReportLayout } from "../components/reportes/PrintableReportLayout";
 import { Alert } from "../components/ui/Alert";
 import { Button } from "../components/ui/Button";
@@ -38,16 +39,6 @@ function contar(cantidad, singular, plural) {
 /* La parte de un costo en el total, como "42 %"; sin total, nada. */
 function porcentaje(parte, total) {
   return Number(total) > 0 ? `${Math.round((Number(parte) / Number(total)) * 100)} %` : "—";
-}
-
-/** Una cifra del resumen: la etiqueta arriba y el valor grande. */
-function Indicador({ etiqueta, valor }) {
-  return (
-    <div className="rounded-tarjeta bg-fondo px-4 py-3">
-      <dt className="text-auxiliar text-texto-secundario">{etiqueta}</dt>
-      <dd className="mt-1 text-h3 font-semibold tabular-nums slashed-zero">{valor}</dd>
-    </div>
-  );
 }
 
 /** Las citas de un paciente, con el subtotal al pie. */
