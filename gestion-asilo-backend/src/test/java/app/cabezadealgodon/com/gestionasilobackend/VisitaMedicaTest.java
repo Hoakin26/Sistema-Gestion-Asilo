@@ -2769,6 +2769,57 @@ class VisitaMedicaTest extends PruebaConBaseDeDatos {
         reporteClinico("medicamentos", interno, null, null, token).andExpect(status().isForbidden());
     }
 
+    // ---- YS-188: los acompañamientos de Enfermería ----
+
+    /**
+     * Una solicitud con cita y otra que espera asignación, las dos con el
+     * enfermero de la prueba; y una de otro enfermero, que no le toca. Cada uno
+     * ve solo las suyas.
+     */
+    @Test
+    @DisplayName("Enfermería ve las solicitudes en que acompaña al interno, con su cita si ya la tiene, y nunca las de otro enfermero")
+    void losAcompanamientosDeEnfermeria() throws Exception {
+        Especialista especialista = nuevoEspecialista(6);
+        Cita cita = citaEl(especialista, HOY.atTime(9, 0));
+        long conCita = cita.getSolicitud().getId();
+        long sinCita = crearSolicitud(6, null);
+        Usuario otro = otroEnfermero();
+        long deOtro = solicitudAcompanadaPor(otro);
+
+        String filtro = "$[?(@.solicitudId == %d)]";
+        String cuerpo = mvc.perform(get("/api/acompanamientos")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(RolNombre.ENFERMERIA)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath(filtro + ".estado", conCita).value("CITA_PROGRAMADA"))
+                .andExpect(jsonPath(filtro + ".interno.nombreCompleto", conCita).value("Interno con visita"))
+                .andExpect(jsonPath(filtro + ".especialidad.id", conCita).value(idEspecialidad(6).intValue()))
+                .andExpect(jsonPath(filtro + ".motivo", conCita).value("Control de seguimiento"))
+                .andExpect(jsonPath(filtro + ".medicoGeneral.nombreCompleto", conCita).value("Persona de prueba"))
+                .andExpect(jsonPath(filtro + ".cita.id", conCita).value(cita.getId().intValue()))
+                .andExpect(jsonPath(filtro + ".cita.fechaHora", conCita).value(HOY.atTime(9, 0).toString() + ":00"))
+                .andExpect(jsonPath(filtro + ".cita.especialista.nombreCompleto", conCita)
+                        .value(especialista.usuario().getNombreCompleto()))
+                .andExpect(jsonPath(filtro + ".estado", sinCita).value("PENDIENTE_ASIGNACION"))
+                .andExpect(jsonPath(filtro, deOtro).isEmpty())
+                .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
+        List<Object> citaPendiente = JsonPath.read(cuerpo, filtro.formatted(sinCita) + ".cita");
+        assertThat(citaPendiente).containsExactly((Object) null);
+
+        // El otro enfermero ve la suya y no las del primero.
+        mvc.perform(get("/api/acompanamientos").header(HttpHeaders.AUTHORIZATION, "Bearer " + login(otro.getCorreo())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[*].solicitudId").value(contains((int) deOtro)));
+        mvc.perform(get("/api/acompanamientos")).andExpect(status().isUnauthorized());
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @EnumSource(value = RolNombre.class, names = "ENFERMERIA", mode = EnumSource.Mode.EXCLUDE)
+    @DisplayName("Los otros seis roles no tienen acompañamientos: 403")
+    void soloEnfermeriaTieneAcompanamientos(RolNombre rol) throws Exception {
+        mvc.perform(get("/api/acompanamientos").header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(rol)))
+                .andExpect(status().isForbidden());
+    }
+
     // ---- YS-107: el diagnóstico y el cierre de la visita (HU-09) ----
 
     @Test
@@ -3321,6 +3372,33 @@ class VisitaMedicaTest extends PruebaConBaseDeDatos {
         Receta receta = recetaRepository.findByVisitaId(visitaId).orElseThrow();
         receta.getMedicamentos().forEach(detalle -> detalle.entregar(momento, detalle.getCosto()));
         recetaRepository.save(receta);
+    }
+
+    /** YS-188. Un enfermero(a) nuevo, distinto del de la prueba, con una sola solicitud. */
+    private Usuario otroEnfermero() {
+        Usuario enfermero = new Usuario();
+        enfermero.setNombreCompleto("Otro enfermero " + SIGUIENTE.incrementAndGet());
+        enfermero.setCorreo("enfermeria.otro" + SIGUIENTE.get() + "@asilo.gt");
+        enfermero.setPasswordHash(passwordEncoder.encode(PASSWORD));
+        enfermero.setRol(rolRepository.findByNombre(RolNombre.ENFERMERIA).orElseThrow());
+        enfermero.setActivo(true);
+        enfermero.setDebeCambiarPassword(false);
+        return usuarioRepository.save(enfermero);
+    }
+
+    /** YS-188. Una solicitud de un interno nuevo con {@code enfermero} de acompañante. */
+    private long solicitudAcompanadaPor(Usuario enfermero) throws Exception {
+        String token = tokenDe(RolNombre.MEDICO_GENERAL);
+        String respuesta = mvc.perform(post("/api/solicitudes-referencia")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                        {"internoId": %d, "especialidadId": %d, "enfermeroAcompananteId": %d,
+                         "motivo": "Revisión con otro acompañante"}
+                        """.formatted(crearInterno(token), idEspecialidad(6), enfermero.getId())))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
+        return ((Number) JsonPath.read(respuesta, "$.id")).longValue();
     }
 
     /** YS-156. El reporte de análisis médico de un interno, con el token de quien lo pide. */
