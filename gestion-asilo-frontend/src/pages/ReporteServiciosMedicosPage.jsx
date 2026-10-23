@@ -5,6 +5,7 @@ import { BotonDescargaResultado } from "../components/laboratorio/ResultadoExame
 import { Indicador } from "../components/reportes/Indicador";
 import { PacienteMedico } from "../components/reportes/PacienteMedico";
 import { PrintableReportLayout } from "../components/reportes/PrintableReportLayout";
+import { VolverAReportes } from "../components/reportes/VolverAReportes";
 import { Alert } from "../components/ui/Alert";
 import { Button } from "../components/ui/Button";
 import { FormField } from "../components/ui/FormField";
@@ -247,12 +248,13 @@ export function ReporteServiciosMedicosPage() {
   return (
     <AppLayout migas={["Inicio", "Reportes", "Exámenes y medicamentos"]}>
       <div className="print:hidden">
-        <h1 className="text-h1 font-bold">Reporte de exámenes y medicamentos</h1>
+        <VolverAReportes />
+        <h1 className="mt-4 text-h1 font-bold">Reporte de exámenes y medicamentos</h1>
         <p className="mt-2 text-texto-secundario">
-          Los exámenes de laboratorio realizados o los medicamentos entregados a un paciente, con su fecha y su detalle.
+          Exámenes realizados o medicamentos entregados a un paciente.
         </p>
 
-        <form onSubmit={generar} noValidate className="mt-6 flex flex-wrap items-end gap-4">
+        <form onSubmit={generar} noValidate className="mt-6 flex flex-wrap items-start gap-4 sm:[&>button]:mt-8">
           <PacienteMedico
             paciente={paciente}
             alElegir={(nuevo) => {
@@ -310,8 +312,7 @@ export function ReporteServiciosMedicosPage() {
           </Button>
         </form>
         <p className="mt-2 text-auxiliar text-texto-secundario">
-          «Exportar a PDF» abre la impresión del navegador: elija «Guardar como PDF» como destino. El reporte tiene
-          datos clínicos: guárdelo y compártalo solo con personal médico.
+          Para el PDF, elija «Guardar como PDF». Tiene datos clínicos: solo para personal médico.
         </p>
       </div>
 

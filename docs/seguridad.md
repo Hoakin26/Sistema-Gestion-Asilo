@@ -752,6 +752,8 @@ El segundo aviso al familiar lleva el especialista, la especialidad, la fecha, l
 
 Hibernate crea, para cada columna enum, una restricción CHECK con los valores de ese momento, y con `ddl-auto=update` no la vuelve a tocar. Al agregar `CITA_ASIGNADA`, la base de desarrollo siguió aceptando solo `SOLICITUD_CREADA`, y asignar una cita respondía 500 al registrar el aviso. Las pruebas no lo veían porque crean el esquema desde cero. `RestriccionesDeEnum` rehace esas restricciones al arrancar, con los valores que el enum tiene hoy; `RestriccionesDeEnumTest` recrea la restricción vieja y comprueba que queda al día.
 
+Hasta el Sprint 3 la lista de `RestriccionesDeEnum` solo tenía las columnas de los avisos, las solicitudes y el laboratorio; las demás se quedaban como nacieron, y el día que su enum creciera, guardar el valor nuevo respondería 500 en producción. Desde YS-183 tiene todas las columnas enum de las entidades, salvo los días de la semana de los horarios, que no van a crecer. `RestriccionesDeEnumTest` recorre las entidades (también lo que heredan de una `@MappedSuperclass`) y falla si alguna columna enum no está en la lista.
+
 ## 23. La visita médica (HU-07)
 
 ### Quién usa cada endpoint
@@ -1146,7 +1148,11 @@ Los dos reportes son datos clínicos: el nombre de un examen y su resultado, y e
 
 En pantalla, el examen con archivo trae el botón para descargarlo, que pasa por el mismo endpoint del laboratorio (HU-13) y sus permisos. En el PDF solo queda el nombre del archivo: el reporte no incrusta el contenido ni deja un enlace que funcione fuera del sistema.
 
-## 48. Qué falta
+## 48. Los acompañamientos de Enfermería (YS-188)
+
+`GET /api/acompanamientos` es de Enfermería (`@SoloEnfermeria`) y no recibe parámetros: el enfermero sale del token, así que no hay forma de pedir los acompañamientos de otro. Devuelve el motivo de la referencia, que es dato clínico; Enfermería es personal clínico y ya lo ve en la ficha del interno. `VisitaMedicaTest` comprueba que cada enfermero ve solo las suyas, que los otros seis roles reciben 403 y que sin sesión es 401.
+
+## 49. Qué falta
 
 Nada pendiente de HU-30, HU-31 ni HU-32. Lo que queda abierto, sin historia asignada todavía:
 

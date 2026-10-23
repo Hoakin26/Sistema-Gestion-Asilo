@@ -1,5 +1,7 @@
 package app.cabezadealgodon.com.gestionasilobackend.repository;
 
+import java.util.List;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
@@ -42,4 +44,16 @@ public interface SolicitudReferenciaRepository extends JpaRepository<SolicitudRe
     @Query("select s from SolicitudReferencia s where s.estado = :estado and " + COINCIDE)
     Page<SolicitudReferencia> buscarPorEstado(@Param("estado") EstadoSolicitud estado,
             @Param("patron") String patron, Pageable paginado);
+
+    /**
+     * YS-188. Las solicitudes en que un enfermero(a) acompaña al interno, la
+     * más reciente primero, con lo que muestra cada una.
+     */
+    @EntityGraph(attributePaths = { "interno", "especialidad", "medicoGeneral" })
+    @Query("""
+            select s from SolicitudReferencia s
+            where s.enfermeroAcompanante.id = :enfermeroId
+            order by s.fechaCreacion desc, s.id desc
+            """)
+    List<SolicitudReferencia> acompanadasPor(@Param("enfermeroId") Long enfermeroId);
 }

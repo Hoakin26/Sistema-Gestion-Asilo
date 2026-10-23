@@ -80,7 +80,7 @@ export function LoginPage() {
                 type="email"
                 value={correo}
                 onChange={(evento) => setCorreo(evento.target.value)}
-                placeholder="jgarcia@cabezadealgodon.org.gt"
+                placeholder="nombre@correo.com"
                 autoComplete="username"
                 required
               />

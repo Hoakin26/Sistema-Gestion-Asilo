@@ -20,6 +20,7 @@ import { InternosPage } from "./pages/InternosPage";
 import { LoginPage } from "./pages/LoginPage";
 import { MedicosDisponibilidadPage } from "./pages/MedicosDisponibilidadPage";
 import { MiAgendaPage } from "./pages/MiAgendaPage";
+import { MisAcompanamientosPage } from "./pages/MisAcompanamientosPage";
 import { OrdenesLaboratorioPage } from "./pages/OrdenesLaboratorioPage";
 import { RecetasPendientesPage } from "./pages/RecetasPendientesPage";
 import { SinPermisoPage } from "./pages/SinPermisoPage";
@@ -162,6 +163,14 @@ function App() {
         element={
           <RutaPrivada>
             <MiAgendaPage />
+          </RutaPrivada>
+        }
+      />
+      <Route
+        path="/acompanamientos"
+        element={
+          <RutaPrivada>
+            <MisAcompanamientosPage />
           </RutaPrivada>
         }
       />

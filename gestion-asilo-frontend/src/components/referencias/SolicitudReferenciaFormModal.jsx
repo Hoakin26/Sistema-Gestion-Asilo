@@ -248,8 +248,7 @@ function FormularioSolicitud({ internoInicial, alCambiar, alCerrar, alCrear }) {
             otra persona, y se lo dice para que sepa a quién acudir. */}
         {sinEnfermeros && (
           <Alert tipo="info" rol="status">
-            No hay ningún enfermero(a) con cuenta activa para acompañar al interno. Pídale al
-            Administrador del Asilo que registre o reactive una cuenta de Enfermería.
+            No hay enfermeros(as) activos para acompañar. El Administrador del Asilo debe registrar o reactivar uno.
           </Alert>
         )}
 
@@ -355,8 +354,7 @@ function SolicitudCreada({ solicitud, alCerrar }) {
           </p>
         ) : (
           <Alert tipo="info" rol="status">
-            El familiar responsable no tiene correo registrado, así que no recibirá aviso. Avísele
-            por otro medio, o agregue su correo en los datos del interno.
+            El familiar no tiene correo: no recibirá aviso. Avísele por otro medio.
           </Alert>
         )}
       </div>

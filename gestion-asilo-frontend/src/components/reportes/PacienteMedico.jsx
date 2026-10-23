@@ -61,7 +61,7 @@ export function PacienteMedico({ paciente, alElegir, error }) {
   const sinVisitas = esEspecialista && enAtencion?.length === 0 && !errorCarga;
 
   return (
-    // sm:w-80: sin ancho, la ayuda larga estiraba el campo a toda la fila.
+    // El ancho del campo, como en los demás reportes; la ayuda se ajusta a él (YS-182).
     <div className="w-full sm:w-80">
       <FormField
         etiqueta="Paciente"
@@ -69,7 +69,7 @@ export function PacienteMedico({ paciente, alElegir, error }) {
         error={error ?? errorCarga}
         ayuda={
           sinVisitas
-            ? "No tiene visitas en curso: el reporte se genera del paciente que está atendiendo, mientras su visita siga activa."
+            ? "No tiene visitas en curso: solo puede generarlo del paciente que atiende."
             : undefined
         }
       >
@@ -109,6 +109,7 @@ export function PacienteMedico({ paciente, alElegir, error }) {
           ) : (
             <SearchAutocomplete
               {...campo}
+              flotante
               buscar={buscarInternos}
               alElegir={(opcion) => alElegir(opcion.interno)}
               placeholder="Escriba el nombre o el DPI…"

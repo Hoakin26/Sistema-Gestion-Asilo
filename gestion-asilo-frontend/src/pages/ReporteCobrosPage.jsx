@@ -3,6 +3,7 @@ import { FileDown, FileText, X } from "lucide-react";
 
 import { Indicador } from "../components/reportes/Indicador";
 import { PrintableReportLayout } from "../components/reportes/PrintableReportLayout";
+import { VolverAReportes } from "../components/reportes/VolverAReportes";
 import { Alert } from "../components/ui/Alert";
 import { Button } from "../components/ui/Button";
 import { FormField } from "../components/ui/FormField";
@@ -309,13 +310,13 @@ export function ReporteCobrosPage() {
   return (
     <AppLayout migas={["Inicio", "Reportes", "Cobros"]}>
       <div className="print:hidden">
-        <h1 className="text-h1 font-bold">Reporte de cobros</h1>
+        <VolverAReportes />
+        <h1 className="mt-4 text-h1 font-bold">Reporte de cobros</h1>
         <p className="mt-2 text-texto-secundario">
-          Los pagos recibidos de los familiares, por paciente, con las cuentas que cubren y sus gastos médicos por tipo.
-          Sin nombres de exámenes ni de medicamentos.
+          Pagos de los familiares por paciente, con sus gastos médicos.
         </p>
 
-        <form onSubmit={generar} noValidate className="mt-6 flex flex-wrap items-end gap-4">
+        <form onSubmit={generar} noValidate className="mt-6 flex flex-wrap items-start gap-4 sm:[&>button]:mt-8">
           <FormField etiqueta="Paciente" error={errores.internoId}>
             {(campo) =>
               interno ? (
@@ -338,6 +339,7 @@ export function ReporteCobrosPage() {
                 <div className="sm:w-80">
                   <SearchAutocomplete
                     {...campo}
+                    flotante
                     buscar={buscarInternos}
                     alElegir={(opcion) => setInterno(opcion.interno)}
                     placeholder="Todos los pacientes"
@@ -385,7 +387,7 @@ export function ReporteCobrosPage() {
           </Button>
         </form>
         <p className="mt-2 text-auxiliar text-texto-secundario">
-          «Exportar a PDF» abre la impresión del navegador: elija «Guardar como PDF» como destino.
+          Para el PDF, elija «Guardar como PDF» al imprimir.
         </p>
       </div>
 

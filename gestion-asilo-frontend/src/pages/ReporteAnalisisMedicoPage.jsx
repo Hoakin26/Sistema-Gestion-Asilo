@@ -4,6 +4,7 @@ import { FileDown, FileText } from "lucide-react";
 import { Indicador } from "../components/reportes/Indicador";
 import { PacienteMedico } from "../components/reportes/PacienteMedico";
 import { PrintableReportLayout } from "../components/reportes/PrintableReportLayout";
+import { VolverAReportes } from "../components/reportes/VolverAReportes";
 import { Alert } from "../components/ui/Alert";
 import { Button } from "../components/ui/Button";
 import { StatusBadge } from "../components/ui/StatusBadge";
@@ -307,13 +308,13 @@ export function ReporteAnalisisMedicoPage() {
   return (
     <AppLayout migas={["Inicio", "Reportes", "Análisis médico"]}>
       <div className="print:hidden">
-        <h1 className="text-h1 font-bold">Reporte de análisis médico</h1>
+        <VolverAReportes />
+        <h1 className="mt-4 text-h1 font-bold">Reporte de análisis médico</h1>
         <p className="mt-2 text-texto-secundario">
-          La ficha médica de un paciente, con el motivo de reclusión, sus visitas con los diagnósticos y los medicamentos
-          recetados.
+          Ficha médica, diagnósticos y medicamentos de un paciente.
         </p>
 
-        <form onSubmit={generar} noValidate className="mt-6 flex flex-wrap items-end gap-4">
+        <form onSubmit={generar} noValidate className="mt-6 flex flex-wrap items-start gap-4 sm:[&>button]:mt-8">
           <PacienteMedico
             paciente={paciente}
             alElegir={(elegido) => {
@@ -337,8 +338,7 @@ export function ReporteAnalisisMedicoPage() {
           </Button>
         </form>
         <p className="mt-2 text-auxiliar text-texto-secundario">
-          «Exportar a PDF» abre la impresión del navegador: elija «Guardar como PDF» como destino. El reporte tiene
-          datos clínicos: guárdelo y compártalo solo con personal médico.
+          Para el PDF, elija «Guardar como PDF». Tiene datos clínicos: solo para personal médico.
         </p>
       </div>
 
