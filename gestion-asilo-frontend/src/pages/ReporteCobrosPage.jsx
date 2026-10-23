@@ -3,6 +3,7 @@ import { FileDown, FileText, X } from "lucide-react";
 
 import { Indicador } from "../components/reportes/Indicador";
 import { PrintableReportLayout } from "../components/reportes/PrintableReportLayout";
+import { VolverAReportes } from "../components/reportes/VolverAReportes";
 import { Alert } from "../components/ui/Alert";
 import { Button } from "../components/ui/Button";
 import { FormField } from "../components/ui/FormField";
@@ -309,7 +310,8 @@ export function ReporteCobrosPage() {
   return (
     <AppLayout migas={["Inicio", "Reportes", "Cobros"]}>
       <div className="print:hidden">
-        <h1 className="text-h1 font-bold">Reporte de cobros</h1>
+        <VolverAReportes />
+        <h1 className="mt-4 text-h1 font-bold">Reporte de cobros</h1>
         <p className="mt-2 text-texto-secundario">
           Pagos de los familiares por paciente, con sus gastos médicos.
         </p>

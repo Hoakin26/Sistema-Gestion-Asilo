@@ -5,6 +5,7 @@ import { BotonDescargaResultado } from "../components/laboratorio/ResultadoExame
 import { Indicador } from "../components/reportes/Indicador";
 import { PacienteMedico } from "../components/reportes/PacienteMedico";
 import { PrintableReportLayout } from "../components/reportes/PrintableReportLayout";
+import { VolverAReportes } from "../components/reportes/VolverAReportes";
 import { Alert } from "../components/ui/Alert";
 import { Button } from "../components/ui/Button";
 import { FormField } from "../components/ui/FormField";
@@ -247,7 +248,8 @@ export function ReporteServiciosMedicosPage() {
   return (
     <AppLayout migas={["Inicio", "Reportes", "Exámenes y medicamentos"]}>
       <div className="print:hidden">
-        <h1 className="text-h1 font-bold">Reporte de exámenes y medicamentos</h1>
+        <VolverAReportes />
+        <h1 className="mt-4 text-h1 font-bold">Reporte de exámenes y medicamentos</h1>
         <p className="mt-2 text-texto-secundario">
           Exámenes realizados o medicamentos entregados a un paciente.
         </p>
