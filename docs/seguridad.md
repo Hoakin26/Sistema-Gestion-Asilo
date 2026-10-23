@@ -1148,7 +1148,11 @@ Los dos reportes son datos clínicos: el nombre de un examen y su resultado, y e
 
 En pantalla, el examen con archivo trae el botón para descargarlo, que pasa por el mismo endpoint del laboratorio (HU-13) y sus permisos. En el PDF solo queda el nombre del archivo: el reporte no incrusta el contenido ni deja un enlace que funcione fuera del sistema.
 
-## 48. Qué falta
+## 48. Los acompañamientos de Enfermería (YS-188)
+
+`GET /api/acompanamientos` es de Enfermería (`@SoloEnfermeria`) y no recibe parámetros: el enfermero sale del token, así que no hay forma de pedir los acompañamientos de otro. Devuelve el motivo de la referencia, que es dato clínico; Enfermería es personal clínico y ya lo ve en la ficha del interno. `VisitaMedicaTest` comprueba que cada enfermero ve solo las suyas, que los otros seis roles reciben 403 y que sin sesión es 401.
+
+## 49. Qué falta
 
 Nada pendiente de HU-30, HU-31 ni HU-32. Lo que queda abierto, sin historia asignada todavía:
 
