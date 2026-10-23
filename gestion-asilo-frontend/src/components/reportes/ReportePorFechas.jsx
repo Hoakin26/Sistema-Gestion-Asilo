@@ -11,6 +11,7 @@ import { FormField } from "../ui/FormField";
 import { Input } from "../ui/Input";
 import { TablaSkeleton } from "../ui/TablaSkeleton";
 import { PrintableReportLayout } from "./PrintableReportLayout";
+import { VolverAReportes } from "./VolverAReportes";
 
 /**
  * YS-161. La pantalla de un reporte que solo se filtra por fechas, como los
@@ -88,7 +89,8 @@ export function ReportePorFechas({
   return (
     <AppLayout migas={migas}>
       <div className="print:hidden">
-        <h1 className="text-h1 font-bold">{titulo}</h1>
+        <VolverAReportes />
+        <h1 className="mt-4 text-h1 font-bold">{titulo}</h1>
         <p className="mt-2 text-texto-secundario">{descripcion}</p>
 
         <form onSubmit={generar} noValidate className="mt-6 flex flex-wrap items-start gap-4 sm:[&>button]:mt-8">
