@@ -89,7 +89,7 @@ export function VisitasMedicasPage() {
               <p className="max-w-md text-texto-secundario">
                 {estado
                   ? "No tiene visitas en ese estado."
-                  : "Todavía no ha iniciado ninguna visita. Se inician desde su agenda, en la cita de cada paciente."}
+                  : "Todavía no ha iniciado visitas. Se inician desde su agenda."}
               </p>
               <Button variante="secundario" onClick={() => navegar("/mi-agenda")}>
                 <CalendarCheck aria-hidden="true" size={20} />

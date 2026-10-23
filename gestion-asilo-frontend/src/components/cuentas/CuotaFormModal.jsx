@@ -68,7 +68,7 @@ function FormularioCuota({ interno, alCerrar, alGuardar }) {
           etiqueta="Cuota mensual"
           obligatorio
           error={error}
-          ayuda="En quetzales; 0 si no paga cuota. Entra en la cuenta del familiar al consolidar el mes."
+          ayuda="En quetzales; 0 si no paga cuota."
         >
           {(campo) => (
             <CurrencyInput

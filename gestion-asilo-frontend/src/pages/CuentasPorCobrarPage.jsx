@@ -133,8 +133,7 @@ export function CuentasPorCobrarPage() {
     <AppLayout migas={["Inicio", "Cuentas por cobrar"]}>
       <h1 className="text-h1 font-bold">Cuentas por cobrar</h1>
       <p className="mt-2 text-texto-secundario">
-        La cuenta mensual de cada familiar: la cuota base del asilo más las consultas, los exámenes y la farmacia del
-        mes. Y las citas que todavía no se terminan de pagar.
+        Cuentas mensuales de los familiares y citas pendientes de pago.
       </p>
 
       <div className="mt-6">
@@ -167,9 +166,7 @@ export function CuentasPorCobrarPage() {
                     </Button>
                   </div>
                   <p className="mt-2 text-auxiliar text-texto-secundario">
-                    Suma la cuota base y los cargos del mes de cada interno, con los descuentos de la fundación vigentes en la
-                    fecha de cada servicio. Puede volver a consolidar un mes: se recalcula sin duplicar nada. Si una cuenta ya
-                    tiene pagos, lo cobrado se queda como estaba y solo se le suman los cargos nuevos.
+                    Suma la cuota y los cargos del mes con sus descuentos. Se puede repetir sin duplicar nada.
                   </p>
 
                   {/* HU-19 (YS-137). El asilo los consulta; los define la fundación. */}
@@ -189,7 +186,7 @@ export function CuentasPorCobrarPage() {
                         <Inbox aria-hidden="true" size={24} className="text-texto-secundario" />
                         <p className="max-w-md text-texto-secundario">
                           {periodo
-                            ? `Todavía no se consolida ${formatearPeriodo(periodo)}. Al consolidarlo se arma la cuenta de cada familiar.`
+                            ? `Todavía no se consolida ${formatearPeriodo(periodo)}.`
                             : "Elija un mes para ver sus cuentas."}
                         </p>
                       </div>

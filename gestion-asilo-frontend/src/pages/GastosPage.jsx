@@ -79,7 +79,7 @@ export function GastosPage() {
         <div>
           <h1 className="text-h1 font-bold">Gastos</h1>
           <p className="mt-2 text-texto-secundario">
-            Los gastos operativos del asilo: luz, agua, teléfono, alimentación y los demás egresos de su operación.
+            Luz, agua, teléfono, alimentación y demás egresos del asilo.
           </p>
         </div>
         <Button
@@ -134,7 +134,7 @@ export function GastosPage() {
               <p className="max-w-md text-texto-secundario">
                 {conFiltros
                   ? "No hay gastos con esos filtros."
-                  : "Todavía no hay gastos registrados. Registre el primero con «Registrar gasto»."}
+                  : "Todavía no hay gastos registrados."}
               </p>
             </div>
           )

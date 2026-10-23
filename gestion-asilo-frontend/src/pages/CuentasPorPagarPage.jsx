@@ -104,8 +104,7 @@ export function CuentasPorPagarPage() {
     <AppLayout migas={["Inicio", "Cuentas por pagar"]}>
       <h1 className="text-h1 font-bold">Cuentas por pagar</h1>
       <p className="mt-2 text-texto-secundario">
-        Lo que el asilo le debe a la fundación por las consultas, los exámenes y la farmacia de cada mes: la suma de los
-        servicios del mes con el descuento de la fundación. Se actualiza sola con cada servicio.
+        Lo que el asilo debe a la fundación por mes y servicio, ya con su descuento.
       </p>
 
       {error && (
@@ -122,8 +121,7 @@ export function CuentasPorPagarPage() {
             <div className="flex flex-col items-center gap-4 rounded-tarjeta border border-divisor bg-superficie px-4 py-16 text-center shadow-tarjeta sm:px-6">
               <Inbox aria-hidden="true" size={24} className="text-texto-secundario" />
               <p className="max-w-md text-texto-secundario">
-                Todavía no hay nada que pagarle a la fundación. Las consultas, los exámenes y los medicamentos entregados
-                aparecen aquí solos, por mes.
+                Todavía no hay nada que pagarle a la fundación.
               </p>
             </div>
           )

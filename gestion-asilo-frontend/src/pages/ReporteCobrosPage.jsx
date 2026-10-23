@@ -311,8 +311,7 @@ export function ReporteCobrosPage() {
       <div className="print:hidden">
         <h1 className="text-h1 font-bold">Reporte de cobros</h1>
         <p className="mt-2 text-texto-secundario">
-          Los pagos recibidos de los familiares, por paciente, con las cuentas que cubren y sus gastos médicos por tipo.
-          Sin nombres de exámenes ni de medicamentos.
+          Pagos de los familiares por paciente, con sus gastos médicos.
         </p>
 
         <form onSubmit={generar} noValidate className="mt-6 flex flex-wrap items-start gap-4 sm:[&>button]:mt-8">
@@ -386,7 +385,7 @@ export function ReporteCobrosPage() {
           </Button>
         </form>
         <p className="mt-2 text-auxiliar text-texto-secundario">
-          «Exportar a PDF» abre la impresión del navegador: elija «Guardar como PDF» como destino.
+          Para el PDF, elija «Guardar como PDF» al imprimir.
         </p>
       </div>
 

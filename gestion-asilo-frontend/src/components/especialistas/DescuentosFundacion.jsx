@@ -138,7 +138,7 @@ function FormularioDescuento({ tipoServicio, actual, alCerrar, alGuardar }) {
           etiqueta="Vigente desde"
           obligatorio
           error={errores.vigenteDesde}
-          ayuda="Rige para los servicios dados desde esa fecha. Los de un mes ya consolidado lo toman al volver a consolidarlo; lo anterior conserva el descuento que tenía."
+          ayuda="Aplica a los servicios desde esa fecha."
         >
           {(campo) => (
             <Input
@@ -227,8 +227,7 @@ export function DescuentosFundacion() {
         Descuentos de la fundación
       </h2>
       <p className="mt-2 max-w-2xl text-texto-secundario">
-        Lo que la fundación descuenta de cada servicio médico en la cuenta del familiar: un porcentaje del costo o un
-        monto fijo por cargo. La cuota base del asilo no lleva descuento.
+        Porcentaje o monto fijo por servicio. La cuota base no lleva descuento.
       </p>
 
       {error && (

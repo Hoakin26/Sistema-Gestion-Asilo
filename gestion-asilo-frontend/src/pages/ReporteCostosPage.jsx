@@ -273,8 +273,7 @@ export function ReporteCostosPage() {
       <div className="print:hidden">
         <h1 className="text-h1 font-bold">Reporte de costos por cita</h1>
         <p className="mt-2 text-texto-secundario">
-          Lo que costó cada cita, por paciente, desglosado en consulta, exámenes y medicamentos. Sin nombres de exámenes
-          ni de medicamentos.
+          Costo de cada cita por paciente: consulta, exámenes y medicamentos.
         </p>
 
         <form onSubmit={generar} noValidate className="mt-6 flex flex-wrap items-start gap-4 sm:[&>button]:mt-8">
@@ -348,7 +347,7 @@ export function ReporteCostosPage() {
           </Button>
         </form>
         <p className="mt-2 text-auxiliar text-texto-secundario">
-          «Exportar a PDF» abre la impresión del navegador: elija «Guardar como PDF» como destino.
+          Para el PDF, elija «Guardar como PDF» al imprimir.
         </p>
       </div>
 
