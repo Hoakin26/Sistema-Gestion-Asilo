@@ -139,8 +139,8 @@ export function RecetasPendientesPage({ modo = "bandeja" }) {
       <h1 className="text-h1 font-bold">{enDespachos ? "Despacho de medicamentos" : "Recetas pendientes"}</h1>
       <p className="mt-2 text-texto-secundario">
         {enDespachos
-          ? "Recetas que la farmacia ya despachó, del despacho más reciente al más antiguo."
-          : "Recetas que emitieron los especialistas, de la más antigua a la más reciente."}
+          ? "Recetas despachadas, de la más reciente a la más antigua."
+          : "Recetas emitidas, de la más antigua a la más reciente."}
       </p>
 
       <div className="mt-6 flex flex-wrap gap-4">

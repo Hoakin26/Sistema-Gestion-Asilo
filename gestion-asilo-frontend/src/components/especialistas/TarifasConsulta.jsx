@@ -148,8 +148,7 @@ export function TarifasConsulta() {
         Tarifas de consulta
       </h2>
       <p className="mt-2 max-w-2xl text-texto-secundario">
-        Lo que cuesta una consulta de cada especialidad. Cada visita copia la tarifa vigente al
-        iniciarse, y de ahí la toman la cuenta del familiar y los reportes.
+        Costo de la consulta por especialidad. Cada visita usa la tarifa vigente al iniciarse.
       </p>
 
       {error && (
@@ -166,7 +165,7 @@ export function TarifasConsulta() {
             {sinTarifa === 1
               ? "Una especialidad no tiene tarifa."
               : `${sinTarifa} especialidades no tienen tarifa.`}{" "}
-            Sus visitas se registrarán sin costo de consulta hasta que la defina.
+            Sus visitas no se podrán finalizar hasta que la defina.
           </Alert>
         </div>
       )}

@@ -32,7 +32,7 @@ export function FiltrosHistorico({ etiquetaTipo, etiquetaTodos, opciones, cargan
   const error = (campo) => locales[campo] ?? errores[campo];
 
   return (
-    <form onSubmit={buscar} noValidate className="mt-6 flex flex-wrap items-end gap-4">
+    <form onSubmit={buscar} noValidate className="mt-6 flex flex-wrap items-start gap-4 sm:[&>button]:mt-8">
       <FormField etiqueta={etiquetaTipo} error={error("tipo")}>
         {(campo) => (
           <Select {...campo} value={tipo} onChange={(evento) => setTipo(evento.target.value)} className="sm:w-64">

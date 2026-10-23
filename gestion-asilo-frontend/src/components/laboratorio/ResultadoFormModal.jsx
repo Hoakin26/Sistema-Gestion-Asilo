@@ -152,7 +152,7 @@ function FormularioResultado({ orden, alCambiar, alCerrar, alGuardar }) {
           etiqueta="Costo del examen"
           obligatorio
           error={errores.costo}
-          ayuda="En quetzales. Viene el costo de referencia del catálogo; corríjalo si el examen costó otro monto. Se carga a la cuenta del familiar."
+          ayuda="En quetzales. Trae el costo del catálogo; corríjalo si fue otro."
         >
           {(campo) => (
             <CurrencyInput

@@ -133,7 +133,7 @@ export function DonacionesPage() {
               <p className="max-w-md text-texto-secundario">
                 {conFiltros
                   ? "No hay donaciones con esos filtros."
-                  : "Todavía no hay donaciones registradas. Registre la primera con «Registrar donación»."}
+                  : "Todavía no hay donaciones registradas."}
               </p>
             </div>
           )

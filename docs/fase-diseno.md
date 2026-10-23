@@ -1386,12 +1386,14 @@ Todos los roles entran a un **Dashboard** común y navegan con un menú lateral 
 | Rol | Módulos del menú |
 |---|---|
 | Médico General | Dashboard · Internos · Historial médico · Solicitudes de referencia · Reportes (HU-25) |
-| Administrador de la Fundación | Dashboard · Solicitudes entrantes · Agenda y asignación · Médicos y disponibilidad |
-| Médico Especialista | Dashboard · Mi agenda del día · Visitas médicas · Órdenes de laboratorio · Recetas · Reportes (HU-25) |
-| Administrador del Asilo | Dashboard · Usuarios y roles · Internos (vista administrativa) · Cuentas por cobrar (con las pestañas "Cuentas del mes" y "Citas pendientes", HU-21) · Cuentas por pagar · Donaciones · Gastos · Reportes · Configuración |
-| Enfermería | Dashboard · Internos · Solicitudes asignadas · Citas |
+| Administrador de la Fundación | Dashboard · Solicitudes entrantes · Médicos y disponibilidad |
+| Médico Especialista | Dashboard · Mi agenda del día · Visitas médicas · Reportes (HU-25) |
+| Administrador del Asilo | Dashboard · Usuarios y roles · Internos (vista administrativa) · Cuentas por cobrar (con las pestañas "Cuentas del mes" y "Citas pendientes", HU-21) · Cuentas por pagar · Donaciones · Gastos · Reportes |
+| Enfermería | Dashboard · Internos · Mis acompañamientos (YS-189) |
 | Laboratorio | Dashboard · Órdenes pendientes · Registro de resultados |
 | Farmacia | Dashboard · Recetas pendientes · Despacho de medicamentos |
+
+YS-187 (22/10): la matriz original traía módulos que ninguna historia construyó, y el menú los mostraba en gris. Se quitaron los que ya se resolvían en otra pantalla: "Órdenes de laboratorio" y "Recetas" del especialista (se ordenan y se recetan dentro de la visita, HU-10 y HU-11), "Agenda y asignación" de la fundación (la cita se asigna desde "Solicitudes entrantes", HU-05) y "Configuración" (ningún requerimiento la define). "Solicitudes asignadas" y "Citas" de Enfermería se juntaron en "Mis acompañamientos".
 
 Decidido el 14/10, con HU-02: el Médico Especialista ya no tiene "Historial médico" en su menú. Por HU-08 ve los antecedentes del paciente solo durante su visita activa, y ahí ya los tiene; un módulo aparte no tendría nada que mostrarle sin contradecir ese criterio. El del Médico General abre la lista de internos, y cada fila lleva al historial de ese interno.
 
@@ -1439,7 +1441,7 @@ flowchart TB
         B1["Solicitudes entrantes"] --> B2["Asignar cita, modal con franjas libres"]
     end
     subgraph EN["Enfermería"]
-        E1["Solicitudes asignadas y citas"]
+        E1["Mis acompañamientos: internos que acompaña y sus citas"]
     end
     subgraph ME["Médico Especialista"]
         C1["Mi agenda del día"] --> C2["Visita médica: encabezado del paciente, historial, diagnóstico, receta y exámenes"]
@@ -1990,6 +1992,7 @@ classDiagram
 | GET | `/api/reportes/entradas?desde=&hasta=` | AA | — | `ReporteEntradasResponse`: lo que entró entre las dos fechas (incluidas; sin ellas, del inicio del mes a hoy), sin lo anulado. Las donaciones con su fecha, donante, tipo de donante y monto, su total y lo donado por tipo de donante; los cobros a familiares con su fecha, paciente, mes de la cuenta, forma de pago y monto, y su total; y el total de las entradas. 400 si `hasta` es anterior a `desde` | HU-27 (RF-20b) |
 | GET | `/api/reportes/examenes?internoId=&desde=&hasta=` | MG, ME (solo del paciente de su visita activa) | — | `ReporteExamenesResponse`: los datos generales del paciente y los exámenes que el laboratorio le realizó entre las dos fechas del resultado (incluidas; sin ellas, del 1 de enero del año en curso a hoy), del más antiguo al más reciente: el examen, cuándo se ordenó y cuándo salió el resultado, el resultado con su archivo y quién lo pidió. Solo los de resultados cargados. 403 para el especialista sin una visita activa de ese paciente; 404 si el interno no existe; 400 sin `internoId` o si `hasta` es anterior a `desde` | HU-28 (RF-21a) |
 | GET | `/api/reportes/medicamentos?internoId=&desde=&hasta=` | MG, ME (solo del paciente de su visita activa) | — | `ReporteMedicamentosResponse`: los datos generales del paciente y los medicamentos que la farmacia le entregó entre las dos fechas de entrega (incluidas; sin ellas, del 1 de enero del año en curso a hoy): el medicamento, la dosis, la cantidad, la forma de aplicación, la fecha de entrega y la receta de la que salió. Lo recetado sin entregar no está. Los mismos errores que el de exámenes | HU-28 (RF-21b) |
+| GET | `/api/acompanamientos` | EN | — | `List<AcompanamientoResponse>`: las solicitudes de referencia en que quien pregunta es el enfermero(a) acompañante, la más reciente primero. Cada una con el interno, la especialidad, el motivo, quién la refirió, el estado y, si ya la tiene, la cita (fecha y hora, duración y especialista). Sin parámetros: el enfermero sale del token | YS-188 |
 | GET | `/api/cuentas-por-pagar` | AA | — | `List<CuentaPorPagarResponse>`: el histórico de lo que el asilo le debe a la fundación, una fila por mes y tipo de servicio con servicios, del mes más reciente al más antiguo: cuántos servicios hubo, lo adeudado (el neto de sus cargos, con el descuento de la fundación), lo pagado, el saldo y el estado (`PENDIENTE` o `PAGADA`). Siempre al día con los cargos; sin nombres de pacientes, exámenes ni medicamentos | HU-20 |
 | GET | `/api/cuentas-por-pagar/{periodo}/{tipoServicio}/pagos` | AA | — | `HistorialPagosFundacionResponse`: esa deuda (`2026-10`, `CONSULTA`) con sus pagos, del más reciente al más antiguo, los anulados incluidos. Un mes sin servicios de ese tipo responde en cero. 400 con un mes mal escrito o un tipo que no sea `CONSULTA`, `LABORATORIO` ni `FARMACIA` | HU-20 |
 | POST | `/api/cuentas-por-pagar/{periodo}/{tipoServicio}/pagos` | AA | `PagoRequest`, el mismo del pago del familiar | 201, `HistorialPagosFundacionResponse` con el saldo y el estado nuevos (`PAGADA` si cubre el saldo). 400 en el campo, y en `monto` si pasa del saldo pendiente; 409 si la deuda ya está pagada, si ese mes no tiene servicios de ese tipo o si otro pago la cambió al mismo tiempo | HU-20 |

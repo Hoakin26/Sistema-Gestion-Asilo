@@ -109,7 +109,7 @@ function Formulario({ usuario, alCerrar, alExito }) {
           etiqueta="Contraseña temporal"
           obligatorio
           error={error}
-          ayuda="Entre 8 y 64 caracteres. Se muestra a la vista porque tendrá que dictarla o anotarla."
+          ayuda="Entre 8 y 64 caracteres. Se muestra para que la anote."
         >
           {(campo) => (
             <div className="flex flex-wrap gap-3">

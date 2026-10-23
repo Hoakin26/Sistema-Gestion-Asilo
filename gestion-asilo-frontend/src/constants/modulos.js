@@ -1,18 +1,17 @@
 import {
   CalendarCheck,
-  CalendarClock,
   CircleDollarSign,
   ClipboardList,
   FileCheck,
   FileText,
   FlaskConical,
   Gift,
+  HeartHandshake,
   HeartPulse,
   LayoutDashboard,
   PackageOpen,
   Pill,
   Receipt,
-  Settings,
   Stethoscope,
   UserRound,
   Users,
@@ -29,6 +28,14 @@ import {
  * deshabilitados, porque le dan al usuario la medida del alcance del sistema.
  * Es distinto de un módulo que no aparece: el gris dice "llega después" y la
  * ausencia dice "no es de su rol".
+ *
+ * YS-187: al cerrar el Sprint 3 ya no queda ninguno. Los que venían de la
+ * matriz del diseño y ninguna historia construyó se quitaron (decidido el
+ * 22/10): "Órdenes de laboratorio" y "Recetas" del especialista, que ordena y
+ * receta dentro de la visita (HU-10, HU-11); "Agenda y asignación" de la
+ * fundación, que asigna desde "Solicitudes entrantes" (HU-05), y
+ * "Configuración", que ningún requerimiento define. "Solicitudes asignadas" y
+ * "Citas" de Enfermería pasaron a ser "Mis acompañamientos" (YS-189).
  */
 const CATALOGO = {
   dashboard: { etiqueta: "Dashboard", Icono: LayoutDashboard, ruta: "/dashboard" },
@@ -48,7 +55,6 @@ const CATALOGO = {
     Icono: FileText,
     ruta: "/solicitudes-entrantes",
   },
-  agendaAsignacion: { etiqueta: "Agenda y asignación", Icono: CalendarClock, ruta: null },
   medicosDisponibilidad: {
     etiqueta: "Médicos y disponibilidad",
     Icono: Stethoscope,
@@ -58,11 +64,9 @@ const CATALOGO = {
   miAgenda: { etiqueta: "Mi agenda del día", Icono: CalendarCheck, ruta: "/mi-agenda" },
   // YS-100. "/visitas/15" es la pantalla de una visita: entra con este módulo.
   visitasMedicas: { etiqueta: "Visitas médicas", Icono: HeartPulse, ruta: "/visitas" },
-  ordenesLaboratorio: { etiqueta: "Órdenes de laboratorio", Icono: FlaskConical, ruta: null },
-  recetas: { etiqueta: "Recetas", Icono: Pill, ruta: null },
 
-  solicitudesAsignadas: { etiqueta: "Solicitudes asignadas", Icono: ClipboardList, ruta: null },
-  citas: { etiqueta: "Citas", Icono: CalendarCheck, ruta: null },
+  // YS-189. Las solicitudes en que Enfermería acompaña al interno, con su cita.
+  acompanamientos: { etiqueta: "Mis acompañamientos", Icono: HeartHandshake, ruta: "/acompanamientos" },
 
   // HU-12 (YS-115). La bandeja del laboratorio.
   ordenesPendientes: {
@@ -96,7 +100,7 @@ const CATALOGO = {
    * habrían duplicado la pantalla sin agregar ninguna protección.
    */
   internosAdministrativo: {
-    etiqueta: "Internos (vista administrativa)",
+    etiqueta: "Internos",
     Icono: UserRound,
     ruta: "/internos",
   },
@@ -110,25 +114,19 @@ const CATALOGO = {
   gastos: { etiqueta: "Gastos", Icono: CircleDollarSign, ruta: "/gastos" },
   // HU-24 (YS-152). La entrada a los reportes; cada uno se suma con su historia.
   reportes: { etiqueta: "Reportes", Icono: FileText, ruta: "/reportes" },
-  configuracion: { etiqueta: "Configuración", Icono: Settings, ruta: null },
 };
 
 /** La matriz de menús por rol del diseño (Notion, "Estilo"). */
 const MENU_POR_ROL = {
   // HU-25. Con "Reportes" (decidido el 21/10): el de análisis médico es de los médicos.
   MEDICO_GENERAL: ["dashboard", "internos", "historialMedico", "solicitudesReferencia", "reportes"],
-  ADMINISTRADOR_FUNDACION: [
-    "dashboard",
-    "solicitudesEntrantes",
-    "agendaAsignacion",
-    "medicosDisponibilidad",
-  ],
+  ADMINISTRADOR_FUNDACION: ["dashboard", "solicitudesEntrantes", "medicosDisponibilidad"],
   /*
    * HU-02. Sin "Historial médico", aunque la matriz del diseño lo traía: por
    * HU-08 el especialista ve los antecedentes solo durante su visita activa, y
    * ahí ya los tiene. Un módulo aparte no tendría nada que mostrarle.
    */
-  MEDICO_ESPECIALISTA: ["dashboard", "miAgenda", "visitasMedicas", "ordenesLaboratorio", "recetas", "reportes"],
+  MEDICO_ESPECIALISTA: ["dashboard", "miAgenda", "visitasMedicas", "reportes"],
   ADMINISTRADOR_ASILO: [
     "dashboard",
     "usuarios",
@@ -138,9 +136,8 @@ const MENU_POR_ROL = {
     "donaciones",
     "gastos",
     "reportes",
-    "configuracion",
   ],
-  ENFERMERIA: ["dashboard", "internos", "solicitudesAsignadas", "citas"],
+  ENFERMERIA: ["dashboard", "internos", "acompanamientos"],
   LABORATORIO: ["dashboard", "ordenesPendientes", "registroResultados"],
   FARMACIA: ["dashboard", "recetasPendientes", "despachoMedicamentos"],
 };

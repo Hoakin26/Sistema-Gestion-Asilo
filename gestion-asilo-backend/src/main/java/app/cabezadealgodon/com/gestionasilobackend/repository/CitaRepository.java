@@ -1,6 +1,7 @@
 package app.cabezadealgodon.com.gestionasilobackend.repository;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -51,4 +52,8 @@ public interface CitaRepository extends JpaRepository<Cita, Long> {
             "especialista", "especialista.usuario" })
     @Query("select c from Cita c where c.id = :id")
     Optional<Cita> conSolicitud(@Param("id") Long id);
+
+    /** YS-188. Las citas de unas solicitudes, con su especialista: las de los acompañamientos de Enfermería. */
+    @EntityGraph(attributePaths = { "solicitud", "especialista", "especialista.usuario" })
+    List<Cita> findBySolicitudIdIn(Collection<Long> solicitudIds);
 }

@@ -190,7 +190,7 @@ export function ReporteEntradasPage() {
     <ReportePorFechas
       migas={["Inicio", "Reportes", "Entradas"]}
       titulo="Reporte de entradas"
-      descripcion="Las donaciones y los cobros a familiares recibidos, con el total de cada tipo de entrada."
+      descripcion="Donaciones y cobros a familiares recibidos."
       tituloImpreso="Entradas"
       nombreArchivo="Reporte de entradas"
       obtener={obtenerReporteEntradas}

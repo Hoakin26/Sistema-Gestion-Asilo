@@ -144,8 +144,8 @@ export function OrdenesLaboratorioPage({ modo = "bandeja" }) {
       <h1 className="text-h1 font-bold">{enResultados ? "Registro de resultados" : "Órdenes de laboratorio"}</h1>
       <p className="mt-2 text-texto-secundario">
         {enResultados
-          ? "Resultados que entregó el laboratorio, del más reciente al más antiguo."
-          : "Exámenes que solicitaron los especialistas, de la orden más antigua a la más reciente."}
+          ? "Resultados entregados, del más reciente al más antiguo."
+          : "Exámenes solicitados, del más antiguo al más reciente."}
       </p>
 
       <div className="mt-6 flex flex-wrap gap-4">
