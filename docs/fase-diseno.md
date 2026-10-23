@@ -1386,12 +1386,14 @@ Todos los roles entran a un **Dashboard** común y navegan con un menú lateral 
 | Rol | Módulos del menú |
 |---|---|
 | Médico General | Dashboard · Internos · Historial médico · Solicitudes de referencia · Reportes (HU-25) |
-| Administrador de la Fundación | Dashboard · Solicitudes entrantes · Agenda y asignación · Médicos y disponibilidad |
-| Médico Especialista | Dashboard · Mi agenda del día · Visitas médicas · Órdenes de laboratorio · Recetas · Reportes (HU-25) |
-| Administrador del Asilo | Dashboard · Usuarios y roles · Internos (vista administrativa) · Cuentas por cobrar (con las pestañas "Cuentas del mes" y "Citas pendientes", HU-21) · Cuentas por pagar · Donaciones · Gastos · Reportes · Configuración |
-| Enfermería | Dashboard · Internos · Solicitudes asignadas · Citas |
+| Administrador de la Fundación | Dashboard · Solicitudes entrantes · Médicos y disponibilidad |
+| Médico Especialista | Dashboard · Mi agenda del día · Visitas médicas · Reportes (HU-25) |
+| Administrador del Asilo | Dashboard · Usuarios y roles · Internos (vista administrativa) · Cuentas por cobrar (con las pestañas "Cuentas del mes" y "Citas pendientes", HU-21) · Cuentas por pagar · Donaciones · Gastos · Reportes |
+| Enfermería | Dashboard · Internos · Mis acompañamientos (YS-189) |
 | Laboratorio | Dashboard · Órdenes pendientes · Registro de resultados |
 | Farmacia | Dashboard · Recetas pendientes · Despacho de medicamentos |
+
+YS-187 (22/10): la matriz original traía módulos que ninguna historia construyó, y el menú los mostraba en gris. Se quitaron los que ya se resolvían en otra pantalla: "Órdenes de laboratorio" y "Recetas" del especialista (se ordenan y se recetan dentro de la visita, HU-10 y HU-11), "Agenda y asignación" de la fundación (la cita se asigna desde "Solicitudes entrantes", HU-05) y "Configuración" (ningún requerimiento la define). "Solicitudes asignadas" y "Citas" de Enfermería se juntaron en "Mis acompañamientos".
 
 Decidido el 14/10, con HU-02: el Médico Especialista ya no tiene "Historial médico" en su menú. Por HU-08 ve los antecedentes del paciente solo durante su visita activa, y ahí ya los tiene; un módulo aparte no tendría nada que mostrarle sin contradecir ese criterio. El del Médico General abre la lista de internos, y cada fila lleva al historial de ese interno.
 
@@ -1439,7 +1441,7 @@ flowchart TB
         B1["Solicitudes entrantes"] --> B2["Asignar cita, modal con franjas libres"]
     end
     subgraph EN["Enfermería"]
-        E1["Solicitudes asignadas y citas"]
+        E1["Mis acompañamientos: internos que acompaña y sus citas"]
     end
     subgraph ME["Médico Especialista"]
         C1["Mi agenda del día"] --> C2["Visita médica: encabezado del paciente, historial, diagnóstico, receta y exámenes"]
