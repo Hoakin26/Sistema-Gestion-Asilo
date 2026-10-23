@@ -37,7 +37,90 @@ export const ETIQUETAS_ESTADO = {
   PARCIALMENTE_ENTREGADA: "Parcialmente Entregada",
   ENTREGADA: "Entregada",
   MEDICAMENTO_AGOTADO: "Medicamento Agotado",
+
+  // DE-04 · Cuenta mensual del familiar (YS-134). Sin prefijo: los nombres no chocan.
+  PENDIENTE_PAGO: "Pendiente de Pago",
+  PAGO_PARCIAL: "Pago Parcial",
+  COMPLETAMENTE_CANCELADA: "Completamente Cancelada",
+  EN_MORA: "En Mora",
+
+  // YS-140 · Deuda con la fundación. "PENDIENTE" es el mismo de la orden de
+  // laboratorio, a propósito: un Pendiente se ve igual en todos los módulos.
+  PAGADA: "Pagada",
+
+  // YS-143 · Cita pendiente de pago (RF-14). "PAGO_PARCIAL" es el de DE-04.
+  SIN_PAGO: "Sin Pago",
 };
+
+/**
+ * YS-134. Los conceptos del estado de cuenta, por tipo de servicio y nunca por
+ * nombre (RNF-03): las claves de `TipoServicio` del backend, más la cuota base.
+ */
+export const CONCEPTOS_CUENTA = {
+  CUOTA: "Cuota base del asilo",
+  CONSULTA: "Consultas médicas",
+  LABORATORIO: "Exámenes de laboratorio",
+  FARMACIA: "Farmacia",
+};
+
+/** YS-134. Cada cargo, en singular, para el detalle del estado de cuenta. */
+export const SERVICIOS = {
+  CONSULTA: "Consulta",
+  LABORATORIO: "Laboratorio",
+  FARMACIA: "Farmacia",
+};
+
+/** YS-177. Cómo pagó el familiar, con las claves de `FormaPago` del backend. */
+export const FORMAS_PAGO = {
+  EFECTIVO: "Efectivo",
+  TRANSFERENCIA: "Transferencia bancaria",
+  DEPOSITO: "Depósito bancario",
+  TARJETA: "Tarjeta",
+  CHEQUE: "Cheque",
+};
+
+/** YS-143. Cuántos servicios de un tipo tuvo una cita, en singular y en plural. */
+export const SERVICIOS_CONTADOS = {
+  CONSULTA: ["consulta", "consultas"],
+  LABORATORIO: ["examen", "exámenes"],
+  FARMACIA: ["medicamento", "medicamentos"],
+};
+
+/** YS-146. Quién dona (RF-15), con las claves de `TipoDonante` del backend y en su orden. */
+export const TIPOS_DONANTE = {
+  EMPRESA_INTERNACIONAL: "Empresa internacional",
+  EMPRESA_NACIONAL: "Empresa nacional",
+  GOBIERNO: "Gobierno",
+  PARTICULAR: "Persona particular",
+};
+
+/** YS-149. En qué gasta el asilo (RF-16), con las claves de `TipoGasto` del backend y en su orden. */
+export const TIPOS_GASTO = {
+  LUZ: "Luz",
+  AGUA: "Agua",
+  TELEFONO_INTERNET: "Teléfono e internet",
+  GAS: "Gas",
+  ALIMENTACION: "Alimentación",
+  LIMPIEZA: "Limpieza",
+  MANTENIMIENTO: "Mantenimiento",
+  OTRO: "Otro",
+};
+
+/** YS-137. Los tipos de servicio con descuento de la fundación, en el orden de `TipoServicio`. */
+export const TIPOS_SERVICIO = ["CONSULTA", "LABORATORIO", "FARMACIA"];
+
+/** YS-137. A qué se le resta un descuento de monto fijo: es por cargo, y cada servicio cobra distinto. */
+export const POR_CARGO = {
+  CONSULTA: "por consulta",
+  LABORATORIO: "por examen",
+  FARMACIA: "por medicamento entregado",
+};
+
+/** DE-02, en el orden del diagrama: para el filtro de la bandeja del laboratorio (YS-115). */
+export const ESTADOS_ORDEN = ["PENDIENTE", "EN_PROCESO", "RESULTADOS_CARGADOS", "ANULADA"];
+
+/** DE-03, en el orden del diagrama: para el filtro de la bandeja de la farmacia (YS-124). */
+export const ESTADOS_RECETA = ["PENDIENTE_DESPACHO", "PARCIALMENTE_ENTREGADA", "ENTREGADA", "MEDICAMENTO_AGOTADO"];
 
 /** DE-01, en el orden del diagrama: para los filtros de las bandejas. */
 export const ESTADOS_SOLICITUD = [

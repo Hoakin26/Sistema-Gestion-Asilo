@@ -8,8 +8,8 @@ import { formatearQuetzales } from "../../utils/formato";
 import { enfocarPrimerError } from "../../utils/formularios";
 import { Alert } from "../ui/Alert";
 import { Button, IconButton } from "../ui/Button";
+import { CurrencyInput } from "../ui/CurrencyInput";
 import { FormField } from "../ui/FormField";
-import { Input } from "../ui/Input";
 import { Modal } from "../ui/Modal";
 import { TablaSkeleton } from "../ui/TablaSkeleton";
 
@@ -77,25 +77,16 @@ function FormularioTarifa({ especialidad, alCerrar, alGuardar }) {
           ayuda="En quetzales. Las visitas que ya empezaron conservan la tarifa que tenían."
         >
           {(campo) => (
-            <div className="relative sm:w-56">
-              <span
-                aria-hidden="true"
-                className="pointer-events-none absolute top-1/2 left-4 -translate-y-1/2 text-texto-secundario"
-              >
-                Q
-              </span>
-              <Input
-                {...campo}
-                inputMode="decimal"
-                value={texto}
-                onChange={(evento) => {
-                  setTexto(evento.target.value);
-                  setError(null);
-                }}
-                placeholder="350.00"
-                className="pl-10 text-right tabular-nums slashed-zero"
-              />
-            </div>
+            <CurrencyInput
+              {...campo}
+              className="sm:w-56"
+              value={texto}
+              onChange={(evento) => {
+                setTexto(evento.target.value);
+                setError(null);
+              }}
+              placeholder="350.00"
+            />
           )}
         </FormField>
       </div>
@@ -157,8 +148,7 @@ export function TarifasConsulta() {
         Tarifas de consulta
       </h2>
       <p className="mt-2 max-w-2xl text-texto-secundario">
-        Lo que cuesta una consulta de cada especialidad. Cada visita copia la tarifa vigente al
-        iniciarse, y de ahí la toman la cuenta del familiar y los reportes.
+        Costo de la consulta por especialidad. Cada visita usa la tarifa vigente al iniciarse.
       </p>
 
       {error && (
@@ -175,7 +165,7 @@ export function TarifasConsulta() {
             {sinTarifa === 1
               ? "Una especialidad no tiene tarifa."
               : `${sinTarifa} especialidades no tienen tarifa.`}{" "}
-            Sus visitas se registrarán sin costo de consulta hasta que la defina.
+            Sus visitas no se podrán finalizar hasta que la defina.
           </Alert>
         </div>
       )}
@@ -185,7 +175,9 @@ export function TarifasConsulta() {
           <TablaSkeleton etiqueta="Cargando tarifas…" filas={3} />
         ) : (
           tarifas.length > 0 && (
-            <div className="overflow-x-auto rounded-tarjeta border border-divisor bg-superficie shadow-tarjeta">
+            <div className="relative overflow-x-auto rounded-tarjeta border border-divisor bg-superficie shadow-tarjeta">
+              {/* relative: los sr-only de la tabla son absolutos; sin él escapan del
+                  recorte, estiran la página y el teléfono la achica a una esquina (YS-175). */}
               <table className="w-full border-collapse text-left">
                 <caption className="sr-only">Tarifa de consulta de cada especialidad</caption>
                 <thead>

@@ -51,9 +51,7 @@ export function DashboardPage() {
            * nada disponible lo dejaría pensando que el sistema está roto.
            */
           <Alert tipo="info" rol="status">
-            Los módulos de su rol estarán disponibles en una fase posterior del
-            proyecto. Mientras tanto puede cambiar su contraseña desde el menú de
-            usuario, arriba a la derecha.
+            Su rol todavía no tiene módulos. Puede cambiar su contraseña desde el menú de usuario.
           </Alert>
         )}
       </div>

@@ -9,9 +9,20 @@ import org.springframework.core.annotation.Order;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
+import app.cabezadealgodon.com.gestionasilobackend.models.EstadoCuenta;
 import app.cabezadealgodon.com.gestionasilobackend.models.EstadoNotificacion;
+import app.cabezadealgodon.com.gestionasilobackend.models.EstadoOrden;
+import app.cabezadealgodon.com.gestionasilobackend.models.EstadoReceta;
 import app.cabezadealgodon.com.gestionasilobackend.models.EstadoSolicitud;
+import app.cabezadealgodon.com.gestionasilobackend.models.EstadoVisita;
+import app.cabezadealgodon.com.gestionasilobackend.models.FormaPago;
+import app.cabezadealgodon.com.gestionasilobackend.models.RolNombre;
+import app.cabezadealgodon.com.gestionasilobackend.models.TipoArchivoResultado;
+import app.cabezadealgodon.com.gestionasilobackend.models.TipoDescuento;
+import app.cabezadealgodon.com.gestionasilobackend.models.TipoDonante;
+import app.cabezadealgodon.com.gestionasilobackend.models.TipoGasto;
 import app.cabezadealgodon.com.gestionasilobackend.models.TipoNotificacion;
+import app.cabezadealgodon.com.gestionasilobackend.models.TipoServicio;
 
 /**
  * HU-06. Pone al día las restricciones CHECK de las columnas enum.
@@ -29,22 +40,45 @@ import app.cabezadealgodon.com.gestionasilobackend.models.TipoNotificacion;
  * Aquí, al arrancar, se rehace cada una con los valores que el enum tiene hoy:
  * agregar un valor ya no exige tocar la base a mano. Va antes que los
  * sembradores. Toda columna enum que pueda crecer se anota en la lista.
+ *
+ * <p>
+ * YS-183: la lista tiene todas las columnas enum de las entidades, menos los
+ * días de la semana de los horarios, que no van a crecer. Hasta el Sprint 3
+ * solo tenía las de los avisos, las solicitudes y el laboratorio; las demás
+ * se quedaban como nacieron. {@code RestriccionesDeEnumTest} recorre las
+ * entidades y falla si alguna falta.
  */
 @Component
 @Order(0)
 public class RestriccionesDeEnum implements CommandLineRunner {
 
     /** El nombre es el que Postgres le da a la restricción que crea Hibernate. */
-    record Restriccion(String tabla, String columna, Class<? extends Enum<?>> tipo) {
+    public record Restriccion(String tabla, String columna, Class<? extends Enum<?>> tipo) {
         String nombre() {
             return tabla + "_" + columna + "_check";
         }
     }
 
-    static final List<Restriccion> RESTRICCIONES = List.of(
+    public static final List<Restriccion> RESTRICCIONES = List.of(
             new Restriccion("notificacion_familiar", "tipo", TipoNotificacion.class),
             new Restriccion("notificacion_familiar", "estado", EstadoNotificacion.class),
-            new Restriccion("solicitud_referencia", "estado", EstadoSolicitud.class));
+            new Restriccion("solicitud_referencia", "estado", EstadoSolicitud.class),
+            // HU-13 (YS-117): el estado de la orden y el tipo de archivo de su resultado.
+            new Restriccion("orden_laboratorio", "estado", EstadoOrden.class),
+            new Restriccion("orden_laboratorio", "tipo_archivo", TipoArchivoResultado.class),
+            // YS-183: las que faltaban, de los Sprints 1 a 3.
+            new Restriccion("rol", "nombre", RolNombre.class),
+            new Restriccion("visita_medica", "estado", EstadoVisita.class),
+            new Restriccion("receta", "estado", EstadoReceta.class),
+            new Restriccion("cargo_servicio", "tipo", TipoServicio.class),
+            new Restriccion("cuenta_mensual", "estado", EstadoCuenta.class),
+            new Restriccion("politica_descuento", "tipo_servicio", TipoServicio.class),
+            new Restriccion("politica_descuento", "tipo_descuento", TipoDescuento.class),
+            new Restriccion("pago", "forma_pago", FormaPago.class),
+            new Restriccion("cuenta_por_pagar", "tipo_servicio", TipoServicio.class),
+            new Restriccion("pago_fundacion", "forma_pago", FormaPago.class),
+            new Restriccion("donacion", "tipo_donante", TipoDonante.class),
+            new Restriccion("gasto_operativo", "tipo_gasto", TipoGasto.class));
 
     private final JdbcTemplate jdbc;
 

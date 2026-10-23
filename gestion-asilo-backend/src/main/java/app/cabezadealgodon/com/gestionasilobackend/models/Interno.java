@@ -83,9 +83,10 @@ public class Interno {
      * paciente.
      *
      * <p>
-     * Hoy solo puede completarse actualizando el interno, que también es del
-     * Médico General. La vía para que la fije el Administrador del Asilo, que
-     * es a quien le corresponde, llega con la cuenta del familiar (YS-132).
+     * YS-132. Desde HU-18 la fija el Administrador del Asilo, que es a quien le
+     * corresponde ({@code PUT /api/internos/{id}/cuota}), y la consolidación de
+     * la cuenta del familiar la suma a los cargos del mes. El Médico General
+     * puede dejarla escrita al registrar, pero ya no la cambia al editar.
      */
     @Column(name = "cuota_mensual", precision = 10, scale = 2)
     private BigDecimal cuotaMensual;

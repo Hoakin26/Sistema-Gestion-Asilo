@@ -6,6 +6,7 @@ import { Alert } from "../ui/Alert";
 import { StatusBadge } from "../ui/StatusBadge";
 import { Barra } from "../ui/TablaSkeleton";
 import { Timeline, TimelineItem } from "../ui/Timeline";
+import { ResultadoExamen } from "../laboratorio/ResultadoExamen";
 import { ListaMedicamentos } from "../visitas/RecetaVisita";
 
 const TARJETA = "rounded-tarjeta border border-divisor bg-superficie p-4 shadow-tarjeta sm:p-6";
@@ -34,6 +35,7 @@ function Examenes({ examenes }) {
             <StatusBadge estado={examen.estado} />
           </div>
           {examen.indicaciones && <p className="mt-1 text-texto">{examen.indicaciones}</p>}
+          <ResultadoExamen orden={examen} />
         </li>
       ))}
     </ul>

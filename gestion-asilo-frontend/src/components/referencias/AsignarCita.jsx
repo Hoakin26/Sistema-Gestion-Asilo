@@ -247,12 +247,10 @@ export function AsignarCita({ solicitud, alVolver, alAsignar, alEncontrarAsignad
 
         {sinEspecialistas && (
           <Alert tipo="info" rol="status">
-            No hay especialistas de {solicitud.especialidad.nombre} que estén atendiendo. Regístrelo o
-            actívelo en{" "}
+            No hay especialistas de {solicitud.especialidad.nombre} activos. Regístrelo o actívelo en{" "}
             <Link to="/medicos-disponibilidad" className="underline">
               Médicos y disponibilidad
-            </Link>{" "}
-            y vuelva a esta solicitud.
+            </Link>.
           </Alert>
         )}
 
