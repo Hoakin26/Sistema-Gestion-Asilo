@@ -213,7 +213,7 @@ Ningún archivo con credenciales se versiona: `.env`, `.env.prod`, `gestion-asil
 
 ## Documentación
 
-- [Requerimientos del sistema](docs/requerimientos-del-sistema.md): RF-01 a RF-21 y requerimientos no funcionales.
+- [Requerimientos del sistema](docs/requerimientos-del-sistema.md): RF-01 a RF-22 y requerimientos no funcionales.
 - [Trazabilidad de requerimientos](docs/trazabilidad-requerimientos.md): de cada requerimiento a sus historias.
 - [Fase de diseño](docs/fase-diseno.md)
 - [Seguridad](docs/seguridad.md): contraseñas, JWT, roles y decisiones de seguridad.

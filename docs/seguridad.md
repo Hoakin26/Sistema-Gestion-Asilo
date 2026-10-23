@@ -752,6 +752,8 @@ El segundo aviso al familiar lleva el especialista, la especialidad, la fecha, l
 
 Hibernate crea, para cada columna enum, una restricción CHECK con los valores de ese momento, y con `ddl-auto=update` no la vuelve a tocar. Al agregar `CITA_ASIGNADA`, la base de desarrollo siguió aceptando solo `SOLICITUD_CREADA`, y asignar una cita respondía 500 al registrar el aviso. Las pruebas no lo veían porque crean el esquema desde cero. `RestriccionesDeEnum` rehace esas restricciones al arrancar, con los valores que el enum tiene hoy; `RestriccionesDeEnumTest` recrea la restricción vieja y comprueba que queda al día.
 
+Hasta el Sprint 3 la lista de `RestriccionesDeEnum` solo tenía las columnas de los avisos, las solicitudes y el laboratorio; las demás se quedaban como nacieron, y el día que su enum creciera, guardar el valor nuevo respondería 500 en producción. Desde YS-183 tiene todas las columnas enum de las entidades, salvo los días de la semana de los horarios, que no van a crecer. `RestriccionesDeEnumTest` recorre las entidades (también lo que heredan de una `@MappedSuperclass`) y falla si alguna columna enum no está en la lista.
+
 ## 23. La visita médica (HU-07)
 
 ### Quién usa cada endpoint
@@ -882,7 +884,275 @@ El 401 queda para lo que significa: sin token, token inválido o vencido, o sesi
 
 Un controlador que solo existe en la prueba falla de tres maneras: una excepción, un `Error` de Java y una respuesta de error armada por el contenedor. Para cada una se comprueba el estado, que el mensaje no lleve el detalle interno, que la traza sí quede en el log y que el mismo token siga funcionando en la petición siguiente. También se comprueba que sin token, o con uno inventado, la respuesta siga siendo 401. Antes de la corrección, la prueba fallaba en cuatro de sus cinco casos, todos con 401.
 
-## 30. Qué falta
+## 30. La bandeja del laboratorio (HU-12)
+
+### Quién la usa y qué ve
+
+`GET /api/ordenes-laboratorio` y `PATCH /api/ordenes-laboratorio/{id}/iniciar` están bajo `@SoloLaboratorio`, puesto sobre todo el controlador. Los especialistas ya ven sus órdenes por la visita (HU-11), y ningún otro rol tiene por qué saber qué exámenes se le piden a un paciente: el nombre de un examen ya dice algo de lo que se sospecha. `VisitaMedicaTest` barre los seis roles restantes en los dos endpoints, con el Administrador del Asilo entre ellos (RNF-03), y todos reciben 403. El rol se revisa antes de buscar la orden, así que un 403 no revela si una orden existe.
+
+Cada orden lleva el paciente, el examen, las indicaciones y el médico que la solicitó, que es lo que pide HU-12. No lleva el diagnóstico ni el costo (mínimo privilegio, `fase-diseno.md` 4.9). El paciente y el médico van como `ResumenPersona`, con el id y el nombre: el DPI sirve para buscar, pero la respuesta no lo devuelve.
+
+### Tomar una orden
+
+DE-02 ya está en `EstadoOrden`, como DE-01 en `EstadoSolicitud`. La orden solo cambia de estado por `OrdenLaboratorio.cambiarEstado`, que rechaza con 409 cualquier paso que el diagrama no contemple. Tomarla la pasa de Pendiente a En Proceso y anota al laboratorista. Tomarla otra vez es 409.
+
+Si dos personas la toman a la vez, la columna `version` que la orden ya tenía desde HU-11 hace que la segunda falle al guardar en vez de pisar a la primera. Ese choque salía como 500; ahora `ManejadorGlobalExcepciones` lo traduce a 409 para cualquier registro con bloqueo optimista, y la receta (HU-16) también se beneficia.
+
+### La búsqueda
+
+Por nombre, sin mayúsculas ni tildes, con el mismo `PatronBusqueda` de las otras listas, o por DPI. Los comodines que escriba el usuario cuentan como texto. El orden por defecto va de la más antigua a la más reciente, con desempate por id: las órdenes de una misma visita comparten la fecha, y sin desempate una orden podía repetirse o perderse al cambiar de página.
+
+## 31. El resultado de laboratorio (HU-13)
+
+### Quién lo carga y quién lo ve
+
+`POST /api/ordenes-laboratorio/{id}/resultado` queda bajo el `@SoloLaboratorio` del controlador. La descarga del archivo, `GET /api/ordenes-laboratorio/{id}/archivo`, lleva su propia anotación, `@LaboratorioOMedico`: decidido el 19/10, el resultado lo ven los médicos además del laboratorio. Esa es la primera barrera; la segunda está en `LaboratorioService`:
+
+- **El Laboratorio y el Médico General** descargan el de cualquier orden: uno lo cargó y el otro lo consulta en el historial centralizado (HU-02).
+- **Un especialista**, el de las órdenes que dio él y, mientras tiene una visita activa con el mismo paciente, el de los antecedentes de ese paciente, con la misma regla que HU-08. Fuera de eso, 403.
+- **El Administrador del Asilo, Enfermería, la Fundación y Farmacia** reciben 403 antes de que se busque la orden (RNF-03: un resultado de laboratorio es un dato clínico).
+
+El texto del resultado viaja en las mismas respuestas que ya llevaban la orden: la visita del especialista (HU-11), los antecedentes (HU-08) y el historial (HU-02). Ninguna de ellas la recibe un rol que no sea médico.
+
+### El archivo
+
+- **El tipo se reconoce por el contenido.** `TipoArchivoResultado` compara los primeros bytes con las firmas de PDF, PNG y JPEG. La extensión y el tipo que declara el navegador los escribe quien sube el archivo, así que un ejecutable renombrado a `.pdf` se rechaza.
+- **10 MB por archivo, en todos los entornos.** Spring Boot usa 1 MB si no se le dice otra cosa, y el `application.properties` de desarrollo no se versiona; `ArchivosConfig` lee las mismas propiedades que `application-prod.properties`, con 10 MB por defecto. El servicio vuelve a revisar el tamaño, y lo que el servidor rechaza antes de llegar a él sale como 413 en el campo `archivo`.
+- **Se guarda fuera de la aplicación y con un nombre propio.** `AlmacenArchivos` escribe en una carpeta del disco (en producción, el volumen `asilo_archivos`, que se respalda con la base) con un nombre aleatorio. El nombre original solo se muestra y se usa al descargar; nunca decide dónde se guarda, así que un `../../` no sale de la carpeta.
+- **Se descarga, no se abre dentro del sistema.** La respuesta va como `attachment`, y Spring Security agrega `X-Content-Type-Options: nosniff`: el navegador no lo interpreta como parte de la página.
+- **Sin archivos huérfanos.** El archivo se guarda antes que la orden; si la orden no se puede guardar (por ejemplo, porque otra persona cargó el resultado al mismo tiempo y el bloqueo optimista lo detuvo), el archivo se borra.
+
+### Un resultado, una vez
+
+La orden pasa a Resultados Cargados por `cambiarEstado`, que solo lo permite desde Pendiente o En Proceso: una orden que ya tiene resultado, o que se anuló, responde 409. El resultado no se corrige después de cargado; HU-13 no lo pide y el especialista ya pudo haberlo leído.
+
+## 32. El costo del laboratorio (HU-14)
+
+Desde RF-08 v1.1, el costo de cada examen lo registra el laboratorio al cargar el resultado, con el costo de referencia del catálogo como sugerencia.
+
+- **Va en la misma petición que el resultado** (`POST .../resultado`) y en la misma transacción: se guarda en la orden y nace el `CargoServicio` de laboratorio de la visita, por `CargoService`, el mismo camino que el cargo de la consulta (HU-09). Si algo falla, no queda ni el resultado ni el cargo.
+- **Se cobra una sola vez.** No hay una regla aparte para eso: el resultado solo se carga sobre una orden pendiente o en proceso, y la segunda carga es un 409 antes de llegar al cargo.
+- **Mayor que cero, y como lo escribe una persona.** Hasta 8 enteros y 2 decimales, con la coma aceptada como punto; ni notación científica ("1e3") ni signos. Cada caso tiene su mensaje en el campo `costo`.
+- **Quién ve el costo.** Decidido el 19/10: solo el laboratorio, y solo en el formulario del resultado y en su detalle, por `GET .../costo` (`@SoloLaboratorio`). La bandeja sigue sin costos, como decidió HU-12, y `OrdenLaboratorioResponse` tampoco los lleva, porque también la recibe el especialista, que ordena por criterio clínico. `VisitaMedicaTest` barre los otros seis roles en `GET .../costo`.
+
+## 33. La bandeja de la farmacia (HU-15)
+
+### Quién la usa y qué ve
+
+`GET /api/recetas` está bajo `@SoloFarmacia`, puesto sobre todo el controlador, como la bandeja del laboratorio. Los especialistas ya ven sus recetas por la visita (HU-10), y ningún otro rol tiene por qué saber qué medicamentos se le recetan a un paciente: el nombre de un medicamento dice tanto como un diagnóstico (RNF-03). `VisitaMedicaTest` barre los seis roles restantes, con el Administrador del Asilo entre ellos, y todos reciben 403.
+
+Cada receta lleva el paciente, el médico que la emitió, la fecha, el estado y los medicamentos con su dosis, cantidad y forma de aplicación, que es lo que la farmacia necesita para despachar. No lleva el diagnóstico de la visita: la farmacia despacha la receta, no la consulta (`fase-diseno.md` 4.9). El paciente y el médico van como `ResumenPersona`, sin el DPI, que sirve para buscar pero no se devuelve. `RecetaResponse` es el mismo DTO que recibe el especialista; ganó esos dos campos y nada más.
+
+### La búsqueda y el filtro
+
+Por nombre, sin mayúsculas ni tildes, o por DPI, con el mismo `PatronBusqueda` de las otras bandejas: un comodín que escriba el usuario cuenta como texto, y la prueba lo comprueba con "%". El filtro solo acepta los estados de DE-03; cualquier otro, como "DESPACHADA", que es como lo llama HU-16 (hallazgo 1 del diseño), es 400. El orden por defecto va de la más antigua a la más reciente, con desempate por id.
+
+Los medicamentos no se traen en la misma consulta que la página: con una colección, Hibernate tendría que traer todas las recetas para cortar la página en memoria. Llegan por lotes (`@BatchSize`), en una consulta más para toda la página.
+
+## 34. El despacho de la farmacia (HU-16)
+
+### Quién despacha
+
+`POST /api/recetas/{id}/despacho` hereda `@SoloFarmacia` del controlador. `VisitaMedicaTest` barre los otros seis roles, con el Administrador del Asilo entre ellos, y todos reciben 403; el rol se revisa antes de buscar la receta, así que un 403 no revela si existe. Cada despacho anota a quien lo hizo y cuándo, y cada medicamento entregado, su fecha.
+
+### Nada se entrega dos veces
+
+Es el criterio de HU-16 ("que no se despache dos veces la misma receta") y se aplica en tres niveles:
+
+- **La receta.** El estado solo cambia por `Receta.cambiarEstado`, que respeta DE-03 como la orden respeta DE-02. Una receta Entregada ya no admite despachos: 409.
+- **Cada medicamento.** Una receta incompleta sí se vuelve a despachar (el diagrama del análisis la completa "cuando llega inventario"), pero solo con lo que sigue pendiente: un medicamento ya entregado es 409, y la petición se rechaza entera, sin entregar a medias el resto.
+- **Dos personas a la vez.** La receta se lee con `OPTIMISTIC_FORCE_INCREMENT`: su versión sube en cada despacho aunque solo cambien los medicamentos, así que dos despachos simultáneos, o un despacho y una corrección del especialista, chocan siempre y el segundo recibe 409 en vez de entregar dos veces. Sin ese bloqueo, marcar un medicamento no tocaba la fila de la receta y el choque podía pasar inadvertido.
+
+### Lo que no se entrega
+
+Un medicamento que no va en la lista queda pendiente; así se marca uno sin existencias (CU-005, E.1). Si en el primer despacho no se entrega ninguno, la receta queda en Medicamento Agotado, sin fecha de despacho, y sigue en la bandeja de la farmacia. Un despacho posterior sin entregas no cambiaría nada y se rechaza (400). HU-17 cobra solo lo entregado (CU-005, E.2).
+
+## 35. El costo de la farmacia (HU-17)
+
+- **Va en la misma petición que el despacho** y en la misma transacción: cada medicamento entregado guarda su costo y genera su `CargoServicio` de farmacia por `CargoService`, el camino del cargo de la consulta (HU-09) y del laboratorio (HU-14). Si algo falla, no queda ni la entrega ni el cargo.
+- **Un cargo por medicamento entregado**, como el laboratorio tiene uno por examen. Lo pendiente no se cobra (CU-005, E.2), y como nada se entrega dos veces (sección 34), nada se cobra dos veces.
+- **Las mismas reglas que el costo del laboratorio.** Mayor que cero, hasta 8 enteros y 2 decimales, con la coma aceptada como punto, sin notación científica ni signos. Las dos validaciones viven en un solo lugar (`Montos`), con los mismos mensajes, y un error sale en la fila del medicamento.
+- **Quién ve el costo.** Solo la farmacia, al despachar y en el detalle de la receta, por `GET /api/recetas/{id}/costos` (`@SoloFarmacia`). `RecetaResponse` no lo lleva porque también la recibe el especialista, que receta por criterio clínico, como se decidió para el laboratorio el 19/10. `VisitaMedicaTest` barre los otros seis roles en `GET .../costos`. El cargo del familiar dice "farmacia" y el monto, nunca el nombre del medicamento (`fase-diseno.md` 4.9).
+
+## 36. La cuenta del familiar (HU-18)
+
+### Quién la ve
+
+`GET /api/cuentas`, `POST /api/cuentas/consolidar` y `GET /api/internos/{id}/estado-cuenta` están bajo `@SoloAdministradorAsilo`, puesto sobre todo `CuentaFamiliarController`, y `PUT /api/internos/{id}/cuota` también. Es el que cobra. Ningún rol clínico tiene por qué saber lo que paga una familia, y la fundación cobra al asilo, no a cada familia (eso es RF-13). `VisitaMedicaTest` barre los otros seis roles en los cuatro endpoints, y todos reciben 403.
+
+### Lo que dice el estado de cuenta, y lo que no
+
+Es la vista financiera de un dato clínico: cada cargo salió de una consulta, un examen o un medicamento. Por eso va por tipo de servicio y nunca por nombre (`fase-diseno.md` 4.9): una línea que dijera "Consulta de Psiquiatría" o el nombre de un antipsicótico revelaría el padecimiento del interno sin mostrar un diagnóstico, y el Administrador del Asilo no puede ver datos clínicos (RNF-03). Cada cargo lleva el tipo, la fecha, el número de solicitud y los montos; la cuenta, el familiar a cargo y los totales. La prueba lo comprueba buscando en la respuesta el examen, el medicamento (uno que delata un padecimiento), el diagnóstico y la especialidad: no aparece ninguno.
+
+### Consolidar no duplica
+
+La cuenta es una por interno y mes, con una restricción única en la base. Consolidar otra vez el mismo mes recalcula la misma cuenta con los cargos que tenga en ese momento, y cada cargo apunta a una sola cuenta. Mientras no haya pagos recalcular no le quita nada a nadie; lo que pasa al reconsolidar una cuenta que ya tiene pagos lo decidió HU-34 (sección 38). La cuenta guarda el familiar y la cuota con que se cobró, para que un cambio posterior no reescriba lo ya cobrado.
+
+### La cuota tiene un solo dueño
+
+Desde HU-18 la cuota la fija el Administrador del Asilo. El `PUT /api/internos/{id}` del Médico General ya no la toca. Su formulario devolvía la cuota que tenía al abrirse, así que guardarlo después de que el administrador la cambiara la regresaba al valor viejo sin que nadie lo notara. La prueba lo cubre: el Médico General edita con otra cuota y la del administrador se mantiene.
+
+## 37. Los descuentos de la fundación (HU-19)
+
+### Quién los define y quién los ve
+
+`PUT /api/politicas-descuento/{tipoServicio}` está bajo `@SoloAdministradorFundacion`: el descuento lo da la fundación, y es ella quien decide cuánto. `GET /api/politicas-descuento` está bajo `@AsiloOFundacion`, porque el Administrador del Asilo los ve aplicados en cada cuenta y tiene que poder explicárselos al familiar, pero no los cambia. `VisitaMedicaTest` comprueba que los otros seis roles, el Administrador del Asilo incluido, reciben 403 al definir, y que los cinco roles que no administran reciben 403 al consultar. Cada versión anota quién la definió.
+
+### Un solo lugar donde se resta
+
+El descuento solo lo calcula `CalculadoraDescuento`, con la regla del tipo (`DescuentoPorcentaje` o `DescuentoMontoFijo`, patrón Estrategia). Lo usan el cargo al nacer (`CargoService`) y la consolidación del mes (`CuentaFamiliarService`), así que las dos llegan siempre al mismo resultado. Una regla nueva es una clase nueva y la calculadora no cambia (principio abierto/cerrado).
+
+### El neto nunca es negativo
+
+Un descuento mayor que el costo se limita al costo: el cargo queda en cero y el descuento guardado es el que de verdad se aplicó, para que original menos descuento cuadre con el neto en el estado de cuenta. Un porcentaje no pasa de 100 ni un valor baja de cero (400). La cuota base del asilo no lleva descuento: CU-006 lo aplica "a los servicios médicos".
+
+### Por fecha y versionado
+
+Decidido el 20/10. Cada política rige desde su fecha hasta que empieza la siguiente del mismo servicio, y a cada cargo le toca la vigente el día del servicio. Cambiar un descuento agrega una versión nueva en vez de reescribir la anterior: lo que rigió antes queda escrito, y un mes ya consolidado solo cambia si se vuelve a consolidar con una versión que ya regía esas fechas. Una cuenta con pagos no vuelve a calcular los descuentos de lo que ya cobró (HU-34, sección 38).
+
+## 38. Los pagos del familiar (HU-34)
+
+### Quién cobra
+
+`POST /api/cuentas/{id}/pagos`, `GET /api/cuentas/{id}/pagos` y `POST /api/pagos/{id}/anulacion` están en `CuentaFamiliarController`, bajo el mismo `@SoloAdministradorAsilo` de la sección 36. `VisitaMedicaTest` barre los otros seis roles en los tres y todos reciben 403. La prueba manda cuerpos válidos, porque la validación corre antes que la seguridad del método: con un cuerpo inválido respondería 400 sin llegar a comprobar el rol. El historial no lleva nada clínico: monto, fecha, forma de pago, referencia y quién lo registró.
+
+### El pago no pasa del saldo
+
+Que el monto sea mayor que cero y tenga dos decimales lo revisa `PagoRequest`; que no pase del saldo, `PagoService`, con el saldo leído en la misma transacción. Una cuenta ya pagada completa no recibe más pagos (409). La cuenta tiene `@Version`: dos pagos simultáneos que juntos pasarían del saldo no se suman los dos, el segundo recibe 409 y tiene que volver a leer el saldo. El saldo y el estado no tienen setter: solo cambian con `registrarPago`, `anularPago` y la consolidación, así que nadie los pone a mano.
+
+### Anular no borra
+
+Decidido el 20/10. Un pago mal registrado se anula con un motivo obligatorio, y queda en el historial tachado, con quién lo anuló y cuándo. Su monto vuelve al saldo y el estado se recalcula sin él. Borrarlo dejaría un hueco en lo cobrado sin explicación, justo lo que un control de caja tiene que poder rastrear. Un pago anulado no se anula dos veces (409).
+
+### Lo cobrado se congela
+
+Decidido el 20/10. Al reconsolidar una cuenta con pagos, los cargos que ya estaban en ella conservan su monto y su descuento, y la cuota y el familiar se quedan como estaban. Solo se suman los cargos que llegaron después. Así un cambio de cuota o un descuento nuevo no reescribe lo que el familiar ya pagó; si entra un cargo nuevo, el saldo crece y una cuenta cancelada vuelve a Pago Parcial.
+
+### La mora la pone el calendario
+
+Decidido el 20/10. La cuenta vence al final del mes siguiente a su período: la de octubre, el 30 de noviembre. Pasada esa fecha, con saldo, está En Mora; un pago parcial no la saca y el del total sí. El estado no se cambia a mano. `CuentaMensual.estadoAl` lo calcula con el saldo, lo pagado y la fecha, y cada lectura lo recalcula con la fecha del día, porque la mora llega sin que nadie toque la cuenta. `CuentaMensualTest` cubre los bordes: el día en que vence, el siguiente, el cambio de año y febrero bisiesto.
+
+## 39. Las cuentas por pagar a la fundación (HU-20)
+
+### Quién las ve
+
+`GET /api/cuentas-por-pagar`, el historial y el registro de pagos de cada deuda, y `POST /api/pagos-fundacion/{id}/anulacion` están en `CuentaPorPagarController`, bajo `@SoloAdministradorAsilo`: es el que lleva las finanzas del asilo y el que le paga a la fundación. `VisitaMedicaTest` barre los otros seis roles en los cuatro endpoints y todos reciben 403, con cuerpos válidos por la misma razón de la sección 38. El Administrador de la Fundación tampoco entra; así lo pide la historia (YS-141).
+
+### Lo que dice la deuda, y lo que no
+
+La deuda sale de los mismos cargos que la cuenta del familiar, pero agrupados por mes y tipo de servicio: cuántos servicios hubo y cuánto suman. No lleva pacientes, ni exámenes, ni medicamentos (RNF-03). La prueba lo comprueba buscando en la respuesta el examen, el medicamento, el diagnóstico y el nombre del interno: no aparece ninguno.
+
+### Lo adeudado no se puede editar
+
+Decidido el 21/10: lo adeudado es siempre la suma del neto de los cargos, y no se guarda. Nadie puede escribir a mano cuánto se le debe a la fundación; solo cambia cuando cambian los cargos. Se guarda lo pagado, en una fila por mes y servicio que nace con el primer pago, con restricción única y `@Version`: dos pagos simultáneos no pasan juntos del saldo, y dos primeros pagos simultáneos tampoco crean dos filas (el segundo recibe 409). Los pagos se anulan con motivo y no se borran, como los del familiar.
+
+### Si lo adeudado baja después de pagar
+
+Si la fundación define después un descuento que ya regía ese mes, al reconsolidar la cuenta del familiar el neto de los cargos baja, y con él lo adeudado. El saldo nunca queda negativo: la deuda queda Pagada con lo pagado a la vista, y la diferencia se corrige anulando el pago y registrando el correcto.
+
+## 40. Las citas pendientes de pago (HU-21)
+
+### Quién las ve
+
+`GET /api/servicios-pendientes` está en `ServicioPendienteController`, bajo `@SoloAdministradorAsilo`, como la cuenta del familiar de la que sale. `VisitaMedicaTest` barre los otros seis roles y todos reciben 403. En la pantalla es una pestaña de "Cuentas por cobrar", así que no agrega una entrada al menú: el menú de cada rol sigue siendo el del diseño.
+
+### Lo que dice cada cita, y lo que no
+
+Es otra vista financiera de datos clínicos: cada cita es una visita médica. Por eso, como el estado de cuenta (sección 36), va por tipo de servicio y nunca por nombre: "1 consulta · 2 exámenes · 1 medicamento", con sus montos, y sin la especialidad, los exámenes, los medicamentos ni el diagnóstico (RNF-03). La prueba busca en la respuesta el examen, el medicamento, el diagnóstico y la especialidad, y no aparece ninguno. El número de solicitud sí va, como en el estado de cuenta, para ubicar la cita sin decir de qué fue.
+
+### Lo pagado no se inventa
+
+Decidido el 21/10: el familiar paga la cuenta del mes entera, y lo pagado se reparte entre sus citas en proporción. Nada de eso se guarda: sale cada vez de lo pagado de la cuenta y del neto de cada cargo, así que el listado no puede contradecir a la cuenta. Una cita sale del listado solo cuando sus cuentas quedan pagadas completas, como dice RF-22 ("los servicios quedan pendientes hasta cubrir el total"). La búsqueda por paciente escapa los comodines de `LIKE`, como las bandejas del laboratorio y la farmacia.
+
+## 41. Las donaciones (HU-22)
+
+### Quién las registra
+
+`POST /api/donaciones`, el histórico y la anulación están en `DonacionController`, bajo `@SoloAdministradorAsilo`: las donaciones son ingresos del asilo, y es él quien lleva sus finanzas. Su prueba, `DonacionTest`, barre los otros seis roles en los tres endpoints y todos reciben 403, con cuerpos válidos por la razón de la sección 38.
+
+### Un ingreso no se borra
+
+Como los pagos (sección 38), una donación no se edita ni se borra: si se registró mal, se anula con un motivo obligatorio y queda en el histórico tachada, con quién la anuló y cuándo. Deja de contar en los totales del histórico y, cuando exista, en el reporte de entradas (RF-20b). Así lo que se recibió y lo que se corrigió quedan escritos.
+
+### El monto se valida en los dos lados
+
+Mayor que cero, con hasta dos decimales y hasta diez enteros (`numeric(12,2)`, como pide el diseño para los montos), y la fecha no puede estar en el futuro. El formulario repite las mismas reglas para avisar antes de enviar, pero la que cuenta es la del backend (`DonacionRequest`).
+
+## 42. Los gastos operativos (HU-23)
+
+### Quién los registra
+
+`POST /api/gastos-operativos`, el histórico y la anulación están en `GastoOperativoController`, bajo `@SoloAdministradorAsilo`, como las donaciones: son egresos del asilo, y él lleva sus finanzas. `GastoOperativoTest` barre los otros seis roles en los tres endpoints y todos reciben 403, con cuerpos válidos por la razón de la sección 38.
+
+### Las mismas reglas que las donaciones
+
+Un gasto no se edita ni se borra: se anula con un motivo obligatorio, queda en el histórico tachado y deja de contar en los totales (sección 41). El monto se valida igual, mayor que cero con hasta dos decimales, y la fecha no puede estar en el futuro. La regla propia de los gastos depende de dos campos y la revisa el servicio: con el tipo Otro, la descripción es obligatoria, porque es lo único que dice en qué se gastó. El formulario la repite para avisar antes de enviar.
+
+## 43. El reporte de costos por cita (HU-24)
+
+### Quién lo genera
+
+`GET /api/reportes/costos-por-cita` está en `ReporteController` con `@SoloAdministradorAsilo` en el método, no en la clase: el controlador va a reunir los cinco reportes, y los clínicos (HU-25, HU-28) serán de otros roles. `VisitaMedicaTest` barre los otros seis roles y todos reciben 403.
+
+### Por tipo de servicio y nunca por nombre
+
+RF-17 pide desglosar los exámenes y los medicamentos de cada cita, y el Administrador del Asilo no puede ver datos clínicos (RNF-03): el nombre de un medicamento lo es. Por eso cada cita dice cuántos exámenes y cuántos medicamentos tuvo y cuánto costaron, sin decir cuáles, como el estado de cuenta (sección 36). La prueba busca en la respuesta el examen, el medicamento, el diagnóstico y la especialidad: no aparece ninguno.
+
+### El PDF no sale del navegador
+
+"Exportar a PDF" usa la impresión del navegador ("Guardar como PDF"), con una hoja de estilos que deja solo el reporte. El PDF se arma en la computadora de quien lo pide con los datos que ya tenía en pantalla: no hay un servicio externo de conversión ni una copia del reporte guardada en el servidor.
+
+## 44. El reporte de análisis médico (HU-25)
+
+### Solo los médicos, y el especialista solo en su visita
+
+Es el reporte con más información clínica del sistema: la ficha, el motivo de reclusión, los diagnósticos, los medicamentos y los resultados de laboratorio. `GET /api/reportes/analisis-medico` lleva `@MedicoGeneralOEspecialista`; enfermería, el laboratorio, la farmacia y los dos administradores reciben 403 (RNF-03), aunque HU-25 diga "como Médico" sin más. El Médico General lo genera de cualquier paciente, como su historial centralizado (HU-02).
+
+Decidido el 21/10: el especialista, solo del paciente de una visita suya que siga activa, la misma regla de los antecedentes (HU-08). El servicio lo comprueba con las visitas activas del especialista, y si no hay una de ese paciente responde 403. Así el reporte no abre una puerta a fichas que el especialista no podría ver desde su visita. Las pruebas cubren al especialista con su visita activa (200), con otro paciente, con la visita de otro especialista y con la visita ya finalizada (403 en los tres).
+
+### En el menú, y lo que sale al PDF
+
+Los dos médicos tienen "Reportes" en su menú (decidido el 21/10; la matriz del diseño no lo traía), y la lista de reportes de esa pantalla depende del rol. Esa lista solo decide qué tarjetas se ven; quien lo exige es el backend. El PDF se arma en el navegador, como el de costos (sección 43), y la pantalla advierte que el reporte tiene datos clínicos y que se comparta solo con personal médico.
+
+## 45. El reporte de cobros (HU-26)
+
+### Quién lo genera
+
+`GET /api/reportes/cobros` está en el mismo `ReporteController`, con `@SoloAdministradorAsilo` en el método, como el de costos (sección 43); la lógica va en su propio `ReporteCobrosService`. `VisitaMedicaTest` barre los otros seis roles (403) y la petición sin token (401).
+
+### Los gastos médicos, por tipo y nunca por nombre
+
+RF-19 pide el detalle de los gastos médicos de cada cobro, y el Administrador del Asilo no puede ver datos clínicos (RNF-03). Cada cuenta dice cuántas consultas, cuántos exámenes y cuántos medicamentos tuvo y cuánto costaron, sin decir cuáles, como el estado de cuenta (sección 36) y el reporte de costos. La prueba busca en la respuesta el examen, el medicamento y el diagnóstico de la visita: no aparece ninguno.
+
+### Lo cobrado sale de los pagos
+
+El total cobrado es la suma de los pagos registrados (HU-34) cuya fecha cae en el rango (decidido el 22/10), sin los anulados: un pago anulado no se cobró, y su anulación queda en el historial de la cuenta, no en este reporte. La prueba registra un pago, lo anula y comprueba que no aparece ni suma. El PDF se arma en el navegador, como el de costos.
+
+## 46. Los reportes financieros (HU-27)
+
+### Dos reportes, los dos del Administrador del Asilo
+
+Decidido el 22/10: HU-27 son dos reportes y no uno consolidado, como los separó la revisión v1.1 de los requerimientos (RF-20a y RF-20b). `GET /api/reportes/pagos-fundacion` y `GET /api/reportes/entradas` están en `ReporteController` con `@SoloAdministradorAsilo` en cada método, y la lógica va en `ReporteFinancieroService`. `VisitaMedicaTest` barre los otros seis roles contra los dos (403) y los pide sin token (401).
+
+### Qué muestra cada uno
+
+El de pagos a la fundación dice de cada pago solo el concepto (consulta, laboratorio o farmacia), el mes de la deuda y el monto, como las cuentas por pagar (sección 39): ni pacientes ni servicios. El de entradas nombra al paciente de cada cobro, que es un dato personal que el Administrador del Asilo ya ve en su vista de internos, y nada clínico. En los dos, lo anulado no aparece ni suma: un pago o una donación anulada no se movió. Las pruebas anulan uno de cada uno y comprueban que su id no está en la respuesta. El PDF se arma en el navegador, como el de costos (sección 43).
+
+## 47. Los reportes de exámenes y medicamentos (HU-28)
+
+### Los permisos del análisis médico
+
+Los dos reportes son datos clínicos: el nombre de un examen y su resultado, y el de un medicamento. `GET /api/reportes/examenes` y `GET /api/reportes/medicamentos` llevan `@MedicoGeneralOEspecialista`, y el servicio aplica la misma regla que el análisis médico (sección 44): el Médico General, de cualquier paciente; el especialista, solo del paciente de una visita suya que siga activa. Esa comprobación quedó en un solo método de `ReporteService` que usan los tres reportes, para que no puedan divergir. `VisitaMedicaTest` barre los cinco roles que no son médicos, el Administrador del Asilo incluido (403, RNF-03), y prueba al especialista con su paciente (200) y con otro (403).
+
+### El archivo del resultado
+
+En pantalla, el examen con archivo trae el botón para descargarlo, que pasa por el mismo endpoint del laboratorio (HU-13) y sus permisos. En el PDF solo queda el nombre del archivo: el reporte no incrusta el contenido ni deja un enlace que funcione fuera del sistema.
+
+## 48. Los acompañamientos de Enfermería (YS-188)
+
+`GET /api/acompanamientos` es de Enfermería (`@SoloEnfermeria`) y no recibe parámetros: el enfermero sale del token, así que no hay forma de pedir los acompañamientos de otro. Devuelve el motivo de la referencia, que es dato clínico; Enfermería es personal clínico y ya lo ve en la ficha del interno. `VisitaMedicaTest` comprueba que cada enfermero ve solo las suyas, que los otros seis roles reciben 403 y que sin sesión es 401.
+
+## 49. Qué falta
 
 Nada pendiente de HU-30, HU-31 ni HU-32. Lo que queda abierto, sin historia asignada todavía:
 

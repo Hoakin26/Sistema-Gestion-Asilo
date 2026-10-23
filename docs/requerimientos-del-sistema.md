@@ -1,7 +1,7 @@
 # Documento de Requerimientos del Sistema
 **Contexto del Proyecto:** Sistema de gestión médica y financiera para el Asilo y su interacción con la Fundación.
 
-**Versión:** 1.1 — 15 de octubre de 2026. Incorpora la revisión de requerimientos del 11 de octubre de 2026 (ver sección 3).
+**Versión:** 1.2 — 19 de octubre de 2026. Incorpora las revisiones de requerimientos del 11 y del 18 de octubre de 2026 (ver sección 3).
 
 ## 1. Requerimientos Funcionales (RF)
 
@@ -62,14 +62,14 @@
     *   *Descripción:* El sistema debe estar desarrollado bajo una arquitectura web, accesible desde navegadores estándar (Chrome, Edge, Safari) sin necesidad de instalar software local.
 *   **RNF-02: Control de Roles y Accesos**
     *   *Descripción:* El sistema debe tener perfiles de usuario estrictos (Médico General, Especialista, Enfermero, Laboratorio, Farmacia, Administrador del Asilo, Administrador de la Fundación) para que cada quien vea solo la información de su competencia. *(Nota: Se ha consolidado a 7 perfiles según la ampliación indicada en la página 25 del documento base).*
-*   **RNF-03: Privacidad y Seguridad**
-    *   *Descripción:* Las contraseñas de los usuarios deben estar encriptadas y la base de datos debe proteger la privacidad de los historiales médicos de los pacientes del asilo.
+*   **RNF-03: Privacidad y Seguridad** *(modificado en v1.2)*
+    *   *Descripción:* Las contraseñas deben almacenarse como hash con un algoritmo de un solo sentido (BCrypt), nunca en texto plano ni cifradas de forma reversible. Los datos clínicos (diagnósticos, psicopatologías y medicamentos) solo pueden consultarlos los roles clínicos; el Administrador del Asilo no tiene acceso a ellos.
 *   **RNF-04: Usabilidad e Interfaz Intuitiva**
     *   *Descripción:* La interfaz gráfica debe ser clara y sencilla de utilizar, con tipografía legible, considerando que parte del personal administrativo o de enfermería puede no ser experto en tecnología.
 *   **RNF-05: Disponibilidad**
     *   *Descripción:* El sistema debe estar disponible y en línea al menos un 99% del tiempo, ya que las emergencias médicas y consultas de historiales no pueden depender de caídas del servidor.
-*   **RNF-06: Rendimiento y Tiempos de Respuesta**
-    *   *Descripción:* El sistema debe procesar las consultas a los historiales médicos y la generación de reportes financieros en un tiempo máximo de 3 a 5 segundos.
+*   **RNF-06: Rendimiento y Tiempos de Respuesta** *(modificado en v1.2)*
+    *   *Descripción:* Las consultas de historiales médicos y la generación de reportes financieros deben responder en 3 segundos o menos, con 20 usuarios simultáneos y una base de al menos 100 internos.
 
 ---
 
@@ -78,6 +78,7 @@
 | Versión | Fecha | Cambio |
 |---|---|---|
 | 1.1 | 15/10/2026 | Revisión de requerimientos del 11/10/2026: se modifican RF-04, RF-08, RF-14 y RF-15; RF-20 se divide en RF-20a y RF-20b; RF-21 se divide en RF-21a y RF-21b; se agrega RF-22. |
+| 1.2 | 19/10/2026 | Revisión de requerimientos no funcionales del 18/10/2026: se modifican RNF-03 y RNF-06. |
 
 | Requerimiento | Motivo del cambio | Historias de usuario |
 |---|---|---|
@@ -88,3 +89,5 @@
 | RF-20a, RF-20b | Un requerimiento contenía dos reportes distintos; se separan y se precisa qué entradas incluye. | HU-27 |
 | RF-21a, RF-21b | Un requerimiento contenía dos reportes distintos; se separan y se corrige la redacción. | HU-28 |
 | RF-22 | Ningún requerimiento cubría el registro del pago del familiar, necesario para RF-12 y RF-14. | HU-34 |
+| RNF-03 | Decía "contraseñas encriptadas", pero el sistema las guarda con un hash (BCrypt), que no se puede descifrar. Se corrige el término y se deja escrita la regla de acceso a los datos clínicos que el sistema ya aplica. | HU-30, HU-01 |
+| RNF-06 | "De 3 a 5 segundos" no fijaba un límite ni las condiciones de la medición. Se fija el límite en 3 segundos, con 20 usuarios simultáneos y al menos 100 internos. Define las pruebas PP-01 y PP-02. | HU-02, HU-24 a HU-28 |

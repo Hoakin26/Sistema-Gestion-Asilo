@@ -255,6 +255,26 @@
 }
 
 /*
+ * YS-152. Impresión de los reportes (HU-24 a HU-28): "Exportar a PDF" usa la
+ * impresión del navegador, así que la hoja impresa es el PDF. Horizontal,
+ * porque las tablas de los reportes tienen muchas columnas de montos, y sobre
+ * blanco. El menú, la barra y los filtros se ocultan con print:hidden en cada
+ * componente; aquí solo va lo que es de toda la hoja.
+ */
+@media print {
+  @page {
+    size: A4 landscape;
+    margin: 12mm;
+  }
+
+  body {
+    background-color: var(--color-superficie);
+    /* Los fondos tenues de los encabezados de tabla también se imprimen. */
+    print-color-adjust: exact;
+  }
+}
+
+/*
  * Con movimiento reducido se suaviza, no se elimina: se conserva el fundido
  * de opacidad y se descartan escalas y desplazamientos.
  */

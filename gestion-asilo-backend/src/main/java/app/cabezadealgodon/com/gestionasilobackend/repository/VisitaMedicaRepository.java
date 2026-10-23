@@ -31,6 +31,13 @@ public interface VisitaMedicaRepository extends JpaRepository<VisitaMedica, Long
     boolean existsByCitaId(Long citaId);
 
     /**
+     * YS-117. Si el especialista tiene una visita en ese estado con el
+     * interno: con una activa, puede ver los resultados de laboratorio de sus
+     * antecedentes (HU-08, HU-13).
+     */
+    boolean existsByInternoIdAndEspecialistaUsuarioIdAndEstado(Long internoId, Long usuarioId, EstadoVisita estado);
+
+    /**
      * YS-105. Lee la visita bloqueándola hasta el final de la transacción: dos
      * "Finalizar" a la vez se hacen uno tras otro, y el segundo ya la ve
      * finalizada. Sin esto, cada uno generaría su propio cargo de consulta.

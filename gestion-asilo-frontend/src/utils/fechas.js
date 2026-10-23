@@ -28,6 +28,17 @@ export function formatearFecha(iso) {
   return iso ? FORMATO_LARGO.format(aFechaLocal(iso)) : "";
 }
 
+const FORMATO_CORTO = new Intl.DateTimeFormat("es-GT", {
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+});
+
+/** "30 nov 2026". YS-179: para las tablas donde la fecha larga no cabe en una línea. */
+export function formatearFechaCorta(iso) {
+  return iso ? FORMATO_CORTO.format(aFechaLocal(iso)) : "";
+}
+
 const FORMATO_FECHA_HORA = new Intl.DateTimeFormat("es-GT", {
   day: "numeric",
   month: "short",
@@ -80,6 +91,29 @@ export function sumarDias(iso, dias) {
 /** YS-100. "viernes, 9 de octubre de 2026", para el encabezado de la agenda. */
 export function formatearDia(iso) {
   return FORMATO_DIA_COMPLETO.format(aFechaLocal(iso));
+}
+
+const FORMATO_MES = new Intl.DateTimeFormat("es-GT", { month: "long", year: "numeric" });
+
+/** YS-134. "octubre de 2026" a partir del período de una cuenta, "2026-10". */
+export function formatearPeriodo(periodo) {
+  const [anio, mes] = periodo.split("-").map(Number);
+  return FORMATO_MES.format(new Date(anio, mes - 1, 1));
+}
+
+/** YS-134. El mes en curso como "2026-10", el valor de un `<input type="month">`. */
+export function mesActualISO() {
+  return hoyISO().slice(0, 7);
+}
+
+/** YS-134. El primer día del mes en curso, "2026-10-01". */
+export function inicioDeMesISO() {
+  return `${mesActualISO()}-01`;
+}
+
+/** YS-164. El 1 de enero del año en curso, "2026-01-01": el inicio de los reportes clínicos (HU-28). */
+export function inicioDeAnioISO() {
+  return `${hoyISO().slice(0, 4)}-01-01`;
 }
 
 export function edadEnAnios(iso) {

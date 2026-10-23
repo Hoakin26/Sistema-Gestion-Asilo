@@ -1,20 +1,41 @@
 package app.cabezadealgodon.com.gestionasilobackend.repository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import app.cabezadealgodon.com.gestionasilobackend.models.EstadoReceta;
 import app.cabezadealgodon.com.gestionasilobackend.models.Receta;
+import jakarta.persistence.LockModeType;
 
 public interface RecetaRepository extends JpaRepository<Receta, Long> {
 
     /** La receta de una visita, con sus medicamentos. */
     @EntityGraph(attributePaths = { "medicamentos" })
     Optional<Receta> findByVisitaId(Long visitaId);
+
+    /**
+     * YS-126. La receta que se va a despachar. El bloqueo sube la versión
+     * aunque solo cambien los medicamentos: dos despachos simultáneos, o un
+     * despacho y una corrección del especialista, chocan siempre, y el segundo
+     * recibe 409 en vez de entregar dos veces.
+     *
+     * <p>
+     * Sin {@code @EntityGraph}, a propósito: Hibernate aplica el bloqueo a todo
+     * lo que la consulta trae, y los medicamentos no tienen versión. Llegan
+     * después, dentro de la misma transacción.
+     */
+    @Lock(LockModeType.OPTIMISTIC_FORCE_INCREMENT)
+    @Query("select r from Receta r where r.id = :id")
+    Optional<Receta> paraDespachar(@Param("id") Long id);
 
     boolean existsByVisitaId(Long visitaId);
 
@@ -30,4 +51,29 @@ public interface RecetaRepository extends JpaRepository<Receta, Long> {
             order by r.fechaEmision desc
             """)
     List<Receta> delInterno(@Param("internoId") Long internoId);
+
+    /**
+     * YS-123. La bandeja de la farmacia (HU-15): las recetas en alguno de
+     * {@code estados}, cuyo paciente coincide por nombre o DPI. La misma
+     * búsqueda que la bandeja del laboratorio: el nombre sin mayúsculas ni
+     * tildes, el DPI tal cual, y con la búsqueda vacía el patrón "%%" trae
+     * todas.
+     *
+     * <p>
+     * El {@code @EntityGraph} trae de una vez el paciente y el médico de cada
+     * fila. Los medicamentos no van en él: con una colección, Hibernate no
+     * puede paginar en la base y traería todas las recetas para cortar la
+     * página en memoria. Llegan después, por lotes ({@code @BatchSize} en
+     * {@link Receta}).
+     */
+    @EntityGraph(attributePaths = { "visita", "visita.interno", "visita.especialista", "visita.especialista.usuario" })
+    @Query("""
+            select r from Receta r
+            where r.estado in :estados
+              and (lower(function('translate', r.visita.interno.nombreCompleto,
+                        'áéíóúüñÁÉÍÓÚÜÑ', 'aeiouunAEIOUUN')) like :patron escape '\\'
+                   or r.visita.interno.dpi like :patron escape '\\')
+            """)
+    Page<Receta> bandeja(@Param("estados") Collection<EstadoReceta> estados, @Param("patron") String patron,
+            Pageable paginado);
 }

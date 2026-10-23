@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Filter, Pencil, Plus, Search, Stethoscope } from "lucide-react";
 
 import { EspecialistaFormModal } from "../components/especialistas/EspecialistaFormModal";
+import { DescuentosFundacion } from "../components/especialistas/DescuentosFundacion";
 import { TarifasConsulta } from "../components/especialistas/TarifasConsulta";
 import { Alert } from "../components/ui/Alert";
 import { Button, IconButton } from "../components/ui/Button";
@@ -171,9 +172,7 @@ export function MedicosDisponibilidadPage() {
             {/* Dice en qué orden van las cosas: sin la cuenta creada por el
                 Administrador del Asilo, el formulario no tiene a quién ofrecer. */}
             <p className="max-w-md text-texto-secundario">
-              Todavía no hay especialistas registrados. Primero el Administrador del Asilo crea la
-              cuenta del médico con el rol Médico Especialista; después, aquí se registra su
-              especialidad y su horario.
+              Todavía no hay especialistas registrados.
             </p>
             <Button onClick={() => abrir(null)}>
               <Plus aria-hidden="true" size={20} />
@@ -199,7 +198,9 @@ export function MedicosDisponibilidadPage() {
               </p>
             )}
 
-            <div className="overflow-x-auto rounded-tarjeta border border-divisor bg-superficie shadow-tarjeta">
+            {/* relative: los sr-only de la tabla son absolutos; sin él escapan del
+                recorte, estiran la página y el teléfono la achica a una esquina (YS-175). */}
+            <div className="relative overflow-x-auto rounded-tarjeta border border-divisor bg-superficie shadow-tarjeta">
               <table className="w-full min-w-2xl border-collapse text-left">
                 <caption className="sr-only">
                   Médicos especialistas con su especialidad, horario de atención y estado
@@ -264,6 +265,10 @@ export function MedicosDisponibilidadPage() {
       {/* YS-169. En la misma pantalla: la Fundación ya viene aquí a
           administrar a sus especialistas, y la tarifa es de su especialidad. */}
       <TarifasConsulta />
+
+      {/* HU-19 (YS-137). Junto a las tarifas, decidido el 20/10: los dos son
+          los precios que fija la fundación. */}
+      <DescuentosFundacion />
 
       <EspecialistaFormModal
         abierto={modalAbierto}

@@ -1101,16 +1101,41 @@ classDiagram
         -BigDecimal totalServicios
         -BigDecimal totalDescuentos
         -BigDecimal totalAPagar
+        -BigDecimal totalPagado
         -BigDecimal saldo
         -EstadoCuenta estado
     }
+    class PagoRegistrado {
+        <<abstract>>
+        -BigDecimal monto
+        -LocalDate fecha
+        -FormaPago formaPago
+        -String referencia
+        -boolean anulado
+        -String motivoAnulacion
+    }
+    class Pago
+    class CuentaPorPagar {
+        -Long id
+        -String periodo
+        -TipoServicio tipoServicio
+        -BigDecimal totalPagado
+    }
+    class PagoFundacion
     CargoServicio "*" --> "1" Interno
     CargoServicio "*" --> "1" VisitaMedica : origen
     CargoServicio "*" --> "0..1" CuentaMensual : consolidado en
     CuentaMensual "*" --> "1" Interno
     CuentaMensual "*" --> "1" Familiar : a cargo de
     PoliticaDescuento ..> CargoServicio : determina el descuento
+    PagoRegistrado <|-- Pago
+    PagoRegistrado <|-- PagoFundacion
+    Pago "*" --> "1" CuentaMensual : abona a
+    PagoFundacion "*" --> "1" CuentaPorPagar : abona a
+    CargoServicio ..> CuentaPorPagar : su neto suma lo adeudado
 ```
+
+`CuentaPorPagar` (HU-20) es lo que el asilo le debe a la fundación por un tipo de servicio en un mes. No guarda lo adeudado: es siempre la suma del neto de los cargos de ese mes y servicio, así que no tiene relación directa con ellos ni hay que consolidarla (decidido el 21/10). Guarda lo pagado, y nace con el primer pago. `Pago` y `PagoFundacion` comparten sus campos y la anulación en `PagoRegistrado` (`@MappedSuperclass`, sin tabla propia).
 
 **Enumeraciones: máquinas de estado DE-01 a DE-04 y catálogos**
 
@@ -1308,8 +1333,12 @@ stateDiagram-v2
 | Farmacia | `FarmaciaService` (sobre `Receta`) | HU-15 a HU-17 | Sprint 3 |
 | Finanzas | `CargoServicio`, `PoliticaDescuento`, `CuentaMensual`, `CargoService`, `CalculadoraDescuento`, `CuentaFamiliarService` | HU-18, HU-19 | Sprint 3 |
 | Notificaciones | `SolicitudCreadaEvent`, `NotificacionService` (Spring Mail, asíncrono) | HU-04 | Sprint 2 |
-| Donaciones, gastos, cuentas por pagar | `Donacion`, `GastoOperativo`, `PagoFundacion`, `Pago` | HU-20 a HU-23 | Sprint 3 |
-| Reportes | `ReporteService` y plantillas PDF | HU-24 a HU-28 | Sprint 3 |
+| Pagos del familiar | `Pago`, `PagoRegistrado`, `PagoService` | HU-34 | Implementado (20/10) |
+| Cuentas por pagar | `CuentaPorPagar`, `PagoFundacion`, `CuentaPorPagarService` | HU-20 | Implementado (21/10) |
+| Citas pendientes de pago | `ServicioPendienteService`, `EstadoPagoServicio` (sobre `CargoServicio` y `CuentaMensual`) | HU-21 | Implementado (21/10) |
+| Donaciones | `Donacion`, `TipoDonante`, `DonacionService` | HU-22 | Implementado (21/10) |
+| Gastos operativos | `GastoOperativo`, `TipoGasto`, `GastoOperativoService` | HU-23 | Implementado (21/10) |
+| Reportes | `ReporteService`, `ReporteController`; en el frontend, `PrintableReportLayout`, que se exporta a PDF con la impresión del navegador | HU-24 a HU-28 | HU-24 y HU-25 implementadas (21/10), HU-26 a HU-28 (22/10) |
 
 ---
 
@@ -1356,13 +1385,15 @@ Todos los roles entran a un **Dashboard** común y navegan con un menú lateral 
 
 | Rol | Módulos del menú |
 |---|---|
-| Médico General | Dashboard · Internos · Historial médico · Solicitudes de referencia |
-| Administrador de la Fundación | Dashboard · Solicitudes entrantes · Agenda y asignación · Médicos y disponibilidad |
-| Médico Especialista | Dashboard · Mi agenda del día · Visitas médicas · Órdenes de laboratorio · Recetas |
-| Administrador del Asilo | Dashboard · Usuarios y roles · Internos (vista administrativa) · Cuentas por cobrar · Cuentas por pagar · Donaciones · Gastos · Reportes · Configuración |
-| Enfermería | Dashboard · Internos · Solicitudes asignadas · Citas |
+| Médico General | Dashboard · Internos · Historial médico · Solicitudes de referencia · Reportes (HU-25) |
+| Administrador de la Fundación | Dashboard · Solicitudes entrantes · Médicos y disponibilidad |
+| Médico Especialista | Dashboard · Mi agenda del día · Visitas médicas · Reportes (HU-25) |
+| Administrador del Asilo | Dashboard · Usuarios y roles · Internos (vista administrativa) · Cuentas por cobrar (con las pestañas "Cuentas del mes" y "Citas pendientes", HU-21) · Cuentas por pagar · Donaciones · Gastos · Reportes |
+| Enfermería | Dashboard · Internos · Mis acompañamientos (YS-189) |
 | Laboratorio | Dashboard · Órdenes pendientes · Registro de resultados |
 | Farmacia | Dashboard · Recetas pendientes · Despacho de medicamentos |
+
+YS-187 (22/10): la matriz original traía módulos que ninguna historia construyó, y el menú los mostraba en gris. Se quitaron los que ya se resolvían en otra pantalla: "Órdenes de laboratorio" y "Recetas" del especialista (se ordenan y se recetan dentro de la visita, HU-10 y HU-11), "Agenda y asignación" de la fundación (la cita se asigna desde "Solicitudes entrantes", HU-05) y "Configuración" (ningún requerimiento la define). "Solicitudes asignadas" y "Citas" de Enfermería se juntaron en "Mis acompañamientos".
 
 Decidido el 14/10, con HU-02: el Médico Especialista ya no tiene "Historial médico" en su menú. Por HU-08 ve los antecedentes del paciente solo durante su visita activa, y ahí ya los tiene; un módulo aparte no tendría nada que mostrarle sin contradecir ese criterio. El del Médico General abre la lista de internos, y cada fila lleva al historial de ese interno.
 
@@ -1410,7 +1441,7 @@ flowchart TB
         B1["Solicitudes entrantes"] --> B2["Asignar cita, modal con franjas libres"]
     end
     subgraph EN["Enfermería"]
-        E1["Solicitudes asignadas y citas"]
+        E1["Mis acompañamientos: internos que acompaña y sus citas"]
     end
     subgraph ME["Médico Especialista"]
         C1["Mi agenda del día"] --> C2["Visita médica: encabezado del paciente, historial, diagnóstico, receta y exámenes"]
@@ -1933,18 +1964,42 @@ classDiagram
 | POST | `/api/visitas/{id}/ordenes-laboratorio` | ME (el de la visita) | `OrdenesLaboratorioRequest` (de 1 a 20 exámenes del catálogo, cada uno con indicaciones opcionales) | `List<OrdenLaboratorioResponse>` (201): una orden `PENDIENTE` por examen, con el costo del catálogo guardado en la orden. 400 señalando la fila (`examenes[1].examenId`) si el examen no está en el catálogo o se repite; 409 si la visita está finalizada o el examen ya se ordenó en ella | HU-11 |
 | GET | `/api/visitas/{id}/ordenes-laboratorio` | ME (el de la visita) | — | `List<OrdenLaboratorioResponse>`: las órdenes de la visita, en el orden en que se crearon; también con la visita finalizada | HU-11 |
 | PATCH | `/api/visitas/{id}/finalizar` | ME (el de la visita) | — | `VisitaMedicaResponse`; la solicitud pasa a `ATENDIDA` y se registra el `CargoServicio` de la consulta. 400 sin diagnóstico; 409 si ya está finalizada o si la especialidad no tiene tarifa | HU-09 |
-| GET | `/api/ordenes-laboratorio?estado=&paciente=` | LAB | — | `Page<OrdenLaboratorioResponse>` | HU-12 |
-| PATCH | `/api/ordenes-laboratorio/{id}/iniciar` | LAB | — | `OrdenLaboratorioResponse` | DE-02 |
-| POST | `/api/ordenes-laboratorio/{id}/resultado` | LAB | `multipart`: `ResultadoLaboratorioRequest` y archivo opcional | `OrdenLaboratorioResponse` | HU-13, HU-14 |
-| GET | `/api/ordenes-laboratorio/{id}/archivo` | LAB, ME | — | Archivo (PDF o imagen) | HU-13 |
-| GET | `/api/recetas?estado=&paciente=` | FAR | — | `Page<RecetaResponse>` | HU-15 |
-| POST | `/api/recetas/{id}/despacho` | FAR | `DespachoRequest` | `RecetaResponse` | HU-16, HU-17 |
-| GET | `/api/cuentas?periodo=` | AA | — | `List<CuentaMensualResumenResponse>` | HU-18 |
-| POST | `/api/cuentas/consolidar?periodo=` | AA | — | `List<CuentaMensualResumenResponse>` | HU-18 |
-| PUT | `/api/internos/{id}/cuota` | AA | `{ cuotaMensual }` | `InternoResponse` | HU-18 |
-| GET | `/api/internos/{id}/estado-cuenta?desde=&hasta=` | AA | — | `EstadoCuentaResponse` | HU-18, HU-19 |
-| GET | `/api/politicas-descuento` | AA, AF | — | `List<PoliticaDescuentoResponse>` | HU-19 |
-| PUT | `/api/politicas-descuento/{tipoServicio}` | AF | `PoliticaDescuentoRequest` | `PoliticaDescuentoResponse` | HU-19 |
+| GET | `/api/ordenes-laboratorio?estado=&paciente=` | LAB | — | `Page<OrdenLaboratorioResponse>`: cada orden con el paciente, el examen, las indicaciones y el médico solicitante, sin diagnóstico ni costo. `estado` se puede repetir (`estado=PENDIENTE&estado=EN_PROCESO`) y sin él trae todas; `paciente` busca por nombre, sin mayúsculas ni tildes, o por DPI. De la más antigua a la más reciente; solo se ordena por `fechaOrden` (400 con otro campo) | HU-12 |
+| PATCH | `/api/ordenes-laboratorio/{id}/iniciar` | LAB | — | `OrdenLaboratorioResponse`: la orden pasa de `PENDIENTE` a `EN_PROCESO` y guarda quién la tomó. 404 si no existe; 409 si ya no está pendiente o si otra persona la tomó al mismo tiempo | HU-12, DE-02 |
+| POST | `/api/ordenes-laboratorio/{id}/resultado` | LAB | `multipart`: `resultado` en texto (obligatorio, hasta 4000 caracteres) y `archivo` opcional (PDF, JPG o PNG, hasta 10 MB, reconocido por su contenido) | `OrdenLaboratorioResponse` con el resultado: la orden pasa a `RESULTADOS_CARGADOS`. 400 en el campo (`errores.resultado`, `errores.archivo`); 413 si el archivo supera el máximo antes de llegar al servicio; 404 si la orden no existe; 409 si ya tiene resultado o está anulada. HU-14: también `costo`, obligatorio y mayor que cero (`errores.costo`), que se guarda en la orden y genera el `CargoServicio` de laboratorio de la visita | HU-13, HU-14 |
+| GET | `/api/ordenes-laboratorio/{id}/costo` | LAB | — | `CostoOrdenResponse`: el costo sugerido (el de referencia del catálogo) mientras la orden no tiene resultado, o el registrado después (`registrado: true`). Va aparte porque `OrdenLaboratorioResponse` también lo recibe el especialista, que no ve costos | HU-14 |
+| GET | `/api/ordenes-laboratorio/{id}/archivo` | LAB, MG, ME (el que la ordenó, o con una visita activa del mismo paciente) | — | El archivo como descarga, con su tipo y el nombre con que se subió. 403 para otro especialista; 404 si el resultado no tiene archivo | HU-13 |
+| GET | `/api/recetas?estado=&paciente=` | FAR | — | `Page<RecetaResponse>`: cada receta con el paciente, el médico que la emitió, la fecha, el estado, las indicaciones generales y cada medicamento con su dosis, cantidad y forma de aplicación, sin diagnóstico. `estado` se puede repetir (`estado=PENDIENTE_DESPACHO&estado=PARCIALMENTE_ENTREGADA`) y sin él trae todas; un estado fuera de DE-03 es 400. `paciente` busca por nombre, sin mayúsculas ni tildes, o por DPI. De la más antigua a la más reciente; se ordena por `fechaEmision` o, para el historial de despachos (HU-16), por `fechaDespacho` (400 con otro campo) | HU-15 |
+| POST | `/api/recetas/{id}/despacho` | FAR | `DespachoRequest` (`entregados`: los medicamentos que se entregan ahora, cada uno con su id y, desde HU-17, su `costo`, obligatorio y mayor que cero, por la cantidad recetada; la lista puede ir vacía, pero no faltar) | `RecetaResponse` con cada medicamento marcado como entregado o pendiente: la receta pasa a `ENTREGADA` (todos entregados), `PARCIALMENTE_ENTREGADA` (algunos) o `MEDICAMENTO_AGOTADO` (ninguno, solo en el primer despacho), y guarda la fecha del despacho y quién lo hizo. 400 en la fila (`entregados[1].id`) si el medicamento no es de la receta o se repite, y en `entregados` si un despacho posterior no entrega nada; 404 si la receta no existe; 409 si ya está entregada, si un medicamento ya se entregó o si otra persona la despachó o corrigió al mismo tiempo. HU-17: el costo de cada medicamento entregado se guarda en él y genera un `CargoServicio` de farmacia de la visita, uno por medicamento; un costo inválido es 400 en su fila (`entregados[1].costo`) y no se entrega ni se cobra nada | HU-16, HU-17 |
+| GET | `/api/recetas/{id}/costos` | FAR | — | `CostosRecetaResponse`: el costo de cada medicamento entregado y el total. Va aparte porque `RecetaResponse` también lo recibe el especialista, que no ve costos | HU-17 |
+| GET | `/api/cuentas?periodo=` | AA | — | `List<CuentaMensualResumenResponse>`: las cuentas ya consolidadas del mes (`2026-10`; sin él, el mes en curso), por nombre del interno, cada una con el interno, el familiar a cargo, la cuota base, los totales, el saldo y el estado (DE-04), sin nada clínico. Desde HU-34, también lo pagado y la fecha de vencimiento (fin del mes siguiente); el estado se calcula con la fecha del día | HU-18, HU-34 |
+| POST | `/api/cuentas/consolidar?periodo=` | AA | — | `List<CuentaMensualResumenResponse>`: una cuenta por interno y mes, con la cuota base más los cargos del mes, para los internos activos con cuota y los que recibieron algún servicio. Consolidar otra vez recalcula la misma cuenta, sin duplicar. HU-34: en una cuenta con pagos, los cargos ya incluidos, la cuota y el familiar no cambian; solo se suman los cargos nuevos y el saldo crece (decidido el 20/10). 400 con un mes que todavía no empieza, mal escrito o ausente | HU-18, HU-34 |
+| PUT | `/api/internos/{id}/cuota` | AA | `CuotaRequest` (`cuotaMensual`, obligatoria, mayor o igual que cero, dos decimales) | `InternoResponse`; 400 en `cuotaMensual`; 404 si el interno no existe. Desde HU-18 el `PUT /api/internos/{id}` del Médico General ya no cambia la cuota | HU-18 |
+| GET | `/api/internos/{id}/estado-cuenta?desde=&hasta=` | AA | — | `EstadoCuentaResponse`: entre las dos fechas (sin ellas, del primer día del mes a hoy), el desglose por concepto (cuota, consulta, laboratorio, farmacia) con cantidad, original, descuento y neto; cada cargo con fecha, tipo, número de solicitud, montos y la cuenta en que se consolidó; las cuentas mensuales del rango, los totales y el saldo total del interno. Por tipo de servicio, nunca por nombre: ni especialidad, ni examen, ni medicamento. 400 si `hasta` es anterior a `desde`; 404 si el interno no existe | HU-18, HU-19 |
+| POST | `/api/cuentas/{id}/pagos` | AA | `PagoRequest` (`monto`, obligatorio, mayor que cero y con dos decimales; `fecha`, obligatoria y no futura; `formaPago`: `EFECTIVO`, `TRANSFERENCIA`, `DEPOSITO`, `TARJETA` o `CHEQUE`; `referencia`, opcional, hasta 100) | 201, `HistorialPagosResponse`: la cuenta con lo pagado, el saldo y el estado nuevos (`PAGO_PARCIAL`, o `COMPLETAMENTE_CANCELADA` si cubre el saldo; vencida, sigue `EN_MORA` mientras haya saldo), y el historial. 400 en el campo, y en `monto` si pasa del saldo pendiente; 404 si la cuenta no existe; 409 si ya está pagada completa o si otro pago la cambió al mismo tiempo | HU-34 |
+| GET | `/api/cuentas/{id}/pagos` | AA | — | `HistorialPagosResponse`: la cuenta y sus pagos, del más reciente al más antiguo, cada uno con monto, fecha, forma de pago, referencia, quién lo registró y, si se anuló, el motivo, quién y cuándo. 404 si la cuenta no existe | HU-34 |
+| GET | `/api/servicios-pendientes?paciente=&desde=&hasta=` | AA | — | `ServiciosPendientesResponse`: las citas que el familiar todavía no termina de pagar, de la más antigua a la más reciente, y lo que suman. Cada una con el paciente, el número de solicitud, la fecha de la cita, lo que generó por tipo de servicio (cuántos y cuánto, sin nombres), el total con descuento, lo pagado, el saldo y el estado (`SIN_PAGO` o `PAGO_PARCIAL`), y si su mes falta consolidar o su cuenta está en mora. Lo pagado de la cuenta del mes se reparte entre sus citas en proporción (decidido el 21/10). `paciente` busca por nombre, sin mayúsculas ni tildes, o por DPI; las fechas son de la cita, las dos incluidas. 400 si `hasta` es anterior a `desde` | HU-21 |
+| POST | `/api/donaciones` | AA | `DonacionRequest` (`monto`, obligatorio, mayor que cero y con dos decimales; `fecha`, obligatoria y no futura; `donante`, obligatorio, hasta 150; `tipoDonante`: `EMPRESA_INTERNACIONAL`, `EMPRESA_NACIONAL`, `GOBIERNO` o `PARTICULAR`) | 201, `DonacionResponse` con quién la registró. 400 en el campo | HU-22 |
+| GET | `/api/donaciones?desde=&hasta=&tipo=` | AA | — | `HistoricoDonacionesResponse`: las donaciones entre las dos fechas (incluidas) y de los tipos pedidos (`tipo` se puede repetir; sin él, todos), de la más reciente a la más antigua, las anuladas incluidas; el total del período y el total y la cantidad por tipo de donante, sin las anuladas. 400 si `hasta` es anterior a `desde` o con un tipo que no existe | HU-22 |
+| POST | `/api/donaciones/{id}/anulacion` | AA | `AnulacionPagoRequest` (`motivo`, obligatorio) | `DonacionResponse`. Como los pagos: no se borra, queda anulada con el motivo y deja de contar en los totales. 400 sin motivo; 404 si no existe; 409 si ya estaba anulada | HU-22 |
+| POST | `/api/gastos-operativos` | AA | `GastoOperativoRequest` (`tipoGasto`: `LUZ`, `AGUA`, `TELEFONO_INTERNET`, `GAS`, `ALIMENTACION`, `LIMPIEZA`, `MANTENIMIENTO` u `OTRO`; `descripcion`, hasta 200, obligatoria solo con `OTRO`; `monto`, mayor que cero y con dos decimales; `fecha`, no futura) | 201, `GastoOperativoResponse` con quién lo registró. 400 en el campo, y en `descripcion` si el tipo es `OTRO` y viene vacía | HU-23 |
+| GET | `/api/gastos-operativos?desde=&hasta=&tipo=` | AA | — | `HistoricoGastosResponse`: los gastos entre las dos fechas (incluidas) y de los tipos pedidos (`tipo` se puede repetir; sin él, todos), del más reciente al más antiguo, los anulados incluidos; el total del período y el total y la cantidad por tipo, sin los anulados. 400 si `hasta` es anterior a `desde` o con un tipo que no existe | HU-23 |
+| POST | `/api/gastos-operativos/{id}/anulacion` | AA | `AnulacionPagoRequest` (`motivo`, obligatorio) | `GastoOperativoResponse`. Como las donaciones: no se borra, queda anulado con el motivo y deja de contar en los totales. 400 sin motivo; 404 si no existe; 409 si ya estaba anulado | HU-23 |
+| GET | `/api/reportes/costos-por-cita?internoId=&desde=&hasta=` | AA | — | `ReporteCostosResponse`: las citas entre las dos fechas de la cita (incluidas; sin ellas, del inicio del mes a hoy), agrupadas por paciente y por nombre, de la más antigua a la más reciente. Cada cita con su número de solicitud y lo que costaron su consulta, sus exámenes y sus medicamentos (cuántos y cuánto, sin nombres), el total, el descuento y el neto; cada paciente y el reporte con sus totales y su promedio por cita. Sin `internoId`, de todos. 400 si `hasta` es anterior a `desde`; 404 si el interno no existe | HU-24 |
+| GET | `/api/reportes/analisis-medico?internoId=` | MG, ME (solo del paciente de su visita activa) | — | `ReporteAnalisisMedicoResponse`: los datos generales del paciente, su ficha médica (con el motivo de ingreso, que es el de reclusión) y su historial completo como en HU-02: las visitas con su diagnóstico, las recetas con sus medicamentos y los exámenes con su resultado. 403 para el especialista sin una visita activa de ese paciente; 404 si el interno no existe; 400 sin `internoId` | HU-25 |
+| GET | `/api/reportes/cobros?internoId=&desde=&hasta=` | AA | — | `ReporteCobrosResponse`: los pagos recibidos entre las dos fechas del pago (incluidas; sin ellas, del inicio del mes a hoy; decidido el 22/10), sin los anulados, agrupados por paciente y por nombre. Cada paciente con sus pagos (fecha, mes de la cuenta, forma de pago, referencia y monto), su subtotal y las cuentas mensuales a las que se aplicaron: a cargo de quién, la cuota base, los gastos médicos por tipo de servicio (cuántos y cuánto, sin nombres), el descuento, el total, lo cobrado de ella en el período, lo pagado hasta hoy, el saldo y el estado. El reporte, con cuántos pagos hubo, el total cobrado y lo cobrado por forma de pago. Sin `internoId`, de todos. 400 si `hasta` es anterior a `desde`; 404 si el interno no existe | HU-26 |
+| GET | `/api/reportes/pagos-fundacion?desde=&hasta=` | AA | — | `ReportePagosFundacionResponse`: los pagos a la fundación entre las dos fechas del pago (incluidas; sin ellas, del inicio del mes a hoy), sin los anulados, del más antiguo al más reciente. Cada pago con su fecha, su concepto (`CONSULTA`, `LABORATORIO` o `FARMACIA`), el mes de la deuda, la forma de pago, la referencia y el monto; el reporte, con cuántos pagos hubo, el total y lo pagado por concepto. 400 si `hasta` es anterior a `desde` | HU-27 (RF-20a) |
+| GET | `/api/reportes/entradas?desde=&hasta=` | AA | — | `ReporteEntradasResponse`: lo que entró entre las dos fechas (incluidas; sin ellas, del inicio del mes a hoy), sin lo anulado. Las donaciones con su fecha, donante, tipo de donante y monto, su total y lo donado por tipo de donante; los cobros a familiares con su fecha, paciente, mes de la cuenta, forma de pago y monto, y su total; y el total de las entradas. 400 si `hasta` es anterior a `desde` | HU-27 (RF-20b) |
+| GET | `/api/reportes/examenes?internoId=&desde=&hasta=` | MG, ME (solo del paciente de su visita activa) | — | `ReporteExamenesResponse`: los datos generales del paciente y los exámenes que el laboratorio le realizó entre las dos fechas del resultado (incluidas; sin ellas, del 1 de enero del año en curso a hoy), del más antiguo al más reciente: el examen, cuándo se ordenó y cuándo salió el resultado, el resultado con su archivo y quién lo pidió. Solo los de resultados cargados. 403 para el especialista sin una visita activa de ese paciente; 404 si el interno no existe; 400 sin `internoId` o si `hasta` es anterior a `desde` | HU-28 (RF-21a) |
+| GET | `/api/reportes/medicamentos?internoId=&desde=&hasta=` | MG, ME (solo del paciente de su visita activa) | — | `ReporteMedicamentosResponse`: los datos generales del paciente y los medicamentos que la farmacia le entregó entre las dos fechas de entrega (incluidas; sin ellas, del 1 de enero del año en curso a hoy): el medicamento, la dosis, la cantidad, la forma de aplicación, la fecha de entrega y la receta de la que salió. Lo recetado sin entregar no está. Los mismos errores que el de exámenes | HU-28 (RF-21b) |
+| GET | `/api/acompanamientos` | EN | — | `List<AcompanamientoResponse>`: las solicitudes de referencia en que quien pregunta es el enfermero(a) acompañante, la más reciente primero. Cada una con el interno, la especialidad, el motivo, quién la refirió, el estado y, si ya la tiene, la cita (fecha y hora, duración y especialista). Sin parámetros: el enfermero sale del token | YS-188 |
+| GET | `/api/cuentas-por-pagar` | AA | — | `List<CuentaPorPagarResponse>`: el histórico de lo que el asilo le debe a la fundación, una fila por mes y tipo de servicio con servicios, del mes más reciente al más antiguo: cuántos servicios hubo, lo adeudado (el neto de sus cargos, con el descuento de la fundación), lo pagado, el saldo y el estado (`PENDIENTE` o `PAGADA`). Siempre al día con los cargos; sin nombres de pacientes, exámenes ni medicamentos | HU-20 |
+| GET | `/api/cuentas-por-pagar/{periodo}/{tipoServicio}/pagos` | AA | — | `HistorialPagosFundacionResponse`: esa deuda (`2026-10`, `CONSULTA`) con sus pagos, del más reciente al más antiguo, los anulados incluidos. Un mes sin servicios de ese tipo responde en cero. 400 con un mes mal escrito o un tipo que no sea `CONSULTA`, `LABORATORIO` ni `FARMACIA` | HU-20 |
+| POST | `/api/cuentas-por-pagar/{periodo}/{tipoServicio}/pagos` | AA | `PagoRequest`, el mismo del pago del familiar | 201, `HistorialPagosFundacionResponse` con el saldo y el estado nuevos (`PAGADA` si cubre el saldo). 400 en el campo, y en `monto` si pasa del saldo pendiente; 409 si la deuda ya está pagada, si ese mes no tiene servicios de ese tipo o si otro pago la cambió al mismo tiempo | HU-20 |
+| POST | `/api/pagos-fundacion/{id}/anulacion` | AA | `AnulacionPagoRequest` | `HistorialPagosFundacionResponse`. Como en el pago del familiar: no se borra, queda anulado con el motivo y su monto vuelve al saldo. 400 sin motivo; 404 si no existe; 409 si ya estaba anulado | HU-20 |
+| POST | `/api/pagos/{id}/anulacion` | AA | `AnulacionPagoRequest` (`motivo`, obligatorio, hasta 300) | `HistorialPagosResponse`. El pago no se borra: queda anulado con el motivo, y su monto vuelve al saldo; el estado se recalcula sin él. 400 sin motivo; 404 si el pago no existe; 409 si ya estaba anulado | HU-34 |
+| GET | `/api/politicas-descuento` | AA, AF | — | `List<PoliticaDescuentoResponse>`: todas las versiones, por servicio y de la más reciente a la más antigua, con `vigente` en la que rige hoy y quién la definió | HU-19 |
+| PUT | `/api/politicas-descuento/{tipoServicio}` | AF | `PoliticaDescuentoRequest` (`tipoDescuento`: `PORCENTAJE` o `MONTO_FIJO`; `valor`, mayor o igual que cero, y un porcentaje hasta 100; `vigenteDesde`, obligatoria y puede ser pasada) | `PoliticaDescuentoResponse`. Agrega una versión vigente desde esa fecha, o corrige la que ya había en la misma fecha. Cada cargo toma la versión vigente en la fecha de su servicio, al nacer y al consolidar el mes (decidido el 20/10). 400 en el campo; 400 si el servicio no es `CONSULTA`, `LABORATORIO` ni `FARMACIA` (la cuota no lleva descuento) | HU-19 |
 
 **Cómo se cumple el RNF-03 en los DTO.** La separación no depende de ocultar campos en pantalla. **El Administrador del Asilo no tiene acceso a ningún endpoint que devuelva datos clínicos**: `/ficha-medica` e `/historial` le responden 403, y los DTO que sí recibe no contienen esos campos.
 
@@ -2022,5 +2077,5 @@ Al diseñar los componentes contra los criterios de aceptación aparecieron tres
    - HU-16 dice que la receta pasa a "Despachada"; el diagrama DE-03 la llama "Entregada".
 
    El diseño usa los nombres de los diagramas de estados, porque son los que ya definió el análisis y los que usa el Manual de Diseño Visual. Se propone ajustar el texto de las dos historias.
-2. **El registro del pago del familiar no tiene historia.** Los pasos 5 a 7 de CU-006 (el familiar paga, el administrador registra el pago y los servicios quedan "Completamente Cancelados") no aparecen en ninguna de las historias HU-18 a HU-23. Sin ellos, la cuenta mensual nunca sale de "Pendiente de Pago". Se resolvió sin una historia nueva: el registro de pagos es la subtarea YS-133 de HU-18, y de ella leen HU-21 (servicios pendientes de cancelar) y los reportes de cobros (HU-26 y HU-27).
+2. **El registro del pago del familiar no tiene historia.** Los pasos 5 a 7 de CU-006 (el familiar paga, el administrador registra el pago y los servicios quedan "Completamente Cancelados") no aparecen en ninguna de las historias HU-18 a HU-23. Sin ellos, la cuenta mensual nunca sale de "Pendiente de Pago". Se resolvió sin una historia nueva: el registro de pagos es la subtarea YS-133 de HU-18, y de ella leen HU-21 (servicios pendientes de cancelar) y los reportes de cobros (HU-26 y HU-27). **Actualizado el 20/10:** la revisión de requerimientos v1.1 sí le dio historia propia, HU-34 (RF-22), y YS-133 pasó a ella. HU-18 cubre los pasos 1 a 4 de CU-006 (consolidar, desglosar y mostrar el total y el saldo); HU-34, los pasos 5 a 7 y los estados de DE-04, después de los descuentos (HU-19), porque el familiar paga el total con descuento.
 3. **La tarifa de consulta no tiene dueño.** HU-14 y HU-17 definen quién registra el costo del laboratorio y de la farmacia, pero ninguna historia dice de dónde sale el costo de la consulta, que HU-18 necesita sumar. El diseño lo resuelve con una tarifa por especialidad (`Especialidad.tarifaConsulta`), administrada por la fundación. **Resuelto el 09/10 en HU-07** con la subtarea YS-169: la Fundación define la tarifa en "Médicos y disponibilidad" y cada visita la copia al iniciarse (`VisitaMedica.costoConsulta`), así que un cambio de tarifa no altera las visitas ya dadas.

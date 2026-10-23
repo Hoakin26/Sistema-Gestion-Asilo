@@ -2,6 +2,7 @@ import {
   Activity,
   CalendarCheck,
   CircleCheck,
+  CircleDollarSign,
   CircleSlash,
   Clock,
   FlaskConical,
@@ -30,10 +31,10 @@ const ESTILOS = {
  * módulo. Las claves son las del enum del backend, para pasarlas tal cual; el
  * texto sale de constants/estados.js.
  *
- * Por ahora DE-01 (la solicitud de referencia), DE-02 (la orden de
- * laboratorio), DE-03 (la receta), el aviso al familiar y la visita. Los de
- * DE-04 se agregan con su historia, cuando exista su enum: escribirlos antes
- * sería adivinar sus nombres.
+ * DE-01 (la solicitud de referencia), DE-02 (la orden de laboratorio), DE-03
+ * (la receta), DE-04 (la cuenta mensual, desde HU-18), el aviso al familiar,
+ * la visita, la deuda con la fundación (HU-20) y la cita pendiente de pago
+ * (HU-21).
  */
 const ESTADOS = {
   ACTIVO: { Icono: CircleCheck, tono: "exito" },
@@ -68,6 +69,19 @@ const ESTADOS = {
   PARCIALMENTE_ENTREGADA: { Icono: PackageOpen, tono: "proceso" },
   ENTREGADA: { Icono: CircleCheck, tono: "exito" },
   MEDICAMENTO_AGOTADO: { Icono: TriangleAlert, tono: "error" },
+
+  // DE-04 · Cuenta mensual del familiar (YS-134).
+  PENDIENTE_PAGO: { Icono: Clock, tono: "advertencia" },
+  PAGO_PARCIAL: { Icono: CircleDollarSign, tono: "proceso" },
+  COMPLETAMENTE_CANCELADA: { Icono: CircleCheck, tono: "exito" },
+  EN_MORA: { Icono: TriangleAlert, tono: "error" },
+
+  // YS-140 · Deuda con la fundación: Pendiente es el de DE-02, de arriba.
+  PAGADA: { Icono: CircleCheck, tono: "exito" },
+
+  // YS-143 · Cita pendiente de pago: Sin Pago con el tono de Pendiente de Pago,
+  // y Pago Parcial es el de DE-04.
+  SIN_PAGO: { Icono: Clock, tono: "advertencia" },
 };
 
 /**

@@ -11,6 +11,7 @@ import org.springframework.data.core.PropertyReferenceException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -18,6 +19,7 @@ import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import app.cabezadealgodon.com.gestionasilobackend.dto.ErrorResponse;
 import app.cabezadealgodon.com.gestionasilobackend.security.RegistroAccesoDenegado;
@@ -196,6 +198,37 @@ public class ManejadorGlobalExcepciones {
             HttpServletRequest peticion) {
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(ErrorResponse.de(HttpStatus.CONFLICT, ex.getMessage(), peticion.getRequestURI()));
+    }
+
+    /**
+     * YS-114. Dos personas cambiaron el mismo registro a la vez, y la columna
+     * {@code version} (bloqueo optimista) detuvo a la segunda para que no
+     * pisara a la primera: por ejemplo, dos laboratoristas que toman la misma
+     * orden. Es un conflicto con el estado actual (409), no un error del
+     * servidor; volviendo a cargar se ve lo que hizo la otra persona.
+     */
+    @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
+    public ResponseEntity<ErrorResponse> manejarEdicionSimultanea(HttpServletRequest peticion) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(ErrorResponse.de(HttpStatus.CONFLICT,
+                "Otra persona modificó este registro al mismo tiempo. Vuelva a cargar para ver su estado actual",
+                peticion.getRequestURI()));
+    }
+
+    /**
+     * YS-117. Un archivo más grande que el máximo, que el servidor rechaza al
+     * recibir la petición, antes de que llegue al servicio. 413 y en el campo
+     * {@code archivo}, como los demás errores por campo, para que la pantalla
+     * lo muestre junto al archivo elegido.
+     */
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ErrorResponse> manejarArchivoGrande(MaxUploadSizeExceededException ex,
+            HttpServletRequest peticion) {
+        String maximo = ex.getMaxUploadSize() > 0 ? " (" + ex.getMaxUploadSize() / (1024 * 1024) + " MB)" : "";
+        HttpStatus estado = HttpStatus.valueOf(413);
+        ErrorResponse cuerpo = new ErrorResponse(LocalDateTime.now(), estado.value(), estado.getReasonPhrase(),
+                "Hay campos inválidos", peticion.getRequestURI(), null,
+                Map.of("archivo", "El archivo pesa más que el máximo permitido" + maximo));
+        return ResponseEntity.status(estado).body(cuerpo);
     }
 
     /**

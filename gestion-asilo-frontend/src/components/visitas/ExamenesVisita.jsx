@@ -4,6 +4,7 @@ import { FlaskConical, Plus, Search } from "lucide-react";
 import { useToast } from "../../hooks/useToast";
 import { erroresPorCampo, mensajeDeError } from "../../services/api";
 import { listarExamenesLaboratorio, ordenarExamenes } from "../../services/visitaService";
+import { ResultadoExamen } from "../laboratorio/ResultadoExamen";
 import { formatearFechaHora } from "../../utils/fechas";
 import { Alert } from "../ui/Alert";
 import { Button } from "../ui/Button";
@@ -38,6 +39,8 @@ function ListaOrdenes({ ordenes }) {
             Ordenado el {formatearFechaHora(orden.fechaOrden)}
           </p>
           {orden.indicaciones && <p className="mt-1 text-texto">{orden.indicaciones}</p>}
+          {/* HU-13: en cuanto el laboratorio lo carga, el especialista lo ve aquí. */}
+          <ResultadoExamen orden={orden} />
         </li>
       ))}
     </ul>

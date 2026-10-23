@@ -2,6 +2,17 @@ import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 
 import { puedeEntrar } from "./constants/modulos";
 import { useAuth } from "./hooks/useAuth";
+import { CuentasPorCobrarPage } from "./pages/CuentasPorCobrarPage";
+import { CuentasPorPagarPage } from "./pages/CuentasPorPagarPage";
+import { DonacionesPage } from "./pages/DonacionesPage";
+import { GastosPage } from "./pages/GastosPage";
+import { ReporteAnalisisMedicoPage } from "./pages/ReporteAnalisisMedicoPage";
+import { ReporteCobrosPage } from "./pages/ReporteCobrosPage";
+import { ReporteCostosPage } from "./pages/ReporteCostosPage";
+import { ReporteEntradasPage } from "./pages/ReporteEntradasPage";
+import { ReportePagosFundacionPage } from "./pages/ReportePagosFundacionPage";
+import { ReporteServiciosMedicosPage } from "./pages/ReporteServiciosMedicosPage";
+import { ReportesPage } from "./pages/ReportesPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { HistorialMedicoPage } from "./pages/HistorialMedicoPage";
 import { InternoPerfilPage } from "./pages/InternoPerfilPage";
@@ -9,6 +20,9 @@ import { InternosPage } from "./pages/InternosPage";
 import { LoginPage } from "./pages/LoginPage";
 import { MedicosDisponibilidadPage } from "./pages/MedicosDisponibilidadPage";
 import { MiAgendaPage } from "./pages/MiAgendaPage";
+import { MisAcompanamientosPage } from "./pages/MisAcompanamientosPage";
+import { OrdenesLaboratorioPage } from "./pages/OrdenesLaboratorioPage";
+import { RecetasPendientesPage } from "./pages/RecetasPendientesPage";
 import { SinPermisoPage } from "./pages/SinPermisoPage";
 import { SolicitudesEntrantesPage } from "./pages/SolicitudesEntrantesPage";
 import { SolicitudesReferenciaPage } from "./pages/SolicitudesReferenciaPage";
@@ -153,6 +167,14 @@ function App() {
         }
       />
       <Route
+        path="/acompanamientos"
+        element={
+          <RutaPrivada>
+            <MisAcompanamientosPage />
+          </RutaPrivada>
+        }
+      />
+      <Route
         path="/visitas"
         element={
           <RutaPrivada>
@@ -165,6 +187,130 @@ function App() {
         element={
           <RutaPrivada>
             <VisitaMedicaPage />
+          </RutaPrivada>
+        }
+      />
+      <Route
+        path="/ordenes-pendientes"
+        element={
+          <RutaPrivada>
+            <OrdenesLaboratorioPage />
+          </RutaPrivada>
+        }
+      />
+      {/* HU-13 (YS-118). La misma bandeja, solo con los resultados entregados.
+          La key la remonta al cambiar de módulo, con su propio filtro. */}
+      <Route
+        path="/registro-resultados"
+        element={
+          <RutaPrivada>
+            <OrdenesLaboratorioPage key="resultados" modo="resultados" />
+          </RutaPrivada>
+        }
+      />
+      <Route
+        path="/recetas-pendientes"
+        element={
+          <RutaPrivada>
+            <RecetasPendientesPage />
+          </RutaPrivada>
+        }
+      />
+      {/* HU-16 (YS-127). La misma bandeja, solo con lo ya despachado. La key la
+          remonta al cambiar de módulo, con su propio filtro. */}
+      <Route
+        path="/despacho-medicamentos"
+        element={
+          <RutaPrivada>
+            <RecetasPendientesPage key="despachos" modo="despachos" />
+          </RutaPrivada>
+        }
+      />
+      <Route
+        path="/cuentas-por-cobrar"
+        element={
+          <RutaPrivada>
+            <CuentasPorCobrarPage />
+          </RutaPrivada>
+        }
+      />
+      <Route
+        path="/cuentas-por-pagar"
+        element={
+          <RutaPrivada>
+            <CuentasPorPagarPage />
+          </RutaPrivada>
+        }
+      />
+      <Route
+        path="/donaciones"
+        element={
+          <RutaPrivada>
+            <DonacionesPage />
+          </RutaPrivada>
+        }
+      />
+      <Route
+        path="/gastos"
+        element={
+          <RutaPrivada>
+            <GastosPage />
+          </RutaPrivada>
+        }
+      />
+      <Route
+        path="/reportes"
+        element={
+          <RutaPrivada>
+            <ReportesPage />
+          </RutaPrivada>
+        }
+      />
+      <Route
+        path="/reportes/costos-por-cita"
+        element={
+          <RutaPrivada>
+            <ReporteCostosPage />
+          </RutaPrivada>
+        }
+      />
+      <Route
+        path="/reportes/analisis-medico"
+        element={
+          <RutaPrivada>
+            <ReporteAnalisisMedicoPage />
+          </RutaPrivada>
+        }
+      />
+      <Route
+        path="/reportes/cobros"
+        element={
+          <RutaPrivada>
+            <ReporteCobrosPage />
+          </RutaPrivada>
+        }
+      />
+      <Route
+        path="/reportes/pagos-fundacion"
+        element={
+          <RutaPrivada>
+            <ReportePagosFundacionPage />
+          </RutaPrivada>
+        }
+      />
+      <Route
+        path="/reportes/entradas"
+        element={
+          <RutaPrivada>
+            <ReporteEntradasPage />
+          </RutaPrivada>
+        }
+      />
+      <Route
+        path="/reportes/examenes-medicamentos"
+        element={
+          <RutaPrivada>
+            <ReporteServiciosMedicosPage />
           </RutaPrivada>
         }
       />
