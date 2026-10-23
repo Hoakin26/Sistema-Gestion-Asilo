@@ -130,7 +130,7 @@ export function ReportePorFechas({
           </Button>
         </form>
         <p className="mt-2 text-auxiliar text-texto-secundario">
-          «Exportar a PDF» abre la impresión del navegador: elija «Guardar como PDF» como destino.
+          Para el PDF, elija «Guardar como PDF» al imprimir.
         </p>
       </div>
 

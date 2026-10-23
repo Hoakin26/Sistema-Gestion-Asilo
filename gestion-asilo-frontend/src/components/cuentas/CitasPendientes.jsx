@@ -90,8 +90,7 @@ export function CitasPendientes({ version }) {
   return (
     <div className="mt-6">
       <p className="text-texto-secundario">
-        Las citas que el familiar todavía no termina de pagar. Lo pagado de la cuenta del mes se reparte entre sus citas
-        en proporción: todas quedan en Pago Parcial hasta cubrir el total.
+        Citas con saldo pendiente. Lo pagado en el mes se reparte entre ellas.
       </p>
 
       <form onSubmit={buscar} noValidate className="mt-6 flex flex-wrap items-start gap-4 sm:[&>button]:mt-8">

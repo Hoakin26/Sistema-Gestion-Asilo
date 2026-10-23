@@ -149,7 +149,7 @@ export function ReportePagosFundacionPage() {
     <ReportePorFechas
       migas={["Inicio", "Reportes", "Pagos a la fundación"]}
       titulo="Reporte de pagos a la fundación"
-      descripcion="Lo que el asilo le pagó a la fundación por consultas, laboratorio y farmacia, con la fecha, el concepto y el monto de cada pago."
+      descripcion="Pagos del asilo a la fundación, por concepto."
       tituloImpreso="Pagos a la fundación"
       etiquetaDesde="Pagos desde"
       etiquetaPeriodo="Pagos realizados"

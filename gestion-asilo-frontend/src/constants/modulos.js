@@ -96,7 +96,7 @@ const CATALOGO = {
    * habrían duplicado la pantalla sin agregar ninguna protección.
    */
   internosAdministrativo: {
-    etiqueta: "Internos (vista administrativa)",
+    etiqueta: "Internos",
     Icono: UserRound,
     ruta: "/internos",
   },

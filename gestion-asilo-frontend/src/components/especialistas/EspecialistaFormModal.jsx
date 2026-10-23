@@ -343,8 +343,7 @@ function FormularioEspecialista({ especialista, alCambiar, alCerrar, alGuardar }
             escribió, sino algo que resuelve otra persona. */}
         {sinCuentas && (
           <Alert tipo="info" rol="status">
-            No hay cuentas de Médico Especialista sin perfil. Pídale al Administrador del Asilo que
-            cree la cuenta del médico con ese rol; después aparecerá aquí.
+            No hay cuentas de Médico Especialista sin perfil. Las crea el Administrador del Asilo.
           </Alert>
         )}
 

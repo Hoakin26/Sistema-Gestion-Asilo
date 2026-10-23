@@ -167,8 +167,7 @@ function FormularioDespacho({ receta, alCambiar, alCerrar, alDespachar }) {
           <fieldset>
             <legend className="font-semibold text-texto">Medicamentos entregados</legend>
             <p className="mt-1 text-auxiliar text-texto-secundario">
-              Marque los que entrega ahora y escriba lo que costó cada uno. Los que no marque quedan pendientes, por
-              ejemplo si no hay existencias, y no se cobran.
+              Marque lo que entrega y su costo. Lo que no marque queda pendiente y no se cobra.
             </p>
             <ul className="mt-3 divide-y divide-divisor rounded-tarjeta border border-divisor">
               {receta.medicamentos.map((m) => (
@@ -214,7 +213,7 @@ function FormularioDespacho({ receta, alCambiar, alCerrar, alDespachar }) {
                         etiqueta={`Costo de ${m.medicamento}`}
                         obligatorio
                         error={errores[m.id]}
-                        ayuda={`En quetzales, por las ${unidades(m.cantidad)}. Se carga a la cuenta del familiar.`}
+                        ayuda={`En quetzales, por las ${unidades(m.cantidad)}.`}
                       >
                         {(campo) => (
                           <CurrencyInput

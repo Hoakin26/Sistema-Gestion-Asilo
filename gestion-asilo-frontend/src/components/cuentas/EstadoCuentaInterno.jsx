@@ -175,7 +175,7 @@ function Detalle({ estado, alCambiarCuenta }) {
           {estado.cargosSinConsolidar === 1
             ? "1 cargo de estas fechas todavía no se consolida"
             : `${estado.cargosSinConsolidar} cargos de estas fechas todavía no se consolidan`}
-          : entran en la cuenta del familiar al consolidar su mes en «Cuentas por cobrar».
+          : se suman al consolidar el mes.
         </Alert>
       )}
 
@@ -290,7 +290,7 @@ function Detalle({ estado, alCambiarCuenta }) {
         <h3 className="font-semibold text-texto">Cuentas mensuales</h3>
         {estado.cuentas.length === 0 ? (
           <p className="mt-2 text-texto-secundario">
-            Ningún mes de estas fechas se ha consolidado todavía. Se consolida en «Cuentas por cobrar».
+            Ningún mes de estas fechas está consolidado.
           </p>
         ) : (
           <ul className="mt-2 divide-y divide-divisor rounded-tarjeta border border-divisor">

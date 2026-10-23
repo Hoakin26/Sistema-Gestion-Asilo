@@ -86,8 +86,7 @@ function Formulario({ obligatorio, alCerrar }) {
            * que hace entender por qué no se puede saltar (RNF-04).
            */
           <Alert tipo="info" rol="status">
-            La contraseña con la que acaba de ingresar se la asignó otra persona, que
-            sigue conociéndola. Elija una propia para continuar.
+            Esta contraseña se la asignó otra persona. Elija una propia para continuar.
           </Alert>
         )}
 

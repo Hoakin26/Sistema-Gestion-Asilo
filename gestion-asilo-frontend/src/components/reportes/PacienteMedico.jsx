@@ -69,7 +69,7 @@ export function PacienteMedico({ paciente, alElegir, error }) {
         error={error ?? errorCarga}
         ayuda={
           sinVisitas
-            ? "No tiene visitas en curso: el reporte se genera del paciente que está atendiendo, mientras su visita siga activa."
+            ? "No tiene visitas en curso: solo puede generarlo del paciente que atiende."
             : undefined
         }
       >

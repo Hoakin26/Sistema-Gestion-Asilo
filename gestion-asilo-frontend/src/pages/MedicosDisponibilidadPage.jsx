@@ -172,9 +172,7 @@ export function MedicosDisponibilidadPage() {
             {/* Dice en qué orden van las cosas: sin la cuenta creada por el
                 Administrador del Asilo, el formulario no tiene a quién ofrecer. */}
             <p className="max-w-md text-texto-secundario">
-              Todavía no hay especialistas registrados. Primero el Administrador del Asilo crea la
-              cuenta del médico con el rol Médico Especialista; después, aquí se registra su
-              especialidad y su horario.
+              Todavía no hay especialistas registrados.
             </p>
             <Button onClick={() => abrir(null)}>
               <Plus aria-hidden="true" size={20} />

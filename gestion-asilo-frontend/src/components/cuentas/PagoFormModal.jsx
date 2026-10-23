@@ -116,7 +116,7 @@ function FormularioPago({ montos, registrar, alCerrar, alRegistrar }) {
           etiqueta="Monto"
           obligatorio
           error={errores.monto}
-          ayuda="En quetzales. Un pago parcial se descuenta del saldo; el que cubre el saldo completo lo deja en cero."
+          ayuda="En quetzales. Puede ser un pago parcial."
         >
           {(campo) => (
             <div className="flex flex-wrap items-center gap-3">
