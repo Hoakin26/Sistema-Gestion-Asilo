@@ -59,6 +59,11 @@ public abstract class PruebaConBaseDeDatos {
         registro.add("spring.datasource.url", POSTGRES::getJdbcUrl);
         registro.add("spring.datasource.username", POSTGRES::getUsername);
         registro.add("spring.datasource.password", POSTGRES::getPassword);
+        // El esquema de las pruebas lo crean las migraciones de Flyway, igual
+        // que en producción, y Hibernate solo lo valida. Va fijo aquí para no
+        // depender del application.properties local, que no se versiona: si
+        // una entidad cambia sin su migración, todas las pruebas lo detectan.
+        registro.add("spring.jpa.hibernate.ddl-auto", () -> "validate");
         // YS-97. Sin reintentos en segundo plano: una prueba que mira el
         // estado de un aviso no puede tener a otro hilo cambiándolo.
         registro.add("app.notificaciones.reintento-automatico", () -> "false");
