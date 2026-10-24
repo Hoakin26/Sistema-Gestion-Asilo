@@ -74,7 +74,7 @@ Arranque el backend:
 ./mvnw spring-boot:run
 ```
 
-La primera vez descarga las dependencias y tarda unos minutos. Está listo cuando el log dice `Started GestionAsiloBackendApplication`. En ese primer arranque, el backend crea las tablas, los 7 roles, el catálogo de especialidades y el primer administrador.
+La primera vez descarga las dependencias y tarda unos minutos. Está listo cuando el log dice `Started GestionAsiloBackendApplication`. En ese primer arranque, Flyway crea las tablas (`src/main/resources/db/migration`) y el backend agrega los 7 roles, el catálogo de especialidades y el primer administrador.
 
 Deje esta terminal abierta.
 

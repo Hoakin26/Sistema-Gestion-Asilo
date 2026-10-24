@@ -306,7 +306,7 @@ Aun así, el plan supone una velocidad que todavía no se ha sostenido. Por eso 
 | Oracle Cloud sin capacidad ARM en la región | Media | Medio | El servidor se prepara durante el Sprint 2, no el día del despliegue; alternativa de pago ya identificada (1.2) |
 | El despliegue final queda para el último día hábil | Media | Alto | El servidor se prepara durante el Sprint 2 (cuenta, Docker, dominio y certificado), así el 15/10 solo se sube la versión final |
 | Pérdida de datos en producción | Baja | Alto | Respaldo diario cifrado fuera del servidor y respaldo manual antes de cada despliegue; prueba de restauración en cada sprint (2.7) |
-| Cambios de esquema en producción con `ddl-auto=update` | Media | Medio | Respaldo antes de cada despliegue; Hibernate con `update` nunca borra columnas. Migraciones versionadas con Flyway después de la entrega |
+| Cambios de esquema en producción | Media | Medio | Migraciones versionadas con Flyway desde el Sprint 4; Hibernate solo valida (`ddl-auto=validate`) y el backend no arranca si el esquema no coincide. Respaldo antes de cada despliegue (ver `docs/migraciones.md`) |
 | Filtración de datos clínicos al Administrador del Asilo (RNF-03) | Baja | Alto | Datos clínicos en entidades y endpoints separados (3.4 y 4.9), más una prueba automática por rol en cada endpoint nuevo. Los reportes y el estado de cuenta del Administrador del Asilo se desglosan por tipo de servicio, sin nombrar exámenes ni medicamentos |
 | Enfermedad o imprevisto del único desarrollador | Media | Alto | No hay otra persona que cubra. La única reserva son las contingencias de esta sección |
 | Criterios de aceptación con nombres de estado distintos a los diagramas de estados | Alta | Bajo | Se usan los nombres de DE-01 a DE-04 y se corrige el texto en Jira (sección 5) |
@@ -526,7 +526,7 @@ volumes:
 }
 ```
 
-**Configuración de producción.** Todo lo que no es secreto va en `application-prod.properties`, que sí se versiona: `ddl-auto`, exposición limitada de Actuator y tamaño máximo de archivos. Los secretos llegan como variables de entorno desde un `.env` del servidor que nunca entra al repositorio. Es la misma regla que ya siguen `application.properties` y el `.env` de desarrollo. Spring Boot traduce cada variable a su propiedad quitando puntos y guiones:
+**Configuración de producción.** Todo lo que no es secreto va en `application-prod.properties`, que sí se versiona: `ddl-auto=validate` y la línea base de Flyway, exposición limitada de Actuator y tamaño máximo de archivos. Los secretos llegan como variables de entorno desde un `.env` del servidor que nunca entra al repositorio. Es la misma regla que ya siguen `application.properties` y el `.env` de desarrollo. Spring Boot traduce cada variable a su propiedad quitando puntos y guiones:
 
 | Variable de entorno | Propiedad | Nota |
 |---|---|---|
@@ -542,7 +542,7 @@ volumes:
 1. Al cerrar el sprint, se fusiona `develop` en `main` y se crea la etiqueta (por ejemplo `v0.2.0`).
 2. En el servidor, se descarga la etiqueta: `git fetch --tags && git checkout v0.2.0`.
 3. Se hace un respaldo manual de la base (2.6).
-4. Se reconstruye y reinicia: `docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --build`. La caída es de menos de un minuto; se hace de noche.
+4. Se reconstruye y reinicia: `docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --build`. La caída es de menos de un minuto; se hace de noche. Al arrancar, Flyway aplica las migraciones nuevas, cada una en su transacción; si una falla, el backend no arranca y se vuelve a la etiqueta anterior con el respaldo del paso 3.
 5. Prueba de humo: `GET /api/actuator/health` responde `UP`, y un inicio de sesión real funciona.
 6. **Si algo falla, se revierte:** se vuelve a la etiqueta anterior y, si el esquema de la base cambió, se restaura el respaldo del paso 3.
 
