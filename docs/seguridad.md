@@ -750,9 +750,11 @@ El segundo aviso al familiar lleva el especialista, la especialidad, la fecha, l
 
 ### Las restricciones de los enum siguen al código
 
-Hibernate crea, para cada columna enum, una restricción CHECK con los valores de ese momento, y con `ddl-auto=update` no la vuelve a tocar. Al agregar `CITA_ASIGNADA`, la base de desarrollo siguió aceptando solo `SOLICITUD_CREADA`, y asignar una cita respondía 500 al registrar el aviso. Las pruebas no lo veían porque crean el esquema desde cero. `RestriccionesDeEnum` rehace esas restricciones al arrancar, con los valores que el enum tiene hoy; `RestriccionesDeEnumTest` recrea la restricción vieja y comprueba que queda al día.
+Hibernate crea, para cada columna enum, una restricción CHECK con los valores de ese momento, y con `ddl-auto=update` no la vuelve a tocar. Al agregar `CITA_ASIGNADA`, la base de desarrollo siguió aceptando solo `SOLICITUD_CREADA`, y asignar una cita respondía 500 al registrar el aviso. Las pruebas no lo veían porque crean el esquema desde cero. `RestriccionesDeEnum` rehacía esas restricciones al arrancar, con los valores que el enum tenía en ese momento.
 
-Hasta el Sprint 3 la lista de `RestriccionesDeEnum` solo tenía las columnas de los avisos, las solicitudes y el laboratorio; las demás se quedaban como nacieron, y el día que su enum creciera, guardar el valor nuevo respondería 500 en producción. Desde YS-183 tiene todas las columnas enum de las entidades, salvo los días de la semana de los horarios, que no van a crecer. `RestriccionesDeEnumTest` recorre las entidades (también lo que heredan de una `@MappedSuperclass`) y falla si alguna columna enum no está en la lista.
+**Desde Flyway** el esquema solo cambia por migraciones, así que `RestriccionesDeEnum` se retiró: un valor nuevo en un enum lleva su migración, que borra y vuelve a crear la restricción con la lista completa (ejemplo en `docs/migraciones.md`). `EnumsEnLaBaseTest` revisa cada columna enum y falla si a su restricción le falta algún valor del enum, así que el olvido se descubre en `./mvnw test` y no en producción.
+
+Hasta el Sprint 3 la lista de `RestriccionesDeEnum` solo tenía las columnas de los avisos, las solicitudes y el laboratorio; con YS-183 pasó a tener todas las columnas enum de las entidades, salvo los días de la semana de los horarios, que no van a crecer. Al pasar a Flyway, `EnumsEnLaBaseTest` conserva esa misma revisión: recorre las entidades (también lo que heredan de una `@MappedSuperclass`) y comprueba en la base que la restricción de cada columna enum admite todos los valores del enum, así que una columna enum nueva queda cubierta sin tocar la prueba.
 
 ## 23. La visita médica (HU-07)
 

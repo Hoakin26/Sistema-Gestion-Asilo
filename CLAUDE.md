@@ -17,7 +17,7 @@ Monolito modular, un solo repositorio con dos proyectos hermanos:
 
 - Frontend y backend se comunican por REST sobre JSON.
 - Autenticación con JWT; autorización por rol (RBAC) — ver sección de roles abajo.
-- Base de datos PostgreSQL, esquema generado por Hibernate a partir de las entidades JPA (`ddl-auto=update` en desarrollo).
+- Base de datos PostgreSQL. El esquema lo crean y lo cambian las migraciones de Flyway (`gestion-asilo-backend/src/main/resources/db/migration`); Hibernate solo lo valida (`ddl-auto=validate`). Todo cambio en una entidad, incluido un valor nuevo de un enum, lleva su migración `V<n>__descripcion.sql`, y una migración ya fusionada en `develop` no se edita nunca: se corrige con otra. Ver `docs/migraciones.md`.
 
 ## Estructura de carpetas
 
