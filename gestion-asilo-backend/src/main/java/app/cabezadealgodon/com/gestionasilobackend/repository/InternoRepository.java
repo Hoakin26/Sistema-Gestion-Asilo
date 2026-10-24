@@ -27,8 +27,8 @@ public interface InternoRepository extends JpaRepository<Interno, Long> {
      * una base en locale C, {@code lower} no sabe bajar una "Á", pero una "A"
      * sí. Los patrones llegan ya normalizados de la misma forma desde
      * {@code InternoService}. Se prefirió a la extensión {@code unaccent}
-     * porque esa hay que instalarla en cada base a mano, y con
-     * {@code ddl-auto} nadie lo haría.
+     * porque esa hay que instalarla en cada base, y cuando se tomó la
+     * decisión el esquema no tenía migraciones que lo hicieran.
      */
     @Query("""
             select i from Interno i
