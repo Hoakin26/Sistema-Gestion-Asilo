@@ -15,9 +15,10 @@ export async function obtenerReporteCostos({ internoId, desde, hasta }) {
  * HU-26 (YS-158). El reporte de cobros: los pagos recibidos entre dos fechas
  * ("AAAA-MM-DD"), con las cuentas que cubren; sin `internoId`, de todos.
  */
-export async function obtenerReporteCobros({ internoId, desde, hasta }) {
+export async function obtenerReporteCobros({ internoId, desde, hasta }, signal) {
   const { data } = await api.get("/reportes/cobros", {
     params: { internoId: internoId || undefined, desde, hasta },
+    signal,
   });
   return data;
 }
