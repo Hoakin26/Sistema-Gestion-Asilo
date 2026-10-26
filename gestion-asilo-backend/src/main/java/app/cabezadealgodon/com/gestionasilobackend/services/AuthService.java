@@ -5,6 +5,7 @@ import java.time.temporal.ChronoUnit;
 
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -16,6 +17,7 @@ import app.cabezadealgodon.com.gestionasilobackend.exception.CambioPasswordInval
 import app.cabezadealgodon.com.gestionasilobackend.exception.RecursoNoEncontradoException;
 import app.cabezadealgodon.com.gestionasilobackend.models.Usuario;
 import app.cabezadealgodon.com.gestionasilobackend.repository.UsuarioRepository;
+import app.cabezadealgodon.com.gestionasilobackend.security.ControlIntentosLogin;
 import app.cabezadealgodon.com.gestionasilobackend.security.JwtService;
 
 /** HU-30: valida credenciales, emite el token de sesión y administra la sesión y la contraseña propias. */
@@ -26,22 +28,32 @@ public class AuthService {
     private final UsuarioRepository usuarioRepository;
     private final JwtService jwtService;
     private final PasswordEncoder passwordEncoder;
+    private final ControlIntentosLogin intentos;
 
     public AuthService(AuthenticationManager authenticationManager, UsuarioRepository usuarioRepository,
-            JwtService jwtService, PasswordEncoder passwordEncoder) {
+            JwtService jwtService, PasswordEncoder passwordEncoder, ControlIntentosLogin intentos) {
         this.authenticationManager = authenticationManager;
         this.usuarioRepository = usuarioRepository;
         this.jwtService = jwtService;
         this.passwordEncoder = passwordEncoder;
+        this.intentos = intentos;
     }
 
     @Transactional(readOnly = true)
-    public LoginResponse login(LoginRequest request) {
+    public LoginResponse login(LoginRequest request, String ip) {
         // Los correos se guardan en minúsculas, así que iniciar sesión no puede
         // depender de cómo el usuario escribió las mayúsculas.
         String correo = request.correo().trim().toLowerCase();
-
-        authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(correo, request.password()));
+        // DEF-01. Antes de comprobar la contraseña: un correo bloqueado no entra
+        // ni con la correcta, o el bloqueo no detendría nada.
+        intentos.comprobar(correo, ip);
+        try {
+            authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(correo, request.password()));
+        } catch (AuthenticationException fallo) {
+            intentos.registrarFallo(correo, ip);
+            throw fallo;
+        }
+        intentos.reiniciar(correo);
 
         return respuestaPara(buscar(correo));
     }

@@ -3,12 +3,14 @@ package app.cabezadealgodon.com.gestionasilobackend;
 import static org.mockito.Mockito.when;
 
 import org.junit.jupiter.api.BeforeEach;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
+import app.cabezadealgodon.com.gestionasilobackend.security.ControlIntentosLogin;
 import jakarta.mail.Session;
 import jakarta.mail.internet.MimeMessage;
 
@@ -67,5 +69,14 @@ public abstract class PruebaConBaseDeDatos {
         // YS-97. Sin reintentos en segundo plano: una prueba que mira el
         // estado de un aviso no puede tener a otro hilo cambiándolo.
         registro.add("app.notificaciones.reintento-automatico", () -> "false");
+    }
+
+    @Autowired
+    private ControlIntentosLogin intentosLogin;
+
+    /** DEF-01. Cada prueba empieza sin fallos de inicio de sesión ni bloqueos. */
+    @BeforeEach
+    void reiniciarIntentosLogin() {
+        intentosLogin.limpiar();
     }
 }
