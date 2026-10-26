@@ -5,6 +5,9 @@ export const CLAVE_TOKEN = "asilo.token";
 export const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL,
   headers: { "Content-Type": "application/json" },
+  // DEF-03. Sin respuesta en 15 s, la petición se da por perdida y la
+  // pantalla muestra el error en lugar de quedarse en "Cargando…".
+  timeout: 15000,
 });
 
 api.interceptors.request.use((config) => {
@@ -48,7 +51,17 @@ api.interceptors.response.use(
 
 /** Traduce el cuerpo de error uniforme del backend a algo mostrable. */
 export function mensajeDeError(error, respaldo = "Ocurrió un error inesperado") {
-  return error.response?.data?.mensaje ?? respaldo;
+  const delServidor = error.response?.data?.mensaje;
+  if (delServidor) return delServidor;
+  // DEF-03. Sin respuesta: el servidor no contestó a tiempo o no hay red.
+  if (!error.response) {
+    return "No hay conexión con el servidor. Revise su conexión a internet e intente de nuevo";
+  }
+  // Caddy responde 502 o 504 sin cuerpo cuando el backend no está arriba.
+  if ([502, 503, 504].includes(error.response.status)) {
+    return "El sistema no está disponible en este momento. Intente de nuevo en unos minutos";
+  }
+  return respaldo;
 }
 
 /** Errores por campo que devuelve el backend en una validación fallida. */
