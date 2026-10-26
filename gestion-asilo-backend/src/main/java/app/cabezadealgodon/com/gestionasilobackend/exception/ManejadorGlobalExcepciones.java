@@ -6,6 +6,7 @@ import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.core.PropertyReferenceException;
 import org.springframework.http.HttpHeaders;
@@ -15,6 +16,7 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
+import org.springframework.transaction.CannotCreateTransactionException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -245,6 +247,20 @@ public class ManejadorGlobalExcepciones {
     }
 
     /**
+     * DEF-03. La base de datos no responde: 503 con un mensaje claro, en vez del
+     * 500 genérico. Advertencia y no error: la causa está fuera del sistema.
+     */
+    @ExceptionHandler({ CannotCreateTransactionException.class, DataAccessResourceFailureException.class })
+    public ResponseEntity<ErrorResponse> manejarBaseNoDisponible(Exception ex, HttpServletRequest peticion) {
+        log.warn("Base de datos no disponible en {} {}: {}", peticion.getMethod(), peticion.getRequestURI(),
+                ex.getMessage());
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .header(HttpHeaders.RETRY_AFTER, "60")
+                .body(ErrorResponse.de(HttpStatus.SERVICE_UNAVAILABLE, BaseDeDatosNoDisponible.MENSAJE,
+                        peticion.getRequestURI()));
+    }
+
+    /**
      * YS-172. La red de seguridad: lo que ningún método de arriba atiende.
      *
      * <p>
@@ -265,6 +281,9 @@ public class ManejadorGlobalExcepciones {
      */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> manejarNoPrevisto(Exception ex, HttpServletRequest peticion) {
+        if (BaseDeDatosNoDisponible.esLaCausa(ex)) {
+            return manejarBaseNoDisponible(ex, peticion);
+        }
         HttpStatus estado = HttpStatus.INTERNAL_SERVER_ERROR;
         ResponseEntity.BodyBuilder respuesta = ResponseEntity.status(estado);
         if (ex instanceof org.springframework.web.ErrorResponse conEstado) {

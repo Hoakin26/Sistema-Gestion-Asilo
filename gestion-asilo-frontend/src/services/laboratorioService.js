@@ -46,6 +46,7 @@ export async function registrarResultado(ordenId, { resultado, costo, archivo })
   if (archivo) datos.append("archivo", archivo);
   const { data } = await api.post(`/ordenes-laboratorio/${ordenId}/resultado`, datos, {
     headers: { "Content-Type": "multipart/form-data" },
+    timeout: 120000,
   });
   return data;
 }
