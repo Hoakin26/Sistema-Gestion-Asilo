@@ -268,26 +268,27 @@ export function ReporteCobrosPage() {
   const [errores, setErrores] = useState({});
 
   useEffect(() => {
-    let vigente = true;
-    obtenerReporteCobros({ internoId: filtros.interno?.id, desde: filtros.desde, hasta: filtros.hasta })
+    const control = new AbortController();
+    obtenerReporteCobros(
+      { internoId: filtros.interno?.id, desde: filtros.desde, hasta: filtros.hasta },
+      control.signal,
+    )
       .then((respuesta) => {
-        if (!vigente) return;
+        if (control.signal.aborted) return;
         setDatos(respuesta);
         setGenerado(new Date().toISOString());
         setError(null);
       })
       .catch((fallo) => {
-        if (!vigente) return;
+        if (control.signal.aborted) return;
         const porCampo = erroresPorCampo(fallo);
         if (porCampo) setErrores(porCampo);
         else setError(mensajeDeError(fallo, "No se pudo generar el reporte"));
       })
       .finally(() => {
-        if (vigente) setCargando(false);
+        if (!control.signal.aborted) setCargando(false);
       });
-    return () => {
-      vigente = false;
-    };
+    return () => control.abort();
   }, [filtros]);
 
   const generar = (evento) => {

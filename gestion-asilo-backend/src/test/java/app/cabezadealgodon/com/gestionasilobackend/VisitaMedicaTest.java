@@ -26,6 +26,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
+import org.hibernate.SessionFactory;
+import org.hibernate.stat.Statistics;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -76,6 +78,7 @@ import app.cabezadealgodon.com.gestionasilobackend.repository.RolRepository;
 import app.cabezadealgodon.com.gestionasilobackend.repository.SolicitudReferenciaRepository;
 import app.cabezadealgodon.com.gestionasilobackend.repository.UsuarioRepository;
 import app.cabezadealgodon.com.gestionasilobackend.repository.VisitaMedicaRepository;
+import jakarta.persistence.EntityManagerFactory;
 import tools.jackson.databind.ObjectMapper;
 
 /**
@@ -167,6 +170,9 @@ class VisitaMedicaTest extends PruebaConBaseDeDatos {
 
     @Autowired
     private PasswordEncoder passwordEncoder;
+
+    @Autowired
+    private EntityManagerFactory emf;
 
     @Test
     @DisplayName("El especialista asignado inicia la visita: queda activa, con fecha y motivo, y la solicitud pasa a En Atención")
@@ -2515,6 +2521,26 @@ class VisitaMedicaTest extends PruebaConBaseDeDatos {
         mvc.perform(get("/api/reportes/cobros")).andExpect(status().isUnauthorized());
     }
 
+    @Test
+    @DisplayName("El reporte de cobros hace las mismas consultas con uno o con tres pacientes que pagaron (DEF-02)")
+    void elReporteDeCobrosNoCreceConLosPagos() throws Exception {
+        tarifaDe(6, "410.00");
+        Statistics estadisticas = emf.unwrap(SessionFactory.class).getStatistics();
+
+        pagarUnaVisita();
+        estadisticas.clear();
+        reporteDeCobros(null, HOY, HOY).andExpect(status().isOk());
+        long conUno = estadisticas.getPrepareStatementCount();
+
+        pagarUnaVisita();
+        pagarUnaVisita();
+        estadisticas.clear();
+        reporteDeCobros(null, HOY, HOY).andExpect(status().isOk());
+        long conTres = estadisticas.getPrepareStatementCount();
+
+        assertThat(conTres).isEqualTo(conUno);
+    }
+
     @ParameterizedTest(name = "{0}")
     @EnumSource(value = RolNombre.class, names = "ADMINISTRADOR_ASILO", mode = EnumSource.Mode.EXCLUDE)
     @DisplayName("Los otros seis roles no generan el reporte de cobros: 403")
@@ -3286,6 +3312,16 @@ class VisitaMedicaTest extends PruebaConBaseDeDatos {
         diagnosticar(visita, especialista, "Hipertensión arterial", null).andExpect(status().isOk());
         finalizar(visita, especialista).andExpect(status().isOk());
         return visita;
+    }
+
+    /** DEF-02. Un paciente con consulta, examen y medicamento, su cuenta del mes y un pago de hoy. */
+    private void pagarUnaVisita() throws Exception {
+        Especialista especialista = nuevoEspecialista(6);
+        Cita cita = citaEl(especialista, HOY.atTime(8, 0));
+        Long interno = cita.getSolicitud().getInterno().getId();
+        cambiarCuota(interno, "500").andExpect(status().isOk());
+        conLosTresCargos(cita, especialista, "Perfil lipídico", "120.00", "Olanzapina", "35.50");
+        pagar(cuentaDelMes(interno), "100", HOY, "EFECTIVO").andExpect(status().isCreated());
     }
 
     /** YS-159. El reporte de cobros; {@code null} omite el parámetro. */
