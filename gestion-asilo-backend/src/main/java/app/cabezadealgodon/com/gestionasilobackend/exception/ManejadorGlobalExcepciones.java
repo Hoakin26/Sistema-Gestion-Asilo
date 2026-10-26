@@ -8,6 +8,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.core.PropertyReferenceException;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -291,5 +292,17 @@ public class ManejadorGlobalExcepciones {
             case METHOD_NOT_ALLOWED -> "Esa operación no está disponible en esta dirección";
             default -> estado.is4xxClientError() ? "No se pudo procesar la petición" : MENSAJE_INESPERADO;
         };
+    }
+
+    /**
+     * DEF-01. Demasiados inicios de sesión fallidos: 429, con Retry-After en
+     * segundos. La pantalla de inicio de sesión ya muestra el mensaje del backend.
+     */
+    @ExceptionHandler(DemasiadosIntentosException.class)
+    public ResponseEntity<ErrorResponse> manejarDemasiadosIntentos(DemasiadosIntentosException ex,
+            HttpServletRequest peticion) {
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .header(HttpHeaders.RETRY_AFTER, String.valueOf(ex.getEspera().toSeconds()))
+                .body(ErrorResponse.de(HttpStatus.TOO_MANY_REQUESTS, ex.getMessage(), peticion.getRequestURI()));
     }
 }

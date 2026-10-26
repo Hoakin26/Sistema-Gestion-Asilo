@@ -1,8 +1,10 @@
 package app.cabezadealgodon.com.gestionasilobackend;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.startsWith;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -249,5 +251,30 @@ class AutenticacionTest extends PruebaConBaseDeDatos {
         String cargaAlterada = Base64.getUrlEncoder().withoutPadding()
                 .encodeToString(carga.getBytes(StandardCharsets.UTF_8));
         return partes[0] + "." + cargaAlterada + "." + partes[2];
+    }
+
+    @Test
+    @DisplayName("Cinco intentos fallidos bloquean el correo: el sexto responde 429 aunque la contraseña sea correcta (DEF-01)")
+    void bloqueaElCorreoTrasCincoFallos() throws Exception {
+        for (int intento = 1; intento <= 5; intento++) {
+            mvc.perform(peticionLogin(ACTIVO, "OtraClave9999")).andExpect(status().isUnauthorized());
+        }
+
+        mvc.perform(peticionLogin(ACTIVO, PASSWORD))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(header().exists(HttpHeaders.RETRY_AFTER))
+                .andExpect(jsonPath("$.mensaje").value(startsWith("Demasiados intentos fallidos")));
+
+        // Cinco fallos no bloquean la IP: otro usuario sigue entrando.
+        mvc.perform(peticionLogin(ADMIN, PASSWORD)).andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("Un correo que no existe se bloquea igual, para no revelar cuáles existen (DEF-01)")
+    void bloqueaTambienUnCorreoInexistente() throws Exception {
+        for (int intento = 1; intento <= 5; intento++) {
+            mvc.perform(peticionLogin("no.existe@asilo.gt", PASSWORD)).andExpect(status().isUnauthorized());
+        }
+        mvc.perform(peticionLogin("no.existe@asilo.gt", PASSWORD)).andExpect(status().isTooManyRequests());
     }
 }
