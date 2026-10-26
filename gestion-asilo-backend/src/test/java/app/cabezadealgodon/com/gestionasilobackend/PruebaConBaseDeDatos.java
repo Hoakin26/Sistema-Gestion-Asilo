@@ -69,6 +69,9 @@ public abstract class PruebaConBaseDeDatos {
         // YS-97. Sin reintentos en segundo plano: una prueba que mira el
         // estado de un aviso no puede tener a otro hilo cambiándolo.
         registro.add("app.notificaciones.reintento-automatico", () -> "false");
+        // DEF-02. Para contar cuántas consultas hace una petición.
+        registro.add("spring.jpa.properties.hibernate.generate_statistics", () -> "true");
+        registro.add("logging.level.org.hibernate.engine.internal.StatisticalLoggingSessionEventListener", () -> "WARN");
     }
 
     @Autowired

@@ -20,8 +20,21 @@ public interface CargoServicioRepository extends JpaRepository<CargoServicio, Lo
     /** Los cargos que salieron de una visita. */
     List<CargoServicio> findByVisitaIdOrderByIdAsc(Long visitaId);
 
-    /** YS-157. Los cargos consolidados en unas cuentas mensuales: los gastos médicos del reporte de cobros (HU-26). */
-    List<CargoServicio> findByCuentaIdIn(Collection<Long> cuentaIds);
+    /**
+     * DEF-02. Los gastos médicos de unas cuentas mensuales, ya sumados por cuenta
+     * y tipo de servicio: lo único que usa el reporte de cobros (HU-26). Una sola
+     * consulta y sin cargar entidades: cada cargo arrastraba su visita, su cita y
+     * su solicitud, y con miles de cargos eran miles de consultas.
+     */
+    @Query("""
+            select c.cuenta.id as cuentaId, c.tipo as tipo, count(c) as cantidad,
+                   sum(c.montoOriginal) as original, sum(c.descuento) as descuento,
+                   sum(c.montoNeto) as neto
+            from CargoServicio c
+            where c.cuenta.id in :cuentaIds
+            group by c.cuenta.id, c.tipo
+            """)
+    List<TotalDeCuenta> totalesPorCuenta(@Param("cuentaIds") Collection<Long> cuentaIds);
 
     /**
      * YS-132. Los cargos de todos los internos entre dos fechas, para
@@ -103,5 +116,20 @@ public interface CargoServicioRepository extends JpaRepository<CargoServicio, Lo
         Long getCantidad();
 
         BigDecimal getTotal();
+    }
+
+    /** DEF-02. Una fila de {@link #totalesPorCuenta}: los cargos de un tipo en una cuenta. */
+    interface TotalDeCuenta {
+        Long getCuentaId();
+
+        TipoServicio getTipo();
+
+        Long getCantidad();
+
+        BigDecimal getOriginal();
+
+        BigDecimal getDescuento();
+
+        BigDecimal getNeto();
     }
 }
