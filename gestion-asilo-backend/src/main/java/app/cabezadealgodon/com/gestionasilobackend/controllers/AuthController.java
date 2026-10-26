@@ -14,6 +14,7 @@ import app.cabezadealgodon.com.gestionasilobackend.dto.LoginRequest;
 import app.cabezadealgodon.com.gestionasilobackend.dto.LoginResponse;
 import app.cabezadealgodon.com.gestionasilobackend.security.UsuarioAutenticado;
 import app.cabezadealgodon.com.gestionasilobackend.services.AuthService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 
 /** HU-30 (YS-47). Ruta pública: sin ella nadie podría obtener un token. */
@@ -28,8 +29,8 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public LoginResponse login(@Valid @RequestBody LoginRequest request) {
-        return authService.login(request);
+    public LoginResponse login(@Valid @RequestBody LoginRequest request, HttpServletRequest peticion) {
+        return authService.login(request, peticion.getRemoteAddr());
     }
 
     /** YS-68. Requiere token válido: se cierra la sesión de quien la tiene abierta. */
