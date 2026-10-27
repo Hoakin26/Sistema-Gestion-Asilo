@@ -41,8 +41,9 @@ export function PacienteMedico({ paciente, alElegir, error }) {
   useEffect(() => {
     if (!esEspecialista) return undefined;
     let vigente = true;
+    // OBS-01. La primera página, de 20, basta: las visitas en curso son las que el especialista dejó abiertas.
     listarVisitas("ACTIVA")
-      .then((visitas) => {
+      .then(({ content: visitas }) => {
         if (!vigente) return;
         const unicos = new Map();
         visitas.forEach((visita) => unicos.set(visita.paciente.id, visita.paciente));

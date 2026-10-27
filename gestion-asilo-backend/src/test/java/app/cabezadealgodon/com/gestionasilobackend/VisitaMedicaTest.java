@@ -310,18 +310,51 @@ class VisitaMedicaTest extends PruebaConBaseDeDatos {
 
         mvc.perform(get("/api/visitas").header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(especialista)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(1))
-                .andExpect(jsonPath("$[0].id").value(visita));
+                .andExpect(jsonPath("$.content.length()").value(1))
+                .andExpect(jsonPath("$.content[0].id").value(visita));
         mvc.perform(get("/api/visitas").param("estado", "FINALIZADA")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(especialista)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(0));
+                .andExpect(jsonPath("$.content.length()").value(0));
 
         mvc.perform(get("/api/visitas/{id}", visita).header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(especialista)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.numeroSolicitud").isNotEmpty());
         mvc.perform(get("/api/visitas/{id}", visita).header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(otro)))
                 .andExpect(status().isForbidden());
+    }
+
+    /**
+     * OBS-01. Tres finalizadas y una activa, con páginas de dos para no atender
+     * veinte: la más reciente primero, por la hora en que se inició.
+     */
+    @Test
+    @DisplayName("Las visitas del especialista llegan por páginas de 20, la más reciente primero, también filtradas por estado")
+    void susVisitasPorPaginas() throws Exception {
+        // Finalizar cobra la consulta, así que la especialidad necesita tarifa.
+        tarifaDe(6, "410.00");
+        Especialista especialista = nuevoEspecialista(6);
+        long primera = consultaFinalizada(especialista, HOY.atTime(8, 0));
+        long segunda = consultaFinalizada(especialista, HOY.atTime(9, 0));
+        long tercera = consultaFinalizada(especialista, HOY.atTime(10, 0));
+        long activa = idDe(iniciar(citaEl(especialista, HOY.atTime(11, 0)).getId(), especialista));
+        String token = "Bearer " + tokenDe(especialista);
+
+        mvc.perform(get("/api/visitas").header(HttpHeaders.AUTHORIZATION, token))
+                .andExpect(jsonPath("$.size").value(20))
+                .andExpect(jsonPath("$.totalElements").value(4));
+        mvc.perform(get("/api/visitas").param("size", "2").header(HttpHeaders.AUTHORIZATION, token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[*].id").value(contains((int) activa, (int) tercera)))
+                .andExpect(jsonPath("$.totalPages").value(2));
+        mvc.perform(get("/api/visitas").param("size", "2").param("page", "1").header(HttpHeaders.AUTHORIZATION, token))
+                .andExpect(jsonPath("$.content[*].id").value(contains((int) segunda, (int) primera)));
+        mvc.perform(get("/api/visitas").param("estado", "FINALIZADA").param("size", "2")
+                .header(HttpHeaders.AUTHORIZATION, token))
+                .andExpect(jsonPath("$.content[*].id").value(contains((int) tercera, (int) segunda)))
+                .andExpect(jsonPath("$.totalElements").value(3));
+        mvc.perform(get("/api/visitas").param("sort", "fechaInicio").header(HttpHeaders.AUTHORIZATION, token))
+                .andExpect(status().isBadRequest());
     }
 
     /**
@@ -2146,33 +2179,33 @@ class VisitaMedicaTest extends PruebaConBaseDeDatos {
         // Antes de consolidar: sin pago, y marcada.
         String cuerpo = citasPendientes(dpi, null, null)
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.citas.length()").value(1))
-                .andExpect(jsonPath("$.citas[0].numeroSolicitud").value(numero))
-                .andExpect(jsonPath("$.citas[0].fecha").value(HOY.toString()))
-                .andExpect(jsonPath("$.citas[0].paciente.id").value(interno.intValue()))
-                .andExpect(jsonPath("$.citas[0].servicios[*].tipo").value(contains("CONSULTA", "LABORATORIO", "FARMACIA")))
-                .andExpect(jsonPath("$.citas[0].servicios[*].cantidad").value(contains(1, 1, 1)))
-                .andExpect(jsonPath("$.citas[0].montoTotal").value(565.50))
-                .andExpect(jsonPath("$.citas[0].montoPagado").value(0.00))
-                .andExpect(jsonPath("$.citas[0].saldo").value(565.50))
-                .andExpect(jsonPath("$.citas[0].estado").value("SIN_PAGO"))
-                .andExpect(jsonPath("$.citas[0].sinConsolidar").value(true))
+                .andExpect(jsonPath("$.citas.content.length()").value(1))
+                .andExpect(jsonPath("$.citas.content[0].numeroSolicitud").value(numero))
+                .andExpect(jsonPath("$.citas.content[0].fecha").value(HOY.toString()))
+                .andExpect(jsonPath("$.citas.content[0].paciente.id").value(interno.intValue()))
+                .andExpect(jsonPath("$.citas.content[0].servicios[*].tipo").value(contains("CONSULTA", "LABORATORIO", "FARMACIA")))
+                .andExpect(jsonPath("$.citas.content[0].servicios[*].cantidad").value(contains(1, 1, 1)))
+                .andExpect(jsonPath("$.citas.content[0].montoTotal").value(565.50))
+                .andExpect(jsonPath("$.citas.content[0].montoPagado").value(0.00))
+                .andExpect(jsonPath("$.citas.content[0].saldo").value(565.50))
+                .andExpect(jsonPath("$.citas.content[0].estado").value("SIN_PAGO"))
+                .andExpect(jsonPath("$.citas.content[0].sinConsolidar").value(true))
                 .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
         String especialidad = especialidadRepository.findById(idEspecialidad(6)).orElseThrow().getNombre();
         assertThat(cuerpo).doesNotContain("Glucosa en ayunas", "Quetiapina", "Hipertensión", especialidad);
 
         long cuenta = cuentaDelMes(interno);
         citasPendientes(dpi, null, null)
-                .andExpect(jsonPath("$.citas[0].estado").value("SIN_PAGO"))
-                .andExpect(jsonPath("$.citas[0].sinConsolidar").value(false));
+                .andExpect(jsonPath("$.citas.content[0].estado").value("SIN_PAGO"))
+                .andExpect(jsonPath("$.citas.content[0].sinConsolidar").value(false));
 
         // El 40 % de la cuenta: la cita lleva pagado el 40 % de lo suyo.
         pagar(cuenta, "400", HOY, "EFECTIVO").andExpect(status().isCreated());
         citasPendientes(dpi, null, null)
-                .andExpect(jsonPath("$.citas[0].montoPagado").value(226.20))
-                .andExpect(jsonPath("$.citas[0].saldo").value(339.30))
-                .andExpect(jsonPath("$.citas[0].estado").value("PAGO_PARCIAL"))
-                .andExpect(jsonPath("$.citas[0].vencida").value(false))
+                .andExpect(jsonPath("$.citas.content[0].montoPagado").value(226.20))
+                .andExpect(jsonPath("$.citas.content[0].saldo").value(339.30))
+                .andExpect(jsonPath("$.citas.content[0].estado").value("PAGO_PARCIAL"))
+                .andExpect(jsonPath("$.citas.content[0].vencida").value(false))
                 .andExpect(jsonPath("$.saldoPendiente").value(339.30));
 
         // Vencida su cuenta, se marca: se lleva la cuenta a hace dos meses.
@@ -2180,14 +2213,14 @@ class VisitaMedicaTest extends PruebaConBaseDeDatos {
         vencida.setPeriodo(YearMonth.now().minusMonths(2).toString());
         cuentaRepository.save(vencida);
         citasPendientes(dpi, null, null)
-                .andExpect(jsonPath("$.citas[0].estado").value("PAGO_PARCIAL"))
-                .andExpect(jsonPath("$.citas[0].vencida").value(true));
+                .andExpect(jsonPath("$.citas.content[0].estado").value("PAGO_PARCIAL"))
+                .andExpect(jsonPath("$.citas.content[0].vencida").value(true));
 
         // Pagada completa, sale del listado.
         pagar(cuenta, "600", HOY, "EFECTIVO").andExpect(status().isCreated());
         citasPendientes(dpi, null, null)
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.citas").isEmpty())
+                .andExpect(jsonPath("$.citas.content").isEmpty())
                 .andExpect(jsonPath("$.saldoPendiente").value(0.00));
     }
 
@@ -2205,23 +2238,23 @@ class VisitaMedicaTest extends PruebaConBaseDeDatos {
         String dpi = dpiDe(anterior);
 
         citasPendientes(dpi, null, null)
-                .andExpect(jsonPath("$.citas[*].visitaId").value(contains((int) primera, (int) segunda)))
+                .andExpect(jsonPath("$.citas.content[*].visitaId").value(contains((int) primera, (int) segunda)))
                 .andExpect(jsonPath("$.montoTotal").value(820.00));
         citasPendientes(dpi, HOY, null)
-                .andExpect(jsonPath("$.citas[*].visitaId").value(contains((int) segunda)));
+                .andExpect(jsonPath("$.citas.content[*].visitaId").value(contains((int) segunda)));
         citasPendientes(dpi, null, HOY.minusDays(1))
-                .andExpect(jsonPath("$.citas[*].visitaId").value(contains((int) primera)));
+                .andExpect(jsonPath("$.citas.content[*].visitaId").value(contains((int) primera)));
         citasPendientes(dpi, HOY.minusDays(3), HOY.minusDays(3))
-                .andExpect(jsonPath("$.citas[*].visitaId").value(contains((int) primera)));
+                .andExpect(jsonPath("$.citas.content[*].visitaId").value(contains((int) primera)));
 
         // Por nombre, como lo escribe la gente: sin tildes ni mayúsculas.
         Interno conTildes = internoRepository.findById(interno).orElseThrow();
         conTildes.setNombreCompleto("Ñoño Ávila Pendiente " + dpi);
         internoRepository.save(conTildes);
         citasPendientes("nono avila pendiente " + dpi, null, null)
-                .andExpect(jsonPath("$.citas.length()").value(2))
-                .andExpect(jsonPath("$.citas[0].paciente.nombreCompleto").value("Ñoño Ávila Pendiente " + dpi));
-        citasPendientes("nadie se llama así 123", null, null).andExpect(jsonPath("$.citas").isEmpty());
+                .andExpect(jsonPath("$.citas.content.length()").value(2))
+                .andExpect(jsonPath("$.citas.content[0].paciente.nombreCompleto").value("Ñoño Ávila Pendiente " + dpi));
+        citasPendientes("nadie se llama así 123", null, null).andExpect(jsonPath("$.citas.content").isEmpty());
 
         citasPendientes(dpi, HOY, HOY.minusDays(1))
                 .andExpect(status().isBadRequest())
@@ -2230,6 +2263,53 @@ class VisitaMedicaTest extends PruebaConBaseDeDatos {
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(RolNombre.ADMINISTRADOR_ASILO)))
                 .andExpect(status().isBadRequest());
         mvc.perform(get("/api/servicios-pendientes")).andExpect(status().isUnauthorized());
+    }
+
+    /**
+     * OBS-01. Tres citas del mismo paciente, con páginas de dos para no
+     * atender veinte. Los totales son de las tres en cada página, no de la
+     * página.
+     */
+    @Test
+    @DisplayName("Las citas pendientes llegan por páginas de 20, la más antigua primero, y los totales suman todas las del filtro")
+    void citasPendientesPorPaginas() throws Exception {
+        tarifaDe(6, "410.00");
+        Especialista especialista = nuevoEspecialista(6);
+        Cita anterior = citaEl(especialista, HOY.minusDays(3).atTime(8, 0));
+        Long interno = anterior.getSolicitud().getInterno().getId();
+        long primera = idDe(iniciar(anterior.getId(), especialista));
+        diagnosticar(primera, especialista, "Control", null).andExpect(status().isOk());
+        finalizar(primera, especialista).andExpect(status().isOk());
+        long segunda = consultaFinalizada(especialista, HOY.minusDays(2).atTime(9, 0), interno);
+        long tercera = consultaFinalizada(especialista, HOY.atTime(10, 0), interno);
+        String dpi = dpiDe(anterior);
+        String token = "Bearer " + tokenDe(RolNombre.ADMINISTRADOR_ASILO);
+
+        citasPendientes(dpi, null, null)
+                .andExpect(jsonPath("$.citas.size").value(20))
+                .andExpect(jsonPath("$.citas.totalElements").value(3));
+        mvc.perform(get("/api/servicios-pendientes").param("paciente", dpi).param("size", "2")
+                .header(HttpHeaders.AUTHORIZATION, token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.citas.content[*].visitaId").value(contains((int) primera, (int) segunda)))
+                .andExpect(jsonPath("$.citas.content[0].montoTotal").value(410.00))
+                .andExpect(jsonPath("$.citas.totalElements").value(3))
+                .andExpect(jsonPath("$.citas.totalPages").value(2))
+                .andExpect(jsonPath("$.montoTotal").value(1230.00))
+                .andExpect(jsonPath("$.montoPagado").value(0.00))
+                .andExpect(jsonPath("$.saldoPendiente").value(1230.00));
+        mvc.perform(get("/api/servicios-pendientes").param("paciente", dpi).param("size", "2").param("page", "1")
+                .header(HttpHeaders.AUTHORIZATION, token))
+                .andExpect(jsonPath("$.citas.content[*].visitaId").value(contains((int) tercera)))
+                .andExpect(jsonPath("$.montoTotal").value(1230.00))
+                .andExpect(jsonPath("$.saldoPendiente").value(1230.00));
+        // Una página que ya no existe llega vacía, con los mismos totales.
+        mvc.perform(get("/api/servicios-pendientes").param("paciente", dpi).param("page", "5")
+                .header(HttpHeaders.AUTHORIZATION, token))
+                .andExpect(jsonPath("$.citas.content").isEmpty())
+                .andExpect(jsonPath("$.saldoPendiente").value(1230.00));
+        mvc.perform(get("/api/servicios-pendientes").param("sort", "fecha").header(HttpHeaders.AUTHORIZATION, token))
+                .andExpect(status().isBadRequest());
     }
 
     @ParameterizedTest(name = "{0}")
@@ -2813,7 +2893,7 @@ class VisitaMedicaTest extends PruebaConBaseDeDatos {
         long deOtro = solicitudAcompanadaPor(otro);
 
         String filtro = "$[?(@.solicitudId == %d)]";
-        String cuerpo = mvc.perform(get("/api/acompanamientos")
+        String cuerpo = mvc.perform(get("/api/acompanamientos/proximos")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(RolNombre.ENFERMERIA)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath(filtro + ".estado", conCita).value("CITA_PROGRAMADA"))
@@ -2832,17 +2912,71 @@ class VisitaMedicaTest extends PruebaConBaseDeDatos {
         assertThat(citaPendiente).containsExactly((Object) null);
 
         // El otro enfermero ve la suya y no las del primero.
-        mvc.perform(get("/api/acompanamientos").header(HttpHeaders.AUTHORIZATION, "Bearer " + login(otro.getCorreo())))
+        mvc.perform(get("/api/acompanamientos/proximos")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + login(otro.getCorreo())))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[*].solicitudId").value(contains((int) deOtro)));
-        mvc.perform(get("/api/acompanamientos")).andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/acompanamientos/proximos")).andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/acompanamientos/anteriores")).andExpect(status().isUnauthorized());
+    }
+
+    /**
+     * OBS-01. Un enfermero nuevo, para que no cuenten las de otras pruebas:
+     * tres solicitudes canceladas y una que sigue pendiente. La tercera se
+     * creó al último, pero su cita fue hace años: va al final, porque cuenta
+     * la fecha de la cita y, sin ella, la de la solicitud.
+     */
+    @Test
+    @DisplayName("Los acompañamientos anteriores llegan por páginas de 20, el más reciente primero; los próximos van aparte")
+    void losAcompanamientosAnterioresPorPaginas() throws Exception {
+        Usuario enfermero = otroEnfermero();
+        Especialista especialista = nuevoEspecialista(6);
+        long primera = solicitudAcompanadaPor(enfermero);
+        long segunda = solicitudAcompanadaPor(enfermero);
+        long conCitaVieja = solicitudAcompanadaPor(enfermero);
+        long pendiente = solicitudAcompanadaPor(enfermero);
+        mvc.perform(post("/api/solicitudes-referencia/{id}/cita", conCitaVieja)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(RolNombre.ADMINISTRADOR_FUNDACION))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"especialistaId\": %d, \"fechaHora\": \"%s\"}"
+                        .formatted(especialista.id(), SEMANA_PROXIMA.atTime(9, 0))))
+                .andExpect(status().isCreated());
+        Cita vieja = citaRepository.findBySolicitudId(conCitaVieja).orElseThrow();
+        vieja.setFechaHora(LocalDateTime.of(2020, 1, 15, 9, 0));
+        citaRepository.save(vieja);
+        for (long id : List.of(primera, segunda, conCitaVieja)) {
+            SolicitudReferencia solicitud = solicitudRepository.findById(id).orElseThrow();
+            solicitud.cambiarEstado(EstadoSolicitud.CANCELADA);
+            solicitudRepository.save(solicitud);
+        }
+        String token = "Bearer " + login(enfermero.getCorreo());
+
+        mvc.perform(get("/api/acompanamientos/proximos").header(HttpHeaders.AUTHORIZATION, token))
+                .andExpect(jsonPath("$[*].solicitudId").value(contains((int) pendiente)));
+        mvc.perform(get("/api/acompanamientos/anteriores").header(HttpHeaders.AUTHORIZATION, token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[*].solicitudId").value(contains((int) segunda, (int) primera,
+                        (int) conCitaVieja)))
+                .andExpect(jsonPath("$.content[2].cita.fechaHora").value("2020-01-15T09:00:00"))
+                .andExpect(jsonPath("$.size").value(20))
+                .andExpect(jsonPath("$.totalElements").value(3));
+        mvc.perform(get("/api/acompanamientos/anteriores").param("size", "2").param("page", "1")
+                .header(HttpHeaders.AUTHORIZATION, token))
+                .andExpect(jsonPath("$.content[*].solicitudId").value(contains((int) conCitaVieja)))
+                .andExpect(jsonPath("$.totalPages").value(2));
+        mvc.perform(get("/api/acompanamientos/anteriores").param("sort", "fechaCreacion")
+                .header(HttpHeaders.AUTHORIZATION, token))
+                .andExpect(status().isBadRequest());
     }
 
     @ParameterizedTest(name = "{0}")
     @EnumSource(value = RolNombre.class, names = "ENFERMERIA", mode = EnumSource.Mode.EXCLUDE)
     @DisplayName("Los otros seis roles no tienen acompañamientos: 403")
     void soloEnfermeriaTieneAcompanamientos(RolNombre rol) throws Exception {
-        mvc.perform(get("/api/acompanamientos").header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(rol)))
+        String token = "Bearer " + tokenDe(rol);
+        mvc.perform(get("/api/acompanamientos/proximos").header(HttpHeaders.AUTHORIZATION, token))
+                .andExpect(status().isForbidden());
+        mvc.perform(get("/api/acompanamientos/anteriores").header(HttpHeaders.AUTHORIZATION, token))
                 .andExpect(status().isForbidden());
     }
 

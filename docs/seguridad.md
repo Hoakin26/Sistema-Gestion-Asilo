@@ -1152,7 +1152,7 @@ En pantalla, el examen con archivo trae el botón para descargarlo, que pasa por
 
 ## 48. Los acompañamientos de Enfermería (YS-188)
 
-`GET /api/acompanamientos` es de Enfermería (`@SoloEnfermeria`) y no recibe parámetros: el enfermero sale del token, así que no hay forma de pedir los acompañamientos de otro. Devuelve el motivo de la referencia, que es dato clínico; Enfermería es personal clínico y ya lo ve en la ficha del interno. `VisitaMedicaTest` comprueba que cada enfermero ve solo las suyas, que los otros seis roles reciben 403 y que sin sesión es 401.
+`GET /api/acompanamientos/proximos` y `/anteriores` (OBS-01) son de Enfermería (`@SoloEnfermeria`, en la clase) y no reciben filtros, solo la página: el enfermero sale del token, así que no hay forma de pedir los acompañamientos de otro. Devuelve el motivo de la referencia, que es dato clínico; Enfermería es personal clínico y ya lo ve en la ficha del interno. `VisitaMedicaTest` comprueba que cada enfermero ve solo las suyas, que los otros seis roles reciben 403 y que sin sesión es 401.
 
 ## 49. Qué falta
 

@@ -88,7 +88,7 @@ class GastoOperativoTest extends PruebaConBaseDeDatos {
         historico(LocalDate.of(2021, 1, 1), LocalDate.of(2021, 12, 31), new String[0])
                 .andExpect(status().isOk())
                 // Del más reciente al más antiguo.
-                .andExpect(jsonPath("$.gastos[*].tipoGasto").value(contains("LUZ", "OTRO", "AGUA", "LUZ")))
+                .andExpect(jsonPath("$.gastos.content[*].tipoGasto").value(contains("LUZ", "OTRO", "AGUA", "LUZ")))
                 .andExpect(jsonPath("$.total").value(3270.75))
                 .andExpect(jsonPath("$.porTipo.length()").value(8))
                 .andExpect(jsonPath("$.porTipo[?(@.tipoGasto == 'LUZ')].cantidad").value(2))
@@ -105,19 +105,57 @@ class GastoOperativoTest extends PruebaConBaseDeDatos {
         registrar("LIMPIEZA", "Detergente y cloro", "300", LocalDate.of(2022, 9, 1)).andExpect(status().isCreated());
 
         historico(LocalDate.of(2022, 8, 1), LocalDate.of(2022, 8, 31), new String[0])
-                .andExpect(jsonPath("$.gastos[*].tipoGasto").value(contains("GAS", "AGUA")))
+                .andExpect(jsonPath("$.gastos.content[*].tipoGasto").value(contains("GAS", "AGUA")))
                 .andExpect(jsonPath("$.total").value(300.00));
         historico(LocalDate.of(2022, 1, 1), LocalDate.of(2022, 12, 31), "GAS")
-                .andExpect(jsonPath("$.gastos[*].tipoGasto").value(contains("GAS")))
+                .andExpect(jsonPath("$.gastos.content[*].tipoGasto").value(contains("GAS")))
                 .andExpect(jsonPath("$.total").value(200.00));
         historico(LocalDate.of(2022, 1, 1), LocalDate.of(2022, 12, 31), "LIMPIEZA", "AGUA")
-                .andExpect(jsonPath("$.gastos[*].tipoGasto").value(contains("LIMPIEZA", "AGUA")))
+                .andExpect(jsonPath("$.gastos.content[*].tipoGasto").value(contains("LIMPIEZA", "AGUA")))
                 .andExpect(jsonPath("$.total").value(400.00));
 
         historico(LocalDate.of(2022, 9, 1), LocalDate.of(2022, 8, 1), new String[0])
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errores.hasta").value("La fecha final no puede ser anterior a la inicial"));
         historico(LocalDate.of(2022, 1, 1), LocalDate.of(2022, 12, 31), "INTERNET").andExpect(status().isBadRequest());
+    }
+
+    /**
+     * OBS-01. Con páginas de dos para no registrar veinte: lo que se prueba es
+     * que la página trae solo su parte y los totales, todo el filtro.
+     */
+    @Test
+    @DisplayName("El histórico llega por páginas de 20, el más reciente primero, y los totales suman todo el filtro")
+    void historicoPorPaginas() throws Exception {
+        registrar("LUZ", "Recibo de febrero", "100", LocalDate.of(2017, 2, 1)).andExpect(status().isCreated());
+        registrar("AGUA", null, "200", LocalDate.of(2017, 3, 1)).andExpect(status().isCreated());
+        registrar("LUZ", "Recibo de abril", "300", LocalDate.of(2017, 4, 1)).andExpect(status().isCreated());
+        String respuesta = registrar("AGUA", null, "5000", LocalDate.of(2017, 5, 1))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
+        anular(((Number) JsonPath.read(respuesta, "$.id")).longValue(), "Se registró dos veces")
+                .andExpect(status().isOk());
+
+        historico(LocalDate.of(2017, 1, 1), LocalDate.of(2017, 12, 31), new String[0])
+                .andExpect(jsonPath("$.gastos.size").value(20))
+                .andExpect(jsonPath("$.gastos.totalElements").value(4));
+        pagina(0, 2)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.gastos.content[*].fecha").value(contains("2017-05-01", "2017-04-01")))
+                .andExpect(jsonPath("$.gastos.totalElements").value(4))
+                .andExpect(jsonPath("$.gastos.totalPages").value(2))
+                // Los anulados se ven en la lista, pero no suman.
+                .andExpect(jsonPath("$.total").value(600.00))
+                .andExpect(jsonPath("$.porTipo[?(@.tipoGasto == 'LUZ')].cantidad").value(2))
+                .andExpect(jsonPath("$.porTipo[?(@.tipoGasto == 'AGUA')].total").value(200.00));
+        pagina(1, 2)
+                .andExpect(jsonPath("$.gastos.content[*].fecha").value(contains("2017-03-01", "2017-02-01")))
+                .andExpect(jsonPath("$.total").value(600.00));
+
+        // El orden es fijo: pedir otro es 400 y no un 500.
+        mvc.perform(get("/api/gastos-operativos").param("sort", "monto")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(RolNombre.ADMINISTRADOR_ASILO)))
+                .andExpect(status().isBadRequest());
     }
 
     @Test
@@ -151,7 +189,7 @@ class GastoOperativoTest extends PruebaConBaseDeDatos {
         mvc.perform(get("/api/gastos-operativos")).andExpect(status().isUnauthorized());
 
         historico(LocalDate.of(2023, 1, 1), LocalDate.of(2023, 12, 31), new String[0])
-                .andExpect(jsonPath("$.gastos").isEmpty())
+                .andExpect(jsonPath("$.gastos.content").isEmpty())
                 .andExpect(jsonPath("$.total").value(0.00));
     }
 
@@ -180,7 +218,7 @@ class GastoOperativoTest extends PruebaConBaseDeDatos {
         anular(999_999L, "No existe").andExpect(status().isNotFound());
 
         historico(LocalDate.of(2024, 1, 1), LocalDate.of(2024, 12, 31), new String[0])
-                .andExpect(jsonPath("$.gastos.length()").value(2))
+                .andExpect(jsonPath("$.gastos.content.length()").value(2))
                 .andExpect(jsonPath("$.total").value(1500.00))
                 .andExpect(jsonPath("$.porTipo[?(@.tipoGasto == 'ALIMENTACION')].cantidad").value(1));
     }
@@ -231,6 +269,16 @@ class GastoOperativoTest extends PruebaConBaseDeDatos {
             peticion.param("tipo", tipo);
         }
         return mvc.perform(peticion);
+    }
+
+    /** OBS-01. Una página del histórico de 2017, con su tamaño. */
+    private ResultActions pagina(int numero, int tamano) throws Exception {
+        return mvc.perform(get("/api/gastos-operativos")
+                .param("desde", "2017-01-01")
+                .param("hasta", "2017-12-31")
+                .param("page", Integer.toString(numero))
+                .param("size", Integer.toString(tamano))
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(RolNombre.ADMINISTRADOR_ASILO)));
     }
 
     private ResultActions anular(long id, String motivo) throws Exception {

@@ -15,6 +15,8 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -181,13 +183,16 @@ public class VisitaMedicaService {
         return mapear(visitaRepository.saveAndFlush(visita));
     }
 
-    /** El módulo "Visitas médicas": las del especialista, la más reciente primero. */
+    /**
+     * El módulo "Visitas médicas": las del especialista, la más reciente
+     * primero. OBS-01: por páginas.
+     */
     @Transactional(readOnly = true)
-    public List<VisitaMedicaResponse> listar(Usuario medico, EstadoVisita estado) {
-        List<VisitaMedica> visitas = estado == null
-                ? visitaRepository.delEspecialista(medico.getId())
-                : visitaRepository.delEspecialistaEnEstado(medico.getId(), estado);
-        return visitas.stream().map(this::mapear).toList();
+    public Page<VisitaMedicaResponse> listar(Usuario medico, EstadoVisita estado, Pageable paginado) {
+        Page<VisitaMedica> visitas = estado == null
+                ? visitaRepository.delEspecialista(medico.getId(), paginado)
+                : visitaRepository.delEspecialistaEnEstado(medico.getId(), estado, paginado);
+        return visitas.map(this::mapear);
     }
 
     @Transactional(readOnly = true)
