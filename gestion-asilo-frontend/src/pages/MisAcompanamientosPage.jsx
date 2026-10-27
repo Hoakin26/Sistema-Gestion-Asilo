@@ -3,16 +3,14 @@ import { Link } from "react-router-dom";
 import { CalendarCheck, CalendarClock } from "lucide-react";
 
 import { Alert } from "../components/ui/Alert";
+import { Paginacion } from "../components/ui/Paginacion";
 import { StatusBadge } from "../components/ui/StatusBadge";
 import { TablaSkeleton } from "../components/ui/TablaSkeleton";
 import { Tabs } from "../components/ui/Tabs";
 import { AppLayout } from "../layouts/AppLayout";
-import { listarAcompanamientos } from "../services/acompanamientoService";
+import { listarAcompanamientosAnteriores, listarAcompanamientosProximos } from "../services/acompanamientoService";
 import { mensajeDeError } from "../services/api";
 import { formatearCita } from "../utils/fechas";
-
-/* Lo que todavía va a pasar: por asignar, con cita o en atención. */
-const PROXIMOS = new Set(["PENDIENTE_ASIGNACION", "CITA_PROGRAMADA", "EN_ATENCION"]);
 
 /* La cita más cercana primero; las que esperan asignación, al final. */
 function porCitaMasCercana(a, b) {
@@ -20,10 +18,8 @@ function porCitaMasCercana(a, b) {
   return a.cita.fechaHora.localeCompare(b.cita.fechaHora);
 }
 
-/* La más reciente primero, por la cita o, sin ella, por la solicitud. */
-function porMasReciente(a, b) {
-  return (b.cita?.fechaHora ?? b.fechaCreacion).localeCompare(a.cita?.fechaHora ?? a.fechaCreacion);
-}
+/* Lo que se muestra si los anteriores no se pudieron cargar: una página vacía. */
+const SIN_ANTERIORES = { content: [], totalElements: 0, totalPages: 0 };
 
 /** Un acompañamiento: a quién, a qué especialidad, cuándo y por qué. */
 function Tarjeta({ acompanamiento }) {
@@ -85,21 +81,28 @@ function Lista({ acompanamientos, vacio }) {
  * en que el médico general la eligió para acompañar al interno (RF-03), con la
  * cita que asignó la fundación. Reemplaza a "Solicitudes asignadas" y "Citas"
  * del menú del diseño, que nunca se construyeron (decidido el 22/10).
+ *
+ * OBS-01. Los próximos llegan enteros al entrar, porque nunca son muchos. Los
+ * anteriores crecen con cada mes: se piden al abrir su pestaña, por páginas de
+ * 20, el más reciente primero (el orden lo da el backend).
  */
 export function MisAcompanamientosPage() {
-  const [acompanamientos, setAcompanamientos] = useState(null);
+  const [proximos, setProximos] = useState(null);
+  const [anteriores, setAnteriores] = useState(null);
+  const [paginaAnteriores, setPaginaAnteriores] = useState(0);
+  const [vioAnteriores, setVioAnteriores] = useState(false);
   const [error, setError] = useState(null);
   const [pestana, setPestana] = useState("proximos");
 
   useEffect(() => {
     let vigente = true;
-    listarAcompanamientos()
+    listarAcompanamientosProximos()
       .then((lista) => {
-        if (vigente) setAcompanamientos(lista);
+        if (vigente) setProximos([...lista].sort(porCitaMasCercana));
       })
       .catch((fallo) => {
         if (!vigente) return;
-        setAcompanamientos([]);
+        setProximos([]);
         setError(mensajeDeError(fallo, "No se pudieron cargar sus acompañamientos"));
       });
     return () => {
@@ -107,8 +110,27 @@ export function MisAcompanamientosPage() {
     };
   }, []);
 
-  const proximos = (acompanamientos ?? []).filter((a) => PROXIMOS.has(a.estado)).sort(porCitaMasCercana);
-  const anteriores = (acompanamientos ?? []).filter((a) => !PROXIMOS.has(a.estado)).sort(porMasReciente);
+  useEffect(() => {
+    if (!vioAnteriores) return undefined;
+    let vigente = true;
+    listarAcompanamientosAnteriores(paginaAnteriores)
+      .then((datos) => {
+        if (vigente) setAnteriores(datos);
+      })
+      .catch((fallo) => {
+        if (!vigente) return;
+        setAnteriores(SIN_ANTERIORES);
+        setError(mensajeDeError(fallo, "No se pudieron cargar sus acompañamientos anteriores"));
+      });
+    return () => {
+      vigente = false;
+    };
+  }, [vioAnteriores, paginaAnteriores]);
+
+  const cambiarPestana = (clave) => {
+    setPestana(clave);
+    if (clave === "anteriores") setVioAnteriores(true);
+  };
 
   return (
     <AppLayout migas={["Inicio", "Mis acompañamientos"]}>
@@ -122,13 +144,13 @@ export function MisAcompanamientosPage() {
       )}
 
       <div className="mt-6">
-        {acompanamientos === null ? (
+        {proximos === null ? (
           <TablaSkeleton etiqueta="Cargando sus acompañamientos…" />
         ) : (
           <Tabs
             etiqueta="Mis acompañamientos"
             activa={pestana}
-            alCambiar={setPestana}
+            alCambiar={cambiarPestana}
             pestanas={[
               {
                 clave: "proximos",
@@ -137,8 +159,25 @@ export function MisAcompanamientosPage() {
               },
               {
                 clave: "anteriores",
-                etiqueta: `Anteriores (${anteriores.length})`,
-                contenido: <Lista acompanamientos={anteriores} vacio="Todavía no tiene acompañamientos anteriores." />,
+                // Cuántos son se sabe hasta abrir la pestaña.
+                etiqueta: anteriores ? `Anteriores (${anteriores.totalElements})` : "Anteriores",
+                contenido:
+                  anteriores === null ? (
+                    <TablaSkeleton etiqueta="Cargando sus acompañamientos anteriores…" />
+                  ) : (
+                    <>
+                      <Lista
+                        acompanamientos={anteriores.content}
+                        vacio="Todavía no tiene acompañamientos anteriores."
+                      />
+                      <Paginacion
+                        pagina={paginaAnteriores}
+                        totalPaginas={anteriores.totalPages}
+                        alCambiar={setPaginaAnteriores}
+                        etiqueta="Páginas de los acompañamientos anteriores"
+                      />
+                    </>
+                  ),
               },
             ]}
           />

@@ -3,6 +3,8 @@ package app.cabezadealgodon.com.gestionasilobackend.controllers;
 import java.time.LocalDate;
 import java.util.Set;
 
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -19,6 +21,7 @@ import app.cabezadealgodon.com.gestionasilobackend.dto.AnulacionPagoRequest;
 import app.cabezadealgodon.com.gestionasilobackend.dto.DonacionRequest;
 import app.cabezadealgodon.com.gestionasilobackend.dto.DonacionResponse;
 import app.cabezadealgodon.com.gestionasilobackend.dto.HistoricoDonacionesResponse;
+import app.cabezadealgodon.com.gestionasilobackend.exception.OrdenNoPermitidoException;
 import app.cabezadealgodon.com.gestionasilobackend.models.TipoDonante;
 import app.cabezadealgodon.com.gestionasilobackend.security.SoloAdministradorAsilo;
 import app.cabezadealgodon.com.gestionasilobackend.security.UsuarioAutenticado;
@@ -50,13 +53,15 @@ public class DonacionController {
     /**
      * El histórico, filtrable por rango de fechas y por tipo de donante;
      * {@code tipo} se puede repetir ({@code tipo=GOBIERNO&tipo=PARTICULAR}).
+     * OBS-01: por páginas de 20, en un orden fijo, la más reciente primera.
      */
     @GetMapping
     public HistoricoDonacionesResponse historico(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate desde,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate hasta,
-            @RequestParam(name = "tipo", required = false) Set<TipoDonante> tipos) {
-        return donacionService.historico(desde, hasta, tipos);
+            @RequestParam(name = "tipo", required = false) Set<TipoDonante> tipos,
+            @PageableDefault(size = 20) Pageable paginado) {
+        return donacionService.historico(desde, hasta, tipos, OrdenNoPermitidoException.validar(paginado, Set.of()));
     }
 
     /** Anula una donación mal registrada, con su motivo. */

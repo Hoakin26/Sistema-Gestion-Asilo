@@ -11,6 +11,7 @@ import { Alert } from "../ui/Alert";
 import { Button } from "../ui/Button";
 import { FormField } from "../ui/FormField";
 import { Input } from "../ui/Input";
+import { Paginacion } from "../ui/Paginacion";
 import { StatusBadge } from "../ui/StatusBadge";
 import { TablaSkeleton } from "../ui/TablaSkeleton";
 
@@ -39,6 +40,9 @@ function describirServicios(servicios) {
  *
  * `version` cambia cuando en la otra pestaña se registra un pago o se
  * consolida un mes: entonces vuelve a pedir el listado, con los mismos filtros.
+ *
+ * OBS-01. Las citas llegan por páginas de 20; los totales, de todas las del
+ * filtro. Una búsqueda nueva vuelve a la primera página.
  */
 export function CitasPendientes({ version }) {
   const [paciente, setPaciente] = useState("");
@@ -46,6 +50,7 @@ export function CitasPendientes({ version }) {
   const [hasta, setHasta] = useState("");
   // Lo que de verdad se consulta: cambia al pulsar "Buscar", no en cada tecla.
   const [filtros, setFiltros] = useState({ paciente: "", desde: "", hasta: "" });
+  const [pagina, setPagina] = useState(0);
 
   const [datos, setDatos] = useState(null);
   const [cargando, setCargando] = useState(true);
@@ -54,9 +59,14 @@ export function CitasPendientes({ version }) {
 
   useEffect(() => {
     let vigente = true;
-    listarServiciosPendientes(filtros)
+    listarServiciosPendientes(filtros, pagina)
       .then((respuesta) => {
         if (!vigente) return;
+        // Un pago en la otra pestaña puede sacar citas: si la página ya no existe, a la última.
+        if (pagina > 0 && pagina >= respuesta.citas.totalPages) {
+          setPagina(Math.max(respuesta.citas.totalPages - 1, 0));
+          return;
+        }
         setDatos(respuesta);
         setError(null);
       })
@@ -72,7 +82,7 @@ export function CitasPendientes({ version }) {
     return () => {
       vigente = false;
     };
-  }, [filtros, version]);
+  }, [filtros, version, pagina]);
 
   const buscar = (evento) => {
     evento.preventDefault();
@@ -81,11 +91,13 @@ export function CitasPendientes({ version }) {
     setErrores(encontrados);
     if (Object.keys(encontrados).length > 0) return;
     setCargando(true);
+    setPagina(0);
     setFiltros({ paciente: paciente.trim(), desde, hasta });
   };
 
   const conFiltros = Boolean(filtros.paciente || filtros.desde || filtros.hasta);
-  const citas = datos?.citas ?? [];
+  const citas = datos?.citas.content ?? [];
+  const totalCitas = datos?.citas.totalElements ?? 0;
 
   return (
     <div className="mt-6">
@@ -157,7 +169,7 @@ export function CitasPendientes({ version }) {
         ) : (
           <>
             <p aria-live="polite" className="pb-3 text-auxiliar text-texto-secundario tabular-nums slashed-zero">
-              {citas.length} {citas.length === 1 ? "cita" : "citas"} · Total {formatearQuetzales(datos.montoTotal)} ·
+              {totalCitas} {totalCitas === 1 ? "cita" : "citas"} · Total {formatearQuetzales(datos.montoTotal)} ·
               Pagado {formatearQuetzales(datos.montoPagado)} · Saldo pendiente{" "}
               <span className="font-semibold text-texto">{formatearQuetzales(datos.saldoPendiente)}</span>
             </p>
@@ -226,6 +238,13 @@ export function CitasPendientes({ version }) {
                 </tbody>
               </table>
             </div>
+
+            <Paginacion
+              pagina={pagina}
+              totalPaginas={datos.citas.totalPages}
+              alCambiar={setPagina}
+              etiqueta="Páginas de las citas pendientes"
+            />
           </>
         )}
       </div>
