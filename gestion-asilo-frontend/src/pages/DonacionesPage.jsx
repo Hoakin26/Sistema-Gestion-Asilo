@@ -8,6 +8,7 @@ import { Alert } from "../components/ui/Alert";
 import { Button } from "../components/ui/Button";
 import { FormularioAnulacion } from "../components/ui/FormularioAnulacion";
 import { Modal } from "../components/ui/Modal";
+import { Paginacion } from "../components/ui/Paginacion";
 import { TablaSkeleton } from "../components/ui/TablaSkeleton";
 import { TIPOS_DONANTE } from "../constants/estados";
 import { useToast } from "../hooks/useToast";
@@ -31,6 +32,8 @@ export function DonacionesPage() {
   const [filtros, setFiltros] = useState({ tipo: "", desde: "", hasta: "" });
   // Registrar o anular cambia el histórico: se vuelve a pedir con los mismos filtros.
   const [recargas, setRecargas] = useState(0);
+  // OBS-01. El histórico llega por páginas de 20; los totales siguen siendo de todo el filtro.
+  const [pagina, setPagina] = useState(0);
 
   const [datos, setDatos] = useState(null);
   const [cargando, setCargando] = useState(true);
@@ -43,7 +46,7 @@ export function DonacionesPage() {
 
   useEffect(() => {
     let vigente = true;
-    listarDonaciones(filtros)
+    listarDonaciones(filtros, pagina)
       .then((respuesta) => {
         if (!vigente) return;
         setDatos(respuesta);
@@ -61,16 +64,18 @@ export function DonacionesPage() {
     return () => {
       vigente = false;
     };
-  }, [filtros, recargas]);
+  }, [filtros, recargas, pagina]);
 
   const buscar = (nuevos) => {
     setErrores({});
     setCargando(true);
+    setPagina(0);
     setFiltros(nuevos);
   };
 
   const recargar = () => setRecargas((valor) => valor + 1);
-  const donaciones = datos?.donaciones ?? [];
+  const donaciones = datos?.donaciones.content ?? [];
+  const totalPaginas = datos?.donaciones.totalPages ?? 0;
   const conFiltros = Boolean(filtros.tipo || filtros.desde || filtros.hasta);
 
   return (
@@ -208,6 +213,12 @@ export function DonacionesPage() {
             </table>
           </div>
         )}
+        <Paginacion
+          pagina={pagina}
+          totalPaginas={totalPaginas}
+          alCambiar={setPagina}
+          etiqueta="Páginas del histórico de donaciones"
+        />
       </div>
 
       <DonacionFormModal
@@ -216,6 +227,7 @@ export function DonacionesPage() {
         alCerrar={() => setRegistrando(false)}
         alRegistrar={() => {
           setRegistrando(false);
+          setPagina(0);
           recargar();
         }}
       />

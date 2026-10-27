@@ -5,6 +5,7 @@ import { ArrowRight, CalendarCheck, Filter, HeartPulse } from "lucide-react";
 import { Alert } from "../components/ui/Alert";
 import { Button, IconButton } from "../components/ui/Button";
 import { Select } from "../components/ui/Input";
+import { Paginacion } from "../components/ui/Paginacion";
 import { StatusBadge } from "../components/ui/StatusBadge";
 import { TablaSkeleton } from "../components/ui/TablaSkeleton";
 import { AppLayout } from "../layouts/AppLayout";
@@ -15,39 +16,49 @@ import { formatearFechaHora } from "../utils/fechas";
 const ENCABEZADO =
   "px-4 py-4 text-auxiliar font-semibold text-texto-secundario uppercase xl:px-6";
 
+/* Lo que se muestra si la lista no se pudo cargar: una página vacía. */
+const SIN_VISITAS = { content: [], totalElements: 0, totalPages: 0 };
+
 /**
  * HU-07 (YS-100). "Visitas médicas" del especialista: las que inició, en curso
  * y finalizadas, la más reciente primero. Es por donde se vuelve a una visita
  * en curso para terminarla (HU-09).
+ *
+ * OBS-01. Por páginas de 20: crecen con cada cita que atiende.
  */
 export function VisitasMedicasPage() {
   const navegar = useNavigate();
   const [estado, setEstado] = useState("");
-  const [visitas, setVisitas] = useState(null);
+  const [pagina, setPagina] = useState(0);
+  const [resultado, setResultado] = useState(null);
   const [error, setError] = useState(null);
 
   useEffect(() => {
     let vigente = true;
-    listarVisitas(estado)
-      .then((lista) => {
+    listarVisitas(estado, pagina)
+      .then((datos) => {
         if (!vigente) return;
-        setVisitas(lista);
+        setResultado(datos);
         setError(null);
       })
       .catch((fallo) => {
         if (!vigente) return;
-        setVisitas([]);
+        setResultado(SIN_VISITAS);
         setError(mensajeDeError(fallo, "No se pudieron cargar las visitas"));
       });
     return () => {
       vigente = false;
     };
-  }, [estado]);
+  }, [estado, pagina]);
 
   const filtrar = (evento) => {
-    setVisitas(null);
+    setResultado(null);
+    setPagina(0);
     setEstado(evento.target.value);
   };
+
+  const visitas = resultado?.content ?? null;
+  const total = resultado?.totalElements ?? 0;
 
   return (
     <AppLayout migas={["Inicio", "Visitas médicas"]}>
@@ -100,7 +111,7 @@ export function VisitasMedicasPage() {
         ) : (
           <>
             <p aria-live="polite" className="pb-3 text-auxiliar text-texto-secundario tabular-nums">
-              {visitas.length} {visitas.length === 1 ? "visita" : "visitas"}
+              {total} {total === 1 ? "visita" : "visitas"}
             </p>
             {/* relative: los sr-only de la tabla son absolutos; sin él escapan del
                 recorte, estiran la página y el teléfono la achica a una esquina (YS-175). */}
@@ -153,6 +164,13 @@ export function VisitasMedicasPage() {
                 </tbody>
               </table>
             </div>
+
+            <Paginacion
+              pagina={pagina}
+              totalPaginas={resultado.totalPages}
+              alCambiar={setPagina}
+              etiqueta="Páginas de la lista de visitas"
+            />
           </>
         )}
       </div>

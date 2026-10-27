@@ -15,9 +15,13 @@ export async function iniciarVisita(citaId) {
   return data;
 }
 
-/** Las visitas del especialista; `estado` es "ACTIVA", "FINALIZADA" o vacío para todas. */
-export async function listarVisitas(estado = "") {
-  const { data } = await api.get("/visitas", { params: { estado: estado || undefined } });
+/**
+ * Las visitas del especialista; `estado` es "ACTIVA", "FINALIZADA" o vacío
+ * para todas. OBS-01: una página de 20, la más reciente primero (`content`,
+ * `totalElements`, `totalPages`).
+ */
+export async function listarVisitas(estado = "", pagina = 0) {
+  const { data } = await api.get("/visitas", { params: { estado: estado || undefined, page: pagina } });
   return data;
 }
 
