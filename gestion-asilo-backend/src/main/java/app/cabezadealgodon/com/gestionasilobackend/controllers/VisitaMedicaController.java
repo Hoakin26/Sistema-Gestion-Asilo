@@ -2,7 +2,11 @@ package app.cabezadealgodon.com.gestionasilobackend.controllers;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Set;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -26,6 +30,7 @@ import app.cabezadealgodon.com.gestionasilobackend.dto.OrdenesLaboratorioRequest
 import app.cabezadealgodon.com.gestionasilobackend.dto.RecetaRequest;
 import app.cabezadealgodon.com.gestionasilobackend.dto.RecetaResponse;
 import app.cabezadealgodon.com.gestionasilobackend.dto.VisitaMedicaResponse;
+import app.cabezadealgodon.com.gestionasilobackend.exception.OrdenNoPermitidoException;
 import app.cabezadealgodon.com.gestionasilobackend.models.EstadoVisita;
 import app.cabezadealgodon.com.gestionasilobackend.security.SoloMedicoEspecialista;
 import app.cabezadealgodon.com.gestionasilobackend.security.UsuarioAutenticado;
@@ -65,10 +70,11 @@ public class VisitaMedicaController {
         return visitaService.iniciar(citaId, medico.getUsuario());
     }
 
+    /** OBS-01. Por páginas de 20, en un orden fijo, la más reciente primero. */
     @GetMapping("/visitas")
-    public List<VisitaMedicaResponse> listar(@AuthenticationPrincipal UsuarioAutenticado medico,
-            @RequestParam(required = false) EstadoVisita estado) {
-        return visitaService.listar(medico.getUsuario(), estado);
+    public Page<VisitaMedicaResponse> listar(@AuthenticationPrincipal UsuarioAutenticado medico,
+            @RequestParam(required = false) EstadoVisita estado, @PageableDefault(size = 20) Pageable paginado) {
+        return visitaService.listar(medico.getUsuario(), estado, OrdenNoPermitidoException.validar(paginado, Set.of()));
     }
 
     @GetMapping("/visitas/{id}")

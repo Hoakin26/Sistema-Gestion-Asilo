@@ -4,6 +4,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
@@ -57,16 +59,22 @@ public interface VisitaMedicaRepository extends JpaRepository<VisitaMedica, Long
     @Query("select v.cita.id as citaId, v.id as visitaId from VisitaMedica v where v.cita.id in :citaIds")
     List<VisitaDeCita> deCitas(@Param("citaIds") Collection<Long> citaIds);
 
-    /** HU-07. Las visitas de un especialista, la más reciente primero. */
+    /**
+     * HU-07. Las visitas de un especialista, la más reciente primero. OBS-01:
+     * por páginas, porque crecen con cada cita que atiende.
+     */
     @EntityGraph(attributePaths = {
             "cita", "cita.solicitud", "cita.solicitud.especialidad", "cita.solicitud.medicoGeneral",
             "cita.solicitud.enfermeroAcompanante", "interno", "especialista", "especialista.usuario" })
-    @Query("""
+    @Query(value = """
             select v from VisitaMedica v
             where v.especialista.usuario.id = :usuarioId
-            order by v.fechaInicio desc
+            order by v.fechaInicio desc, v.id desc
+            """, countQuery = """
+            select count(v) from VisitaMedica v
+            where v.especialista.usuario.id = :usuarioId
             """)
-    List<VisitaMedica> delEspecialista(@Param("usuarioId") Long usuarioId);
+    Page<VisitaMedica> delEspecialista(@Param("usuarioId") Long usuarioId, Pageable paginado);
 
     /** YS-102. Las visitas de un interno, con cualquier especialista, la más reciente primero. */
     @EntityGraph(attributePaths = {
@@ -89,4 +97,19 @@ public interface VisitaMedicaRepository extends JpaRepository<VisitaMedica, Long
             """)
     List<VisitaMedica> delEspecialistaEnEstado(@Param("usuarioId") Long usuarioId,
             @Param("estado") EstadoVisita estado);
+
+    /** OBS-01. Lo mismo, por páginas: el filtro por estado del módulo "Visitas médicas". */
+    @EntityGraph(attributePaths = {
+            "cita", "cita.solicitud", "cita.solicitud.especialidad", "cita.solicitud.medicoGeneral",
+            "cita.solicitud.enfermeroAcompanante", "interno", "especialista", "especialista.usuario" })
+    @Query(value = """
+            select v from VisitaMedica v
+            where v.especialista.usuario.id = :usuarioId and v.estado = :estado
+            order by v.fechaInicio desc, v.id desc
+            """, countQuery = """
+            select count(v) from VisitaMedica v
+            where v.especialista.usuario.id = :usuarioId and v.estado = :estado
+            """)
+    Page<VisitaMedica> delEspecialistaEnEstado(@Param("usuarioId") Long usuarioId,
+            @Param("estado") EstadoVisita estado, Pageable paginado);
 }

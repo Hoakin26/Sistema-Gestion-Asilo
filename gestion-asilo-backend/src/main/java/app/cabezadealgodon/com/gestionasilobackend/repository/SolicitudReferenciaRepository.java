@@ -1,5 +1,6 @@
 package app.cabezadealgodon.com.gestionasilobackend.repository;
 
+import java.util.Collection;
 import java.util.List;
 
 import org.springframework.data.domain.Page;
@@ -46,14 +47,33 @@ public interface SolicitudReferenciaRepository extends JpaRepository<SolicitudRe
             @Param("patron") String patron, Pageable paginado);
 
     /**
-     * YS-188. Las solicitudes en que un enfermero(a) acompaña al interno, la
-     * más reciente primero, con lo que muestra cada una.
+     * YS-188. Las solicitudes en que un enfermero(a) acompaña al interno, en
+     * los estados pedidos, la más reciente primero, con lo que muestra cada una.
+     * OBS-01: sin paginar, para los próximos, que nunca son muchos.
      */
     @EntityGraph(attributePaths = { "interno", "especialidad", "medicoGeneral" })
     @Query("""
             select s from SolicitudReferencia s
-            where s.enfermeroAcompanante.id = :enfermeroId
+            where s.enfermeroAcompanante.id = :enfermeroId and s.estado in :estados
             order by s.fechaCreacion desc, s.id desc
             """)
-    List<SolicitudReferencia> acompanadasPor(@Param("enfermeroId") Long enfermeroId);
+    List<SolicitudReferencia> acompanadasPor(@Param("enfermeroId") Long enfermeroId,
+            @Param("estados") Collection<EstadoSolicitud> estados);
+
+    /**
+     * OBS-01. Lo mismo, por páginas, para los anteriores, que crecen con cada
+     * mes. La más reciente primero por la fecha de la cita o, sin ella, por la
+     * de la solicitud: el orden que antes hacía la pantalla con la lista entera.
+     */
+    @EntityGraph(attributePaths = { "interno", "especialidad", "medicoGeneral" })
+    @Query(value = """
+            select s from SolicitudReferencia s left join Cita c on c.solicitud = s
+            where s.enfermeroAcompanante.id = :enfermeroId and s.estado in :estados
+            order by coalesce(c.fechaHora, s.fechaCreacion) desc, s.id desc
+            """, countQuery = """
+            select count(s) from SolicitudReferencia s
+            where s.enfermeroAcompanante.id = :enfermeroId and s.estado in :estados
+            """)
+    Page<SolicitudReferencia> acompanadasPor(@Param("enfermeroId") Long enfermeroId,
+            @Param("estados") Collection<EstadoSolicitud> estados, Pageable paginado);
 }

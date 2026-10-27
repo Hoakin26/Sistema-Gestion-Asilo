@@ -85,7 +85,7 @@ class DonacionTest extends PruebaConBaseDeDatos {
         historico(LocalDate.of(2011, 1, 1), LocalDate.of(2011, 12, 31), new String[0])
                 .andExpect(status().isOk())
                 // De la más reciente a la más antigua.
-                .andExpect(jsonPath("$.donaciones[*].donante").value(contains("Juan Pérez", "María López",
+                .andExpect(jsonPath("$.donaciones.content[*].donante").value(contains("Juan Pérez", "María López",
                         "Municipalidad de Mazatenango", "Fundación Esperanza Internacional")))
                 .andExpect(jsonPath("$.total").value(18000.50))
                 .andExpect(jsonPath("$.porTipo[*].tipoDonante").value(contains("EMPRESA_INTERNACIONAL",
@@ -104,14 +104,14 @@ class DonacionTest extends PruebaConBaseDeDatos {
         registrar("3000", LocalDate.of(2012, 6, 1), "Persona de junio", "PARTICULAR").andExpect(status().isCreated());
 
         historico(LocalDate.of(2012, 5, 1), LocalDate.of(2012, 5, 31), new String[0])
-                .andExpect(jsonPath("$.donaciones[*].donante").value(contains("Gobierno del último",
+                .andExpect(jsonPath("$.donaciones.content[*].donante").value(contains("Gobierno del último",
                         "Empresa del primero")))
                 .andExpect(jsonPath("$.total").value(3000.00));
         historico(LocalDate.of(2012, 1, 1), LocalDate.of(2012, 12, 31), "GOBIERNO")
-                .andExpect(jsonPath("$.donaciones[*].donante").value(contains("Gobierno del último")))
+                .andExpect(jsonPath("$.donaciones.content[*].donante").value(contains("Gobierno del último")))
                 .andExpect(jsonPath("$.total").value(2000.00));
         historico(LocalDate.of(2012, 1, 1), LocalDate.of(2012, 12, 31), "PARTICULAR", "EMPRESA_NACIONAL")
-                .andExpect(jsonPath("$.donaciones[*].donante").value(contains("Persona de junio",
+                .andExpect(jsonPath("$.donaciones.content[*].donante").value(contains("Persona de junio",
                         "Empresa del primero")))
                 .andExpect(jsonPath("$.total").value(4000.00));
 
@@ -119,6 +119,46 @@ class DonacionTest extends PruebaConBaseDeDatos {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errores.hasta").value("La fecha final no puede ser anterior a la inicial"));
         historico(LocalDate.of(2012, 1, 1), LocalDate.of(2012, 12, 31), "EMPRESA").andExpect(status().isBadRequest());
+    }
+
+    /**
+     * OBS-01. Con páginas de dos para no registrar veinte: lo que se prueba es
+     * que la página trae solo su parte y los totales, todo el filtro.
+     */
+    @Test
+    @DisplayName("El histórico llega por páginas de 20, la más reciente primero, y los totales suman todo el filtro")
+    void historicoPorPaginas() throws Exception {
+        registrar("100", LocalDate.of(2016, 2, 1), "Primera de 2016", "PARTICULAR").andExpect(status().isCreated());
+        registrar("200", LocalDate.of(2016, 3, 1), "Segunda de 2016", "GOBIERNO").andExpect(status().isCreated());
+        registrar("300", LocalDate.of(2016, 4, 1), "Tercera de 2016", "PARTICULAR").andExpect(status().isCreated());
+        String respuesta = registrar("5000", LocalDate.of(2016, 5, 1), "Anulada de 2016", "GOBIERNO")
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
+        anular(((Number) JsonPath.read(respuesta, "$.id")).longValue(), "Se registró dos veces")
+                .andExpect(status().isOk());
+
+        historico(LocalDate.of(2016, 1, 1), LocalDate.of(2016, 12, 31), new String[0])
+                .andExpect(jsonPath("$.donaciones.size").value(20))
+                .andExpect(jsonPath("$.donaciones.totalElements").value(4));
+        pagina(0, 2)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.donaciones.content[*].donante").value(contains("Anulada de 2016",
+                        "Tercera de 2016")))
+                .andExpect(jsonPath("$.donaciones.totalElements").value(4))
+                .andExpect(jsonPath("$.donaciones.totalPages").value(2))
+                // Las anuladas se ven en la lista, pero no suman.
+                .andExpect(jsonPath("$.total").value(600.00))
+                .andExpect(jsonPath("$.porTipo[?(@.tipoDonante == 'PARTICULAR')].cantidad").value(2))
+                .andExpect(jsonPath("$.porTipo[?(@.tipoDonante == 'GOBIERNO')].total").value(200.00));
+        pagina(1, 2)
+                .andExpect(jsonPath("$.donaciones.content[*].donante").value(contains("Segunda de 2016",
+                        "Primera de 2016")))
+                .andExpect(jsonPath("$.total").value(600.00));
+
+        // El orden es fijo: pedir otro es 400 y no un 500.
+        mvc.perform(get("/api/donaciones").param("sort", "monto")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(RolNombre.ADMINISTRADOR_ASILO)))
+                .andExpect(status().isBadRequest());
     }
 
     @Test
@@ -150,7 +190,7 @@ class DonacionTest extends PruebaConBaseDeDatos {
         mvc.perform(get("/api/donaciones")).andExpect(status().isUnauthorized());
 
         historico(LocalDate.of(2013, 1, 1), LocalDate.of(2013, 12, 31), new String[0])
-                .andExpect(jsonPath("$.donaciones").isEmpty())
+                .andExpect(jsonPath("$.donaciones.content").isEmpty())
                 .andExpect(jsonPath("$.total").value(0.00));
     }
 
@@ -179,7 +219,7 @@ class DonacionTest extends PruebaConBaseDeDatos {
         anular(999_999L, "No existe").andExpect(status().isNotFound());
 
         historico(LocalDate.of(2014, 1, 1), LocalDate.of(2014, 12, 31), new String[0])
-                .andExpect(jsonPath("$.donaciones.length()").value(2))
+                .andExpect(jsonPath("$.donaciones.content.length()").value(2))
                 .andExpect(jsonPath("$.total").value(800.00))
                 .andExpect(jsonPath("$.porTipo[?(@.tipoDonante == 'PARTICULAR')].cantidad").value(1));
     }
@@ -230,6 +270,16 @@ class DonacionTest extends PruebaConBaseDeDatos {
             peticion.param("tipo", tipo);
         }
         return mvc.perform(peticion);
+    }
+
+    /** OBS-01. Una página del histórico de 2016, con su tamaño. */
+    private ResultActions pagina(int numero, int tamano) throws Exception {
+        return mvc.perform(get("/api/donaciones")
+                .param("desde", "2016-01-01")
+                .param("hasta", "2016-12-31")
+                .param("page", Integer.toString(numero))
+                .param("size", Integer.toString(tamano))
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenDe(RolNombre.ADMINISTRADOR_ASILO)));
     }
 
     private ResultActions anular(long id, String motivo) throws Exception {

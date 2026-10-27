@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ChevronLeft, ChevronRight, Eye, Filter, Inbox, PackageOpen, Search } from "lucide-react";
+import { Eye, Filter, Inbox, PackageOpen, Search } from "lucide-react";
 
 import { CostosDespachados } from "../components/farmacia/CostosDespachados";
 import { DespacharRecetaModal } from "../components/farmacia/DespacharRecetaModal";
@@ -8,6 +8,7 @@ import { Alert } from "../components/ui/Alert";
 import { Button } from "../components/ui/Button";
 import { Input, Select } from "../components/ui/Input";
 import { Modal } from "../components/ui/Modal";
+import { Paginacion } from "../components/ui/Paginacion";
 import { StatusBadge } from "../components/ui/StatusBadge";
 import { TablaSkeleton } from "../components/ui/TablaSkeleton";
 import { ESTADOS_RECETA, ETIQUETAS_ESTADO } from "../constants/estados";
@@ -310,32 +311,12 @@ export function RecetasPendientesPage({ modo = "bandeja" }) {
               </table>
             </div>
 
-            {totalPaginas > 1 && (
-              <nav
-                aria-label="Páginas de la lista de recetas"
-                className="mt-4 flex flex-wrap items-center justify-between gap-4"
-              >
-                <Button
-                  variante="secundario"
-                  disabled={pagina === 0}
-                  onClick={() => setPagina((valor) => valor - 1)}
-                >
-                  <ChevronLeft aria-hidden="true" size={20} />
-                  Anterior
-                </Button>
-                <p className="text-auxiliar text-texto-secundario tabular-nums slashed-zero">
-                  Página {pagina + 1} de {totalPaginas}
-                </p>
-                <Button
-                  variante="secundario"
-                  disabled={pagina + 1 >= totalPaginas}
-                  onClick={() => setPagina((valor) => valor + 1)}
-                >
-                  Siguiente
-                  <ChevronRight aria-hidden="true" size={20} />
-                </Button>
-              </nav>
-            )}
+            <Paginacion
+              pagina={pagina}
+              totalPaginas={totalPaginas}
+              alCambiar={setPagina}
+              etiqueta="Páginas de la lista de recetas"
+            />
           </>
         )}
       </div>
