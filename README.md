@@ -53,6 +53,15 @@ docker compose up -d
 
 Esto levanta PostgreSQL en el puerto `5433` y Mailpit en `8025`. Mailpit recibe todos los correos que envía el sistema y no los reenvía a nadie.
 
+**Empezar con la base vacía.** Para borrar la base de desarrollo y que Flyway cree las tablas desde `V1`, ejecute desde la **raíz del proyecto** (la carpeta donde está `docker-compose.yml`):
+
+```bash
+docker compose down -v
+docker compose up -d
+```
+
+**Esto borra todos los datos de la base**, y también los correos de Mailpit. Desde otra carpeta, `docker compose` no encuentra el proyecto y no borra nada: la base vieja sigue ahí y, al arrancar, Flyway la marca como versión 1 (baseline) en vez de aplicar `V1`. En el log del backend se distingue así: con la base vacía dice «Migrating schema "public" to version "1 - esquema inicial"»; con la base vieja, «Successfully baselined schema with version: 1».
+
 ### 3. Backend
 
 ```bash
