@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ArrowDownUp, ChevronLeft, ChevronRight, Eye, Filter, Inbox, Search } from "lucide-react";
+import { ArrowDownUp, Eye, Filter, Inbox, Search } from "lucide-react";
 
 import { ESTADOS_SOLICITUD, ETIQUETAS_ESTADO } from "../../constants/estados";
 import { mensajeDeError } from "../../services/api";
@@ -8,6 +8,7 @@ import { formatearFechaHora } from "../../utils/fechas";
 import { Alert } from "../ui/Alert";
 import { Button, IconButton } from "../ui/Button";
 import { Input, Select } from "../ui/Input";
+import { Paginacion } from "../ui/Paginacion";
 import { StatusBadge } from "../ui/StatusBadge";
 import { TablaSkeleton } from "../ui/TablaSkeleton";
 import { SolicitudDetalleModal } from "./SolicitudDetalleModal";
@@ -273,32 +274,12 @@ export function BandejaSolicitudes({ estadoInicial = "", version = 0, mensajeVac
               </table>
             </div>
 
-            {totalPaginas > 1 && (
-              <nav
-                aria-label="Páginas de la lista de solicitudes"
-                className="mt-4 flex flex-wrap items-center justify-between gap-4"
-              >
-                <Button
-                  variante="secundario"
-                  disabled={pagina === 0}
-                  onClick={() => setPagina((valor) => valor - 1)}
-                >
-                  <ChevronLeft aria-hidden="true" size={20} />
-                  Anterior
-                </Button>
-                <p className="text-auxiliar text-texto-secundario tabular-nums slashed-zero">
-                  Página {pagina + 1} de {totalPaginas}
-                </p>
-                <Button
-                  variante="secundario"
-                  disabled={pagina + 1 >= totalPaginas}
-                  onClick={() => setPagina((valor) => valor + 1)}
-                >
-                  Siguiente
-                  <ChevronRight aria-hidden="true" size={20} />
-                </Button>
-              </nav>
-            )}
+            <Paginacion
+              pagina={pagina}
+              totalPaginas={totalPaginas}
+              alCambiar={setPagina}
+              etiqueta="Páginas de la lista de solicitudes"
+            />
           </>
         )}
       </div>

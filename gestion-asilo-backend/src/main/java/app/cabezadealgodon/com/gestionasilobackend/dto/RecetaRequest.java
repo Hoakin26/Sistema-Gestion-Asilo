@@ -13,6 +13,5 @@ public record RecetaRequest(
 
         @NotEmpty(message = "Agregue al menos un medicamento")
         @Size(max = 30, message = "Una receta no puede tener más de 30 medicamentos")
-        @Valid
-        List<MedicamentoRecetaRequest> medicamentos) {
+        List<@Valid MedicamentoRecetaRequest> medicamentos) {
 }

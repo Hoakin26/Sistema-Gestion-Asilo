@@ -184,6 +184,25 @@ class InternoValidacionTest extends PruebaConBaseDeDatos {
                 .andExpect(jsonPath("$.errores['medicamentosHabituales[1].dosis']").isNotEmpty());
     }
 
+    /** OBS-03. Lo mismo para la otra lista de la ficha, que no tenía su prueba. */
+    @Test
+    @DisplayName("Un padecimiento de la ficha sin nombre se rechaza señalando cuál")
+    void unPadecimientoSinNombreSeRechaza() throws Exception {
+        Long id = idDe(alta(internoValido()).andExpect(status().isCreated()));
+
+        Map<String, Object> ficha = Map.of("psicopatologias", List.of(
+                Map.of("nombre", "Alzheimer"),
+                Map.of("observaciones", "Diagnóstico pendiente de confirmar")));
+
+        mvc.perform(put("/api/internos/{id}/ficha-medica", id)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(json.writeValueAsString(ficha)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errores['psicopatologias[1].nombre']")
+                        .value("El nombre del padecimiento es obligatorio"));
+    }
+
     // ---- apoyo ----
 
     private Map<String, Object> internoValido() {

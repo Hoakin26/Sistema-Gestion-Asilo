@@ -5,8 +5,11 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,6 +23,7 @@ import app.cabezadealgodon.com.gestionasilobackend.models.GastoOperativo;
 import app.cabezadealgodon.com.gestionasilobackend.models.TipoGasto;
 import app.cabezadealgodon.com.gestionasilobackend.models.Usuario;
 import app.cabezadealgodon.com.gestionasilobackend.repository.GastoOperativoRepository;
+import app.cabezadealgodon.com.gestionasilobackend.repository.GastoOperativoRepository.TotalPorTipo;
 
 /**
  * YS-148. Los gastos operativos del asilo (HU-23, RF-16): su registro por tipo,
@@ -29,6 +33,7 @@ import app.cabezadealgodon.com.gestionasilobackend.repository.GastoOperativoRepo
 @Service
 public class GastoOperativoService {
 
+    private static final BigDecimal CERO = BigDecimal.ZERO.setScale(2);
     /** Sin fechas, todos: desde antes de que existiera el asilo hasta muy adelante. */
     private static final LocalDate SIN_INICIO = LocalDate.of(1900, 1, 1);
     private static final LocalDate SIN_FIN = LocalDate.of(3000, 1, 1);
@@ -65,28 +70,35 @@ public class GastoOperativoService {
      * {@code hasta}, las dos incluidas, del más reciente al más antiguo. Sin
      * tipos, de todos; sin fechas, de cualquier fecha. Los totales no cuentan
      * los anulados.
+     *
+     * <p>
+     * OBS-01. Los gastos, por páginas; los totales, de todos los del filtro,
+     * sumados por la base.
      */
     @Transactional(readOnly = true)
-    public HistoricoGastosResponse historico(LocalDate desde, LocalDate hasta, Collection<TipoGasto> tipos) {
+    public HistoricoGastosResponse historico(LocalDate desde, LocalDate hasta, Collection<TipoGasto> tipos,
+            Pageable paginado) {
         if (desde != null && hasta != null && hasta.isBefore(desde)) {
             throw new CampoInvalidoException("hasta", "La fecha final no puede ser anterior a la inicial");
         }
-        List<GastoOperativo> gastos = gastoRepository.historico(
-                desde == null ? SIN_INICIO : desde,
-                hasta == null ? SIN_FIN : hasta,
-                tipos == null || tipos.isEmpty() ? Arrays.asList(TipoGasto.values()) : tipos);
+        LocalDate inicio = desde == null ? SIN_INICIO : desde;
+        LocalDate fin = hasta == null ? SIN_FIN : hasta;
+        Collection<TipoGasto> deTipo = tipos == null || tipos.isEmpty() ? Arrays.asList(TipoGasto.values()) : tipos;
 
-        List<GastoOperativo> vigentes = gastos.stream().filter(gasto -> !gasto.isAnulado()).toList();
+        Map<TipoGasto, TotalPorTipo> sumados = new EnumMap<>(TipoGasto.class);
+        gastoRepository.totalesDelHistorico(inicio, fin, deTipo).forEach(total -> sumados.put(total.getTipo(), total));
         List<HistoricoGastosResponse.TotalPorTipo> porTipo = Arrays.stream(TipoGasto.values())
                 .map(tipo -> {
-                    List<GastoOperativo> delTipo = vigentes.stream()
-                            .filter(gasto -> gasto.getTipoGasto() == tipo)
-                            .toList();
-                    return new HistoricoGastosResponse.TotalPorTipo(tipo, delTipo.size(), suma(delTipo));
+                    TotalPorTipo delTipo = sumados.get(tipo);
+                    return delTipo == null ? new HistoricoGastosResponse.TotalPorTipo(tipo, 0, CERO)
+                            : new HistoricoGastosResponse.TotalPorTipo(tipo, Math.toIntExact(delTipo.getCantidad()),
+                                    delTipo.getTotal().setScale(2));
                 })
                 .toList();
-        return new HistoricoGastosResponse(gastos.stream().map(GastoOperativoService::respuesta).toList(),
-                suma(vigentes), porTipo);
+        return new HistoricoGastosResponse(
+                gastoRepository.historico(inicio, fin, deTipo, paginado).map(GastoOperativoService::respuesta),
+                porTipo.stream().map(HistoricoGastosResponse.TotalPorTipo::total).reduce(CERO, BigDecimal::add),
+                porTipo);
     }
 
     /**
@@ -103,10 +115,6 @@ public class GastoOperativoService {
         }
         gasto.anular(motivo.strip(), usuario, LocalDateTime.now());
         return respuesta(gastoRepository.saveAndFlush(gasto));
-    }
-
-    private static BigDecimal suma(List<GastoOperativo> gastos) {
-        return gastos.stream().map(GastoOperativo::getMonto).reduce(BigDecimal.ZERO, BigDecimal::add).setScale(2);
     }
 
     private static GastoOperativoResponse respuesta(GastoOperativo gasto) {
