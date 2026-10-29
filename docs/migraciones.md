@@ -95,6 +95,8 @@ docker compose down -v
 docker compose up -d
 ```
 
+Ejecútelo desde la raíz del proyecto, donde está `docker-compose.yml`; desde otra carpeta no borra la base.
+
 Si prefiere conservar los datos, agregue a su `application.properties` local las mismas líneas que tiene `application-example.properties` (`ddl-auto=validate` y las dos de `spring.flyway.baseline-*`) y arranque. Si `validate` se queja de algo, lo más rápido es el reinicio de arriba.
 
 ### Producción (primer despliegue con Flyway)
@@ -113,23 +115,25 @@ $C psql -U admin_asilo -d asilo_v1 -v ON_ERROR_STOP=1 -q \
 
 # 2. Describir las dos bases de la misma forma
 cat > /tmp/esquema.sql <<'SQL'
-SELECT 'col', table_name, column_name, data_type, is_nullable,
-       coalesce(column_default, ''), coalesce(character_maximum_length::text, ''),
+SELECT 'col'::text, table_name::text, column_name::text, data_type::text, is_nullable::text,
+       coalesce(column_default, '')::text, coalesce(character_maximum_length::text, ''),
        coalesce(numeric_precision::text, ''), coalesce(numeric_scale::text, '')
 FROM information_schema.columns WHERE table_schema = 'public'
 UNION ALL
-SELECT 'restr', conrelid::regclass::text, contype::text, pg_get_constraintdef(oid), '', '', '', '', ''
+SELECT 'restr', conrelid::regclass::text, contype::text, pg_get_constraintdef(oid)::text, '', '', '', '', ''
 FROM pg_constraint WHERE connamespace = 'public'::regnamespace
 UNION ALL
-SELECT 'indice', tablename, indexdef, '', '', '', '', '', ''
+SELECT 'indice', tablename::text, indexdef::text, '', '', '', '', '', ''
 FROM pg_indexes WHERE schemaname = 'public'
 ORDER BY 1, 2, 3, 4;
 SQL
 $C psql -U admin_asilo -d asilo_cabeza_algodon -At < /tmp/esquema.sql > /tmp/prod.txt
 $C psql -U admin_asilo -d asilo_v1             -At < /tmp/esquema.sql > /tmp/v1.txt
 
-# 3. Comparar: si no imprime nada, son iguales
-diff /tmp/prod.txt /tmp/v1.txt
+# 3. Comparar sin los nombres de los índices: si imprime IGUALES_SALVO_NOMBRES, coinciden
+wc -l /tmp/prod.txt /tmp/v1.txt
+norm() { sed -E 's/CREATE (UNIQUE )?INDEX [^ ]+ ON/CREATE \1INDEX X ON/' "$1" | sort; }
+diff <(norm /tmp/prod.txt) <(norm /tmp/v1.txt) && echo IGUALES_SALVO_NOMBRES
 
 # 4. Borrar la base temporal
 $C dropdb -U admin_asilo asilo_v1
@@ -137,8 +141,9 @@ $C dropdb -U admin_asilo asilo_v1
 
 Cómo leer el resultado:
 
-- **Sin diferencias:** se reconstruye y arranca como siempre. En el registro debe aparecer `Successfully baselined schema with version: 1`.
+- **Sin diferencias** (imprime `IGUALES_SALVO_NOMBRES`): se reconstruye y arranca como siempre. En el registro debe aparecer `Successfully baselined schema with version: 1`.
 - **Solo cambia la forma de escribir un `CHECK`, con los mismos valores:** no importa.
+- **Nombres de índices únicos distintos** (`uk...` en producción, `<tabla>_<columna>_key` en V1): no importa, Flyway y `validate` no los revisan. Pero ninguna migración futura debe nombrar una restricción única, porque el nombre no es el mismo en producción y en una base nueva.
 - **Columnas o tablas de más en producción** (de campos que ya no existen; `update` nunca borraba): `validate` no se queja, pero si una de esas columnas es `NOT NULL` sin valor por defecto, los `INSERT` fallarán. Se quitan a mano después del respaldo (`ALTER TABLE ... DROP COLUMN ...`), o se deja una migración V2 que lo haga.
 - **Cualquier otra diferencia** (columna que falta, tipo distinto): no se arranca. Se revisa antes de seguir.
 

@@ -27,8 +27,7 @@ public record EspecialistaRequest(
         Integer duracionCitaMinutos,
 
         @NotEmpty(message = "Indique al menos un día de atención")
-        @Valid
-        List<HorarioAtencionDto> horarios,
+        List<@Valid HorarioAtencionDto> horarios,
 
         Boolean activo) {
 }

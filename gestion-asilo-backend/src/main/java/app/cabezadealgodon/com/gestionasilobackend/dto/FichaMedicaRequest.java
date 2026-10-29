@@ -25,7 +25,7 @@ public record FichaMedicaRequest(
 
         // Pueden venir vacías: un interno puede no tener ningún padecimiento
         // registrado ni tomar medicamentos de forma permanente.
-        @Valid List<PsicopatologiaRequest> psicopatologias,
+        List<@Valid PsicopatologiaRequest> psicopatologias,
 
-        @Valid List<MedicamentoHabitualRequest> medicamentosHabituales) {
+        List<@Valid MedicamentoHabitualRequest> medicamentosHabituales) {
 }
