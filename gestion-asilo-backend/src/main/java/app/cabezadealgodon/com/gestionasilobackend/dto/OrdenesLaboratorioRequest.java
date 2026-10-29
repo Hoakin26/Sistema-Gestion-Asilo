@@ -10,6 +10,5 @@ import jakarta.validation.constraints.Size;
 public record OrdenesLaboratorioRequest(
         @NotEmpty(message = "Seleccione al menos un examen")
         @Size(max = 20, message = "No se pueden ordenar más de 20 exámenes a la vez")
-        @Valid
-        List<ExamenOrdenadoRequest> examenes) {
+        List<@Valid ExamenOrdenadoRequest> examenes) {
 }
