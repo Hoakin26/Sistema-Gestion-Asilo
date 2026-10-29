@@ -9,7 +9,10 @@ import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,6 +27,7 @@ import app.cabezadealgodon.com.gestionasilobackend.models.EstadoPagoServicio;
 import app.cabezadealgodon.com.gestionasilobackend.models.TipoServicio;
 import app.cabezadealgodon.com.gestionasilobackend.models.VisitaMedica;
 import app.cabezadealgodon.com.gestionasilobackend.repository.CargoServicioRepository;
+import app.cabezadealgodon.com.gestionasilobackend.repository.CargoServicioRepository.NetoDeCita;
 
 /**
  * YS-142. Las citas que el familiar todavía no termina de pagar (HU-21,
@@ -63,33 +67,63 @@ public class ServicioPendienteService {
      * fecha cae entre {@code desde} y {@code hasta}, las dos incluidas. Sin
      * paciente, de todos; sin fechas, de cualquier fecha. De la más antigua a
      * la más reciente: las deudas más viejas primero.
+     *
+     * <p>
+     * OBS-01. Por páginas, pero los totales son de todas las citas del filtro.
+     * Para eso se calcula primero, con los cargos ya sumados por la base, cuánto
+     * debe cada cita; y solo de las de la página se cargan los cargos para
+     * armar la fila. Las dos cuentas usan el mismo reparto, así que la fila y
+     * los totales dicen lo mismo.
      */
     @Transactional(readOnly = true)
-    public ServiciosPendientesResponse pendientes(String paciente, LocalDate desde, LocalDate hasta) {
+    public ServiciosPendientesResponse pendientes(String paciente, LocalDate desde, LocalDate hasta,
+            Pageable paginado) {
         if (desde != null && hasta != null && hasta.isBefore(desde)) {
             throw new CampoInvalidoException("hasta", "La fecha final no puede ser anterior a la inicial");
         }
         String patron = PatronBusqueda.contiene(PatronBusqueda.normalizado(paciente));
-        List<CargoServicio> cargos = cargoRepository.deCitasEntre(
+        Map<Long, List<NetoDeCita>> porVisita = new LinkedHashMap<>();
+        cargoRepository.netosDeCitasEntre(
                 desde == null ? SIN_INICIO : desde.atStartOfDay(),
                 hasta == null ? SIN_FIN : hasta.plusDays(1).atStartOfDay(),
-                patron);
+                patron)
+                .forEach(neto -> porVisita.computeIfAbsent(neto.getVisitaId(), id -> new ArrayList<>()).add(neto));
 
-        Map<Long, List<CargoServicio>> porVisita = new LinkedHashMap<>();
-        cargos.forEach(cargo -> porVisita.computeIfAbsent(cargo.getVisita().getId(), id -> new ArrayList<>()).add(cargo));
-
-        LocalDate hoy = LocalDate.now();
-        List<CitaPendienteResponse> citas = new ArrayList<>();
-        for (List<CargoServicio> deLaVisita : porVisita.values()) {
-            CitaPendienteResponse cita = pendiente(deLaVisita, hoy);
-            if (cita != null) {
-                citas.add(cita);
+        List<Long> pendientes = new ArrayList<>();
+        BigDecimal montoTotal = CERO;
+        BigDecimal montoPagado = CERO;
+        BigDecimal saldoPendiente = CERO;
+        for (Map.Entry<Long, List<NetoDeCita>> cita : porVisita.entrySet()) {
+            BigDecimal total = suma(cita.getValue().stream().map(NetoDeCita::getNeto).toList());
+            BigDecimal pagado = suma(cita.getValue().stream()
+                    .map(neto -> neto.getCuentaId() == null ? CERO
+                            : pagadoDe(neto.getSaldoCuenta(), neto.getPagadoCuenta(), neto.getTotalCuenta(),
+                                    neto.getNeto().setScale(2)))
+                    .toList());
+            BigDecimal saldo = total.subtract(pagado).max(BigDecimal.ZERO).setScale(2);
+            if (saldo.signum() > 0) {
+                pendientes.add(cita.getKey());
+                montoTotal = montoTotal.add(total);
+                montoPagado = montoPagado.add(pagado);
+                saldoPendiente = saldoPendiente.add(saldo);
             }
         }
-        return new ServiciosPendientesResponse(citas,
-                suma(citas.stream().map(CitaPendienteResponse::montoTotal).toList()),
-                suma(citas.stream().map(CitaPendienteResponse::montoPagado).toList()),
-                suma(citas.stream().map(CitaPendienteResponse::saldo).toList()));
+
+        int inicio = (int) Math.min(paginado.getOffset(), pendientes.size());
+        List<Long> enLaPagina = pendientes.subList(inicio, Math.min(inicio + paginado.getPageSize(), pendientes.size()));
+        Map<Long, List<CargoServicio>> cargosPorVisita = new LinkedHashMap<>();
+        if (!enLaPagina.isEmpty()) {
+            cargoRepository.deVisitas(enLaPagina).forEach(cargo -> cargosPorVisita
+                    .computeIfAbsent(cargo.getVisita().getId(), id -> new ArrayList<>()).add(cargo));
+        }
+        LocalDate hoy = LocalDate.now();
+        // Si entre las dos consultas alguien terminó de pagar, la cita ya no es fila.
+        List<CitaPendienteResponse> citas = cargosPorVisita.values().stream()
+                .map(cargos -> pendiente(cargos, hoy))
+                .filter(Objects::nonNull)
+                .toList();
+        return new ServiciosPendientesResponse(new PageImpl<>(citas, paginado, pendientes.size()), montoTotal,
+                montoPagado, saldoPendiente);
     }
 
     /** Una visita como fila del listado; {@code null} si ya está pagada completa. */
@@ -138,14 +172,20 @@ public class ServicioPendienteService {
      * todo; una sin pagos, nada.
      */
     static BigDecimal pagadoDe(CuentaMensual cuenta, BigDecimal neto) {
-        if (cuenta.getSaldo().signum() == 0) {
+        return pagadoDe(cuenta.getSaldo(), cuenta.getTotalPagado(), cuenta.getTotalAPagar(), neto);
+    }
+
+    /** OBS-01. Lo mismo con los montos de la cuenta sueltos, como llegan de {@link NetoDeCita}. */
+    private static BigDecimal pagadoDe(BigDecimal saldo, BigDecimal totalPagado, BigDecimal totalAPagar,
+            BigDecimal neto) {
+        if (saldo.signum() == 0) {
             return neto;
         }
-        if (cuenta.getTotalPagado().signum() == 0 || cuenta.getTotalAPagar().signum() == 0) {
+        if (totalPagado.signum() == 0 || totalAPagar.signum() == 0) {
             return CERO;
         }
-        return neto.multiply(cuenta.getTotalPagado())
-                .divide(cuenta.getTotalAPagar(), 2, RoundingMode.HALF_UP)
+        return neto.multiply(totalPagado)
+                .divide(totalAPagar, 2, RoundingMode.HALF_UP)
                 .min(neto);
     }
 

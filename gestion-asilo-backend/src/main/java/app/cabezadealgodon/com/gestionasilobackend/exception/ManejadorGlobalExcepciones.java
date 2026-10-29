@@ -4,20 +4,25 @@ import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+import org.apache.catalina.connector.ClientAbortException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.core.PropertyReferenceException;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
+import org.springframework.transaction.CannotCreateTransactionException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
@@ -244,6 +249,20 @@ public class ManejadorGlobalExcepciones {
     }
 
     /**
+     * DEF-03. La base de datos no responde: 503 con un mensaje claro, en vez del
+     * 500 genérico. Advertencia y no error: la causa está fuera del sistema.
+     */
+    @ExceptionHandler({ CannotCreateTransactionException.class, DataAccessResourceFailureException.class })
+    public ResponseEntity<ErrorResponse> manejarBaseNoDisponible(Exception ex, HttpServletRequest peticion) {
+        log.warn("Base de datos no disponible en {} {}: {}", peticion.getMethod(), peticion.getRequestURI(),
+                ex.getMessage());
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .header(HttpHeaders.RETRY_AFTER, "60")
+                .body(ErrorResponse.de(HttpStatus.SERVICE_UNAVAILABLE, BaseDeDatosNoDisponible.MENSAJE,
+                        peticion.getRequestURI()));
+    }
+
+    /**
      * YS-172. La red de seguridad: lo que ningún método de arriba atiende.
      *
      * <p>
@@ -264,6 +283,13 @@ public class ManejadorGlobalExcepciones {
      */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> manejarNoPrevisto(Exception ex, HttpServletRequest peticion) {
+        if (clienteDesconectado(ex)) {
+            log.debug("El cliente cortó la conexión en {} {}", peticion.getMethod(), peticion.getRequestURI());
+            return null;
+        }
+        if (BaseDeDatosNoDisponible.esLaCausa(ex)) {
+            return manejarBaseNoDisponible(ex, peticion);
+        }
         HttpStatus estado = HttpStatus.INTERNAL_SERVER_ERROR;
         ResponseEntity.BodyBuilder respuesta = ResponseEntity.status(estado);
         if (ex instanceof org.springframework.web.ErrorResponse conEstado) {
@@ -291,5 +317,37 @@ public class ManejadorGlobalExcepciones {
             case METHOD_NOT_ALLOWED -> "Esa operación no está disponible en esta dirección";
             default -> estado.is4xxClientError() ? "No se pudo procesar la petición" : MENSAJE_INESPERADO;
         };
+    }
+
+    /**
+     * DEF-01. Demasiados inicios de sesión fallidos: 429, con Retry-After en
+     * segundos. La pantalla de inicio de sesión ya muestra el mensaje del backend.
+     */
+    @ExceptionHandler(DemasiadosIntentosException.class)
+    public ResponseEntity<ErrorResponse> manejarDemasiadosIntentos(DemasiadosIntentosException ex,
+            HttpServletRequest peticion) {
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .header(HttpHeaders.RETRY_AFTER, String.valueOf(ex.getEspera().toSeconds()))
+                .body(ErrorResponse.de(HttpStatus.TOO_MANY_REQUESTS, ex.getMessage(), peticion.getRequestURI()));
+    }
+
+    /**
+     * OBS-02. El navegador cortó la conexión a mitad de la respuesta: cerró la
+     * pestaña, cambió de pantalla o canceló la petición. No hay a quién
+     * responderle y no es una falla del sistema, así que queda como depuración.
+     */
+    @ExceptionHandler({ AsyncRequestNotUsableException.class, ClientAbortException.class })
+    public void manejarClienteDesconectado(HttpServletRequest peticion) {
+        log.debug("El cliente cortó la conexión en {} {}", peticion.getMethod(), peticion.getRequestURI());
+    }
+
+    /** OBS-02. Si la falla, o alguna de sus causas, es que el cliente cortó la conexión. */
+    private static boolean clienteDesconectado(Throwable falla) {
+        for (Throwable actual = falla; actual != null; actual = actual.getCause()) {
+            if (actual instanceof AsyncRequestNotUsableException || actual instanceof ClientAbortException) {
+                return true;
+            }
+        }
+        return false;
     }
 }

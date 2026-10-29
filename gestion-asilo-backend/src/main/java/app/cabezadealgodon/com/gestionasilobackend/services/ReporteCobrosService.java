@@ -5,7 +5,6 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
-import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -23,13 +22,12 @@ import app.cabezadealgodon.com.gestionasilobackend.dto.ReporteCobrosResponse.Tot
 import app.cabezadealgodon.com.gestionasilobackend.dto.ResumenPersona;
 import app.cabezadealgodon.com.gestionasilobackend.exception.CampoInvalidoException;
 import app.cabezadealgodon.com.gestionasilobackend.exception.RecursoNoEncontradoException;
-import app.cabezadealgodon.com.gestionasilobackend.models.CargoServicio;
 import app.cabezadealgodon.com.gestionasilobackend.models.CuentaMensual;
 import app.cabezadealgodon.com.gestionasilobackend.models.FormaPago;
 import app.cabezadealgodon.com.gestionasilobackend.models.Interno;
 import app.cabezadealgodon.com.gestionasilobackend.models.Pago;
-import app.cabezadealgodon.com.gestionasilobackend.models.TipoServicio;
 import app.cabezadealgodon.com.gestionasilobackend.repository.CargoServicioRepository;
+import app.cabezadealgodon.com.gestionasilobackend.repository.CargoServicioRepository.TotalDeCuenta;
 import app.cabezadealgodon.com.gestionasilobackend.repository.InternoRepository;
 import app.cabezadealgodon.com.gestionasilobackend.repository.PagoRepository;
 
@@ -81,10 +79,17 @@ public class ReporteCobrosService {
         // Las cuentas que cubren esos pagos, cada una con sus cargos por tipo.
         Map<Long, CuentaMensual> cuentas = new LinkedHashMap<>();
         pagos.forEach(pago -> cuentas.putIfAbsent(pago.getCuenta().getId(), pago.getCuenta()));
-        Map<Long, List<CargoServicio>> cargosPorCuenta = new LinkedHashMap<>();
+        // DEF-02. Los gastos médicos de esas cuentas, ya sumados por tipo en una sola
+        // consulta. En el orden de TipoServicio, como antes.
+        Map<Long, List<GastoMedico>> gastosPorCuenta = new LinkedHashMap<>();
         if (!cuentas.isEmpty()) {
-            cargoRepository.findByCuentaIdIn(cuentas.keySet()).forEach(cargo -> cargosPorCuenta
-                    .computeIfAbsent(cargo.getCuenta().getId(), id -> new ArrayList<>()).add(cargo));
+            cargoRepository.totalesPorCuenta(cuentas.keySet()).stream()
+                    .sorted(Comparator.comparing(TotalDeCuenta::getTipo))
+                    .forEach(total -> gastosPorCuenta
+                            .computeIfAbsent(total.getCuentaId(), id -> new ArrayList<>())
+                            .add(new GastoMedico(total.getTipo(), Math.toIntExact(total.getCantidad()),
+                                    total.getOriginal().setScale(2), total.getDescuento().setScale(2),
+                                    total.getNeto().setScale(2))));
         }
 
         Map<Long, List<Pago>> pagosPorPaciente = new LinkedHashMap<>();
@@ -105,7 +110,7 @@ public class ReporteCobrosService {
                             .add(pago));
                     List<CuentaCobrada> cobradas = porCuenta.entrySet().stream()
                             .map(grupo -> cuenta(cuentas.get(grupo.getKey()),
-                                    cargosPorCuenta.getOrDefault(grupo.getKey(), List.of()), suma(grupo.getValue()), hoy))
+                                    gastosPorCuenta.getOrDefault(grupo.getKey(), List.of()), suma(grupo.getValue()), hoy))
                             .sorted(Comparator.comparing(CuentaCobrada::periodo))
                             .toList();
                     return new PacienteCobros(paciente, suyos.stream().map(ReporteCobrosService::pago).toList(),
@@ -123,16 +128,8 @@ public class ReporteCobrosService {
     }
 
     /** Una cuenta con sus gastos médicos por tipo, lo cobrado de ella en el período y su estado de hoy. */
-    private static CuentaCobrada cuenta(CuentaMensual cuenta, List<CargoServicio> cargos, BigDecimal cobrado,
+    private static CuentaCobrada cuenta(CuentaMensual cuenta, List<GastoMedico> gastos, BigDecimal cobrado,
             LocalDate hoy) {
-        Map<TipoServicio, List<CargoServicio>> porTipo = new EnumMap<>(TipoServicio.class);
-        cargos.forEach(cargo -> porTipo.computeIfAbsent(cargo.getTipo(), tipo -> new ArrayList<>()).add(cargo));
-        List<GastoMedico> gastos = porTipo.entrySet().stream()
-                .map(grupo -> new GastoMedico(grupo.getKey(), grupo.getValue().size(),
-                        sumar(grupo.getValue(), CargoServicio::getMontoOriginal),
-                        sumar(grupo.getValue(), CargoServicio::getDescuento),
-                        sumar(grupo.getValue(), CargoServicio::getMontoNeto)))
-                .toList();
         return new CuentaCobrada(cuenta.getId(), cuenta.getPeriodo(), cuenta.getFamiliar().getNombreCompleto(),
                 cuenta.getCuotaBase(), gastos, cuenta.getTotalDescuentos(), cuenta.getTotalAPagar(), cobrado,
                 cuenta.getTotalPagado(), cuenta.getSaldo(), cuenta.estadoAl(hoy));
