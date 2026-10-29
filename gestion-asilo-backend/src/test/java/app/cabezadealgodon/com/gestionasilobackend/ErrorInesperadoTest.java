@@ -8,6 +8,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 
+import org.apache.catalina.connector.ClientAbortException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -122,6 +123,21 @@ class ErrorInesperadoTest extends PruebaConBaseDeDatos {
         assertThat(metodo.headers().firstValue("Allow")).isPresent();
     }
 
+    /**
+     * OBS-02. Con la desconexión sola y envuelta en otra excepción: la primera
+     * la toma su propio manejador; la segunda llega a la red de seguridad.
+     */
+    @Test
+    @DisplayName("Un cliente que corta la conexión queda como depuración, no como «Error no previsto» (OBS-02)")
+    void clienteDesconectado(CapturedOutput salida) throws Exception {
+        String token = token();
+
+        pedir("GET", "/api/pruebas-de-error/cliente-desconectado", token);
+        pedir("GET", "/api/pruebas-de-error/cliente-desconectado-envuelto", token);
+
+        assertThat(salida.getAll()).doesNotContain("Error no previsto en GET /api/pruebas-de-error/cliente-desconectado");
+    }
+
     @Test
     @DisplayName("El 401 queda para la sesión que de verdad falta: sin token o con uno inválido")
     void elCuatrocientosUnoQuedaParaLaSesion() throws Exception {
@@ -162,6 +178,21 @@ class ErrorInesperadoTest extends PruebaConBaseDeDatos {
         @SoloMedicoGeneral
         public void envioDeError(HttpServletResponse respuesta) throws IOException {
             respuesta.sendError(HttpStatus.SERVICE_UNAVAILABLE.value());
+        }
+
+        /** OBS-02. Lo que entrega Tomcat cuando el navegador cerró la conexión a mitad de la respuesta. */
+        @GetMapping("/cliente-desconectado")
+        @SoloMedicoGeneral
+        public String clienteDesconectado() throws IOException {
+            throw new ClientAbortException(new IOException("Broken pipe"));
+        }
+
+        /** OBS-02. La misma desconexión, envuelta en otra excepción. */
+        @GetMapping("/cliente-desconectado-envuelto")
+        @SoloMedicoGeneral
+        public String clienteDesconectadoEnvuelto() {
+            throw new IllegalStateException("Al escribir la respuesta",
+                    new ClientAbortException(new IOException("Broken pipe")));
         }
     }
 

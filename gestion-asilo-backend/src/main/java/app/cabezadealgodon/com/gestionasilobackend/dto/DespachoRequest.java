@@ -19,6 +19,5 @@ import jakarta.validation.constraints.Size;
 public record DespachoRequest(
         @NotNull(message = "Indique qué medicamentos se entregaron")
         @Size(max = 30, message = "Una receta no tiene más de 30 medicamentos")
-        @Valid
-        List<MedicamentoEntregadoRequest> entregados) {
+        List<@Valid MedicamentoEntregadoRequest> entregados) {
 }
